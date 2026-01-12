@@ -1,0 +1,281 @@
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Rajdhani:wght@300;400;500;600;700&display=swap');
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* 80s Neon Colors */
+  --color-neon-cyan: #00f5ff;
+  --color-neon-magenta: #ff00ff;
+  --color-neon-purple: #b026ff;
+  --color-neon-pink: #ff2a6d;
+  --color-neon-yellow: #ffff00;
+  --color-neon-green: #39ff14;
+
+  /* Fonts */
+  --font-display: 'Orbitron', sans-serif;
+  --font-body: 'Rajdhani', sans-serif;
+}
+
+:root {
+  --radius: 0.5rem;
+  --background: #0a0a0f;
+  --foreground: #e0e0ff;
+  --card: rgba(20, 10, 40, 0.8);
+  --card-foreground: #e0e0ff;
+  --popover: #1a0a2e;
+  --popover-foreground: #e0e0ff;
+  --primary: #00f5ff;
+  --primary-foreground: #0a0a0f;
+  --secondary: #b026ff;
+  --secondary-foreground: #ffffff;
+  --muted: #1a1a2e;
+  --muted-foreground: #8888aa;
+  --accent: #ff00ff;
+  --accent-foreground: #ffffff;
+  --destructive: #ff2a6d;
+  --border: rgba(0, 245, 255, 0.2);
+  --input: rgba(0, 245, 255, 0.1);
+  --ring: #00f5ff;
+  --chart-1: #00f5ff;
+  --chart-2: #ff00ff;
+  --chart-3: #b026ff;
+  --chart-4: #39ff14;
+  --chart-5: #ff2a6d;
+  --sidebar: #0a0a1a;
+  --sidebar-foreground: #e0e0ff;
+  --sidebar-primary: #00f5ff;
+  --sidebar-primary-foreground: #0a0a0f;
+  --sidebar-accent: #b026ff;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(0, 245, 255, 0.2);
+  --sidebar-ring: #00f5ff;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    font-family: var(--font-body);
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    background:
+      linear-gradient(180deg, #0a0a0f 0%, #1a0a2e 50%, #0a0a0f 100%),
+      repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0, 245, 255, 0.03) 2px,
+        rgba(0, 245, 255, 0.03) 4px
+      );
+    background-attachment: fixed;
+    min-height: 100vh;
+  }
+}
+
+/* Grid background effect */
+.grid-bg {
+  background-image:
+    linear-gradient(rgba(0, 245, 255, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 245, 255, 0.1) 1px, transparent 1px);
+  background-size: 50px 50px;
+  background-position: center center;
+}
+
+/* Neon glow effects */
+.neon-text {
+  text-shadow:
+    0 0 5px currentColor,
+    0 0 10px currentColor,
+    0 0 20px currentColor,
+    0 0 40px currentColor;
+}
+
+.neon-text-cyan {
+  color: #00f5ff;
+  text-shadow:
+    0 0 5px #00f5ff,
+    0 0 10px #00f5ff,
+    0 0 20px #00f5ff,
+    0 0 40px #00f5ff;
+}
+
+.neon-text-magenta {
+  color: #ff00ff;
+  text-shadow:
+    0 0 5px #ff00ff,
+    0 0 10px #ff00ff,
+    0 0 20px #ff00ff,
+    0 0 40px #ff00ff;
+}
+
+.neon-text-purple {
+  color: #b026ff;
+  text-shadow:
+    0 0 5px #b026ff,
+    0 0 10px #b026ff,
+    0 0 20px #b026ff,
+    0 0 40px #b026ff;
+}
+
+.neon-border {
+  box-shadow:
+    0 0 5px currentColor,
+    0 0 10px currentColor,
+    inset 0 0 5px currentColor;
+}
+
+.neon-border-cyan {
+  border-color: #00f5ff;
+  box-shadow:
+    0 0 5px #00f5ff,
+    0 0 10px #00f5ff,
+    inset 0 0 5px rgba(0, 245, 255, 0.2);
+}
+
+.neon-border-magenta {
+  border-color: #ff00ff;
+  box-shadow:
+    0 0 5px #ff00ff,
+    0 0 10px #ff00ff,
+    inset 0 0 5px rgba(255, 0, 255, 0.2);
+}
+
+/* Scanline effect */
+.scanlines::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.15),
+    rgba(0, 0, 0, 0.15) 1px,
+    transparent 1px,
+    transparent 2px
+  );
+  pointer-events: none;
+}
+
+/* Retro button style */
+.retro-btn {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  border: 2px solid;
+  transition: all 0.3s ease;
+}
+
+.retro-btn:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 0 10px currentColor,
+    0 0 20px currentColor,
+    0 0 30px currentColor;
+}
+
+/* Card hover effects */
+.retro-card {
+  background: linear-gradient(135deg, rgba(20, 10, 40, 0.9) 0%, rgba(10, 5, 30, 0.9) 100%);
+  border: 1px solid rgba(0, 245, 255, 0.3);
+  transition: all 0.3s ease;
+}
+
+.retro-card:hover {
+  border-color: #00f5ff;
+  box-shadow:
+    0 0 10px rgba(0, 245, 255, 0.3),
+    0 0 20px rgba(0, 245, 255, 0.2),
+    inset 0 0 20px rgba(0, 245, 255, 0.05);
+  transform: translateY(-4px);
+}
+
+/* Progress bar styles */
+.progress-yes {
+  background: linear-gradient(90deg, #39ff14, #00f5ff);
+  box-shadow: 0 0 10px #39ff14;
+}
+
+.progress-no {
+  background: linear-gradient(90deg, #ff2a6d, #ff00ff);
+  box-shadow: 0 0 10px #ff2a6d;
+}
+
+/* Flicker animation for neon effect */
+@keyframes flicker {
+  0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% {
+    opacity: 1;
+  }
+  20%, 24%, 55% {
+    opacity: 0.8;
+  }
+}
+
+.flicker {
+  animation: flicker 3s infinite;
+}
+
+/* Pulse glow animation */
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow:
+      0 0 5px currentColor,
+      0 0 10px currentColor;
+  }
+  50% {
+    box-shadow:
+      0 0 10px currentColor,
+      0 0 20px currentColor,
+      0 0 30px currentColor;
+  }
+}
+
+.pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
