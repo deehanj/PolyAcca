@@ -26,11 +26,11 @@ bootstrap:
 	cd backend && npx cdk bootstrap
 
 # Deploy the entire application (builds frontend first, then deploys via CDK)
-deploy: bootstrap build build-cdk
+deploy: build build-cdk bootstrap
 	cd backend && npx cdk deploy --all --require-approval never
 
 # Deploy with approval prompt
-deploy-interactive: bootstrap build build-cdk
+deploy-interactive: build build-cdk bootstrap
 	cd backend && npx cdk deploy --all
 
 # Synthesize CDK stack (useful for reviewing changes)
