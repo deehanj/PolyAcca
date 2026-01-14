@@ -1,17 +1,30 @@
-@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Rajdhani:wght@300;400;500;600;700&display=swap');
+@import "@fontsource/geist-sans/400.css";
+@import "@fontsource/geist-sans/500.css";
+@import "@fontsource/geist-sans/600.css";
+@import "@fontsource/geist-sans/700.css";
+@import "@fontsource/geist-mono/400.css";
+@import "@fontsource/geist-mono/500.css";
 @import "tailwindcss";
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
 
+/* ============================================
+   DESIGN SYSTEM TOKENS - Apex Style
+   ============================================ */
+
 @theme inline {
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --radius-2xl: calc(var(--radius) + 8px);
-  --radius-3xl: calc(var(--radius) + 12px);
-  --radius-4xl: calc(var(--radius) + 16px);
+  /* Border Radius Scale */
+  --radius: 0.5rem;
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.5rem;
+  --radius-3xl: 2rem;
+  --radius-4xl: 2.5rem;
+
+  /* Color mappings for Tailwind */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -44,53 +57,101 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
-  /* 80s Neon Colors */
-  --color-neon-cyan: #00f5ff;
-  --color-neon-magenta: #ff00ff;
-  --color-neon-purple: #b026ff;
-  --color-neon-pink: #ff2a6d;
-  --color-neon-yellow: #ffff00;
-  --color-neon-green: #39ff14;
+  /* Semantic colors */
+  --color-success: #22c55e;
+  --color-success-foreground: #052e16;
+  --color-warning: #eab308;
+  --color-warning-foreground: #422006;
+  --color-error: #ef4444;
+  --color-error-foreground: #450a0a;
+  --color-info: #9de3f1;
 
   /* Fonts */
-  --font-display: 'Orbitron', sans-serif;
-  --font-body: 'Rajdhani', sans-serif;
+  --font-sans: "Geist Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 }
 
 :root {
-  --radius: 0.5rem;
-  --background: #0a0a0f;
-  --foreground: #e0e0ff;
-  --card: rgba(20, 10, 40, 0.8);
-  --card-foreground: #e0e0ff;
-  --popover: #1a0a2e;
-  --popover-foreground: #e0e0ff;
-  --primary: #00f5ff;
-  --primary-foreground: #0a0a0f;
-  --secondary: #b026ff;
-  --secondary-foreground: #ffffff;
-  --muted: #1a1a2e;
-  --muted-foreground: #8888aa;
-  --accent: #ff00ff;
-  --accent-foreground: #ffffff;
-  --destructive: #ff2a6d;
-  --border: rgba(0, 245, 255, 0.2);
-  --input: rgba(0, 245, 255, 0.1);
-  --ring: #00f5ff;
-  --chart-1: #00f5ff;
-  --chart-2: #ff00ff;
-  --chart-3: #b026ff;
-  --chart-4: #39ff14;
-  --chart-5: #ff2a6d;
-  --sidebar: #0a0a1a;
-  --sidebar-foreground: #e0e0ff;
-  --sidebar-primary: #00f5ff;
-  --sidebar-primary-foreground: #0a0a0f;
-  --sidebar-accent: #b026ff;
-  --sidebar-accent-foreground: #ffffff;
-  --sidebar-border: rgba(0, 245, 255, 0.2);
-  --sidebar-ring: #00f5ff;
+  /* ========== BACKGROUNDS ========== */
+  --background: #1a1a1a;
+  --background-alt: #141414;
+  --background-elevated: #242424;
+  --background-hover: #2a2a2a;
+
+  /* ========== FOREGROUND / TEXT ========== */
+  --foreground: #fafafa;
+  --foreground-muted: #a1a1a1;
+  --foreground-subtle: #737373;
+
+  /* ========== ACCENT (Cyan) ========== */
+  --accent: #9de3f1;
+  --accent-hover: #b4eaf5;
+  --accent-muted: rgba(157, 227, 241, 0.2);
+  --accent-foreground: #0a0a0a;
+
+  /* ========== SEMANTIC MAPPINGS ========== */
+  --card: #242424;
+  --card-foreground: #fafafa;
+  --popover: #242424;
+  --popover-foreground: #fafafa;
+  --primary: #9de3f1;
+  --primary-foreground: #0a0a0a;
+  --secondary: #2a2a2a;
+  --secondary-foreground: #fafafa;
+  --muted: #2a2a2a;
+  --muted-foreground: #a1a1a1;
+  --accent-foreground: #0a0a0a;
+  --destructive: #ef4444;
+
+  /* ========== BORDERS ========== */
+  --border: #2a2a2a;
+  --border-hover: #3a3a3a;
+  --border-accent: #9de3f1;
+  --input: #2a2a2a;
+  --ring: #9de3f1;
+
+  /* ========== CHART COLORS ========== */
+  --chart-1: #9de3f1;
+  --chart-2: #22c55e;
+  --chart-3: #eab308;
+  --chart-4: #f97316;
+  --chart-5: #8b5cf6;
+
+  /* ========== SIDEBAR ========== */
+  --sidebar: #141414;
+  --sidebar-foreground: #fafafa;
+  --sidebar-primary: #9de3f1;
+  --sidebar-primary-foreground: #0a0a0a;
+  --sidebar-accent: #242424;
+  --sidebar-accent-foreground: #fafafa;
+  --sidebar-border: #2a2a2a;
+  --sidebar-ring: #9de3f1;
+
+  /* ========== SHADOWS ========== */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.4);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.4);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.4), 0 4px 6px -4px rgb(0 0 0 / 0.4);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.4), 0 8px 10px -6px rgb(0 0 0 / 0.4);
+
+  /* ========== GLOW EFFECTS ========== */
+  --glow-sm: 0 0 10px rgb(157 227 241 / 0.2);
+  --glow: 0 0 20px rgb(157 227 241 / 0.3);
+  --glow-lg: 0 0 40px rgb(157 227 241 / 0.4);
+
+  /* ========== TRANSITIONS ========== */
+  --duration-fast: 100ms;
+  --duration-normal: 200ms;
+  --duration-slow: 300ms;
+  --ease-default: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
 }
+
+/* ============================================
+   BASE STYLES
+   ============================================ */
 
 @layer base {
   * {
@@ -98,184 +159,101 @@
   }
 
   html {
-    font-family: var(--font-body);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   body {
     @apply bg-background text-foreground;
-    background:
-      linear-gradient(180deg, #0a0a0f 0%, #1a0a2e 50%, #0a0a0f 100%),
-      repeating-linear-gradient(
-        0deg,
-        transparent,
-        transparent 2px,
-        rgba(0, 245, 255, 0.03) 2px,
-        rgba(0, 245, 255, 0.03) 4px
-      );
-    background-attachment: fixed;
     min-height: 100vh;
+  }
+
+  /* Selection styling */
+  ::selection {
+    background: rgba(157, 227, 241, 0.3);
+    color: #fafafa;
+  }
+
+  /* Focus visible styling */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  /* Smooth scrolling */
+  html {
+    scroll-behavior: smooth;
   }
 }
 
-/* Grid background effect */
-.grid-bg {
-  background-image:
-    linear-gradient(rgba(0, 245, 255, 0.1) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 245, 255, 0.1) 1px, transparent 1px);
-  background-size: 50px 50px;
-  background-position: center center;
+/* ============================================
+   UTILITY CLASSES
+   ============================================ */
+
+/* Glow effects */
+.glow {
+  box-shadow: var(--glow);
 }
 
-/* Neon glow effects */
-.neon-text {
-  text-shadow:
-    0 0 5px currentColor,
-    0 0 10px currentColor,
-    0 0 20px currentColor,
-    0 0 40px currentColor;
+.glow-sm {
+  box-shadow: var(--glow-sm);
 }
 
-.neon-text-cyan {
-  color: #00f5ff;
-  text-shadow:
-    0 0 5px #00f5ff,
-    0 0 10px #00f5ff,
-    0 0 20px #00f5ff,
-    0 0 40px #00f5ff;
+.glow-lg {
+  box-shadow: var(--glow-lg);
 }
 
-.neon-text-magenta {
-  color: #ff00ff;
-  text-shadow:
-    0 0 5px #ff00ff,
-    0 0 10px #ff00ff,
-    0 0 20px #ff00ff,
-    0 0 40px #ff00ff;
+.text-glow {
+  text-shadow: 0 0 20px rgb(157 227 241 / 0.5);
 }
 
-.neon-text-purple {
-  color: #b026ff;
-  text-shadow:
-    0 0 5px #b026ff,
-    0 0 10px #b026ff,
-    0 0 20px #b026ff,
-    0 0 40px #b026ff;
+/* Glass effect */
+.glass {
+  backdrop-filter: blur(12px);
+  background: rgba(36, 36, 36, 0.8);
 }
 
-.neon-border {
-  box-shadow:
-    0 0 5px currentColor,
-    0 0 10px currentColor,
-    inset 0 0 5px currentColor;
-}
-
-.neon-border-cyan {
-  border-color: #00f5ff;
-  box-shadow:
-    0 0 5px #00f5ff,
-    0 0 10px #00f5ff,
-    inset 0 0 5px rgba(0, 245, 255, 0.2);
-}
-
-.neon-border-magenta {
-  border-color: #ff00ff;
-  box-shadow:
-    0 0 5px #ff00ff,
-    0 0 10px #ff00ff,
-    inset 0 0 5px rgba(255, 0, 255, 0.2);
-}
-
-/* Scanline effect */
-.scanlines::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: repeating-linear-gradient(
-    0deg,
-    rgba(0, 0, 0, 0.15),
-    rgba(0, 0, 0, 0.15) 1px,
-    transparent 1px,
-    transparent 2px
-  );
-  pointer-events: none;
-}
-
-/* Retro button style */
-.retro-btn {
-  font-family: var(--font-display);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  border: 2px solid;
-  transition: all 0.3s ease;
-}
-
-.retro-btn:hover {
-  transform: translateY(-2px);
-  box-shadow:
-    0 0 10px currentColor,
-    0 0 20px currentColor,
-    0 0 30px currentColor;
-}
-
-/* Card hover effects */
-.retro-card {
-  background: linear-gradient(135deg, rgba(20, 10, 40, 0.9) 0%, rgba(10, 5, 30, 0.9) 100%);
-  border: 1px solid rgba(0, 245, 255, 0.3);
-  transition: all 0.3s ease;
-}
-
-.retro-card:hover {
-  border-color: #00f5ff;
-  box-shadow:
-    0 0 10px rgba(0, 245, 255, 0.3),
-    0 0 20px rgba(0, 245, 255, 0.2),
-    inset 0 0 20px rgba(0, 245, 255, 0.05);
-  transform: translateY(-4px);
+/* Gradient text */
+.text-gradient-accent {
+  background: linear-gradient(135deg, #9de3f1, #b4eaf5);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 /* Progress bar styles */
 .progress-yes {
-  background: linear-gradient(90deg, #39ff14, #00f5ff);
-  box-shadow: 0 0 10px #39ff14;
+  background: linear-gradient(90deg, #22c55e, #9de3f1);
+  box-shadow: 0 0 10px rgb(34 197 94 / 0.3);
 }
 
 .progress-no {
-  background: linear-gradient(90deg, #ff2a6d, #ff00ff);
-  box-shadow: 0 0 10px #ff2a6d;
+  background: linear-gradient(90deg, #ef4444, #f97316);
+  box-shadow: 0 0 10px rgb(239 68 68 / 0.3);
 }
 
-/* Flicker animation for neon effect */
-@keyframes flicker {
-  0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% {
-    opacity: 1;
-  }
-  20%, 24%, 55% {
-    opacity: 0.8;
-  }
+/* Card hover effect */
+.card-hover {
+  transition: all var(--duration-normal) var(--ease-default);
 }
 
-.flicker {
-  animation: flicker 3s infinite;
+.card-hover:hover {
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
 }
 
-/* Pulse glow animation */
-@keyframes pulse-glow {
-  0%, 100% {
-    box-shadow:
-      0 0 5px currentColor,
-      0 0 10px currentColor;
-  }
-  50% {
-    box-shadow:
-      0 0 10px currentColor,
-      0 0 20px currentColor,
-      0 0 30px currentColor;
-  }
+/* Button base transition */
+.btn-transition {
+  transition: all var(--duration-fast) var(--ease-default);
 }
 
-.pulse-glow {
-  animation: pulse-glow 2s ease-in-out infinite;
+/* Grid background (subtle) */
+.grid-bg {
+  background-image:
+    linear-gradient(rgba(157, 227, 241, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(157, 227, 241, 0.03) 1px, transparent 1px);
+  background-size: 50px 50px;
+  background-position: center center;
 }
