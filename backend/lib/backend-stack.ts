@@ -5,10 +5,16 @@ import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
 import * as s3deploy from 'aws-cdk-lib/aws-s3-deployment';
 import * as path from 'path';
+import { PolymarketSecrets } from './constructs/secrets';
 
 export class BackendStack extends cdk.Stack {
+  public readonly polymarketSecrets: PolymarketSecrets;
+
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
+
+    // Polymarket Secrets
+    this.polymarketSecrets = new PolymarketSecrets(this, 'PolymarketSecrets');
 
     // S3 bucket to host frontend assets
     const websiteBucket = new s3.Bucket(this, 'WebsiteBucket', {
