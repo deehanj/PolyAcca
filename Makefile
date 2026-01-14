@@ -1,4 +1,4 @@
-.PHONY: install install-fe install-be dev build bootstrap deploy clean update
+.PHONY: install install-fe install-be dev run-frontend build bootstrap deploy clean update
 
 # Install all dependencies
 install: install-fe install-be
@@ -11,6 +11,10 @@ install-be:
 
 # Run frontend development server
 dev:
+	cd frontend && npm run dev
+
+# Alias for dev
+run-frontend:
 	cd frontend && npm run dev
 
 # Build frontend for production

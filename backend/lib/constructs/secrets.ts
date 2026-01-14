@@ -1,33 +1,53 @@
 import { Construct } from 'constructs';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
+import * as cdk from 'aws-cdk-lib/core';
 
-export interface PolymarketSecretsProps {
+export interface SecretsConstructProps {
   /**
-   * Optional prefix for the secret name
+   * Optional prefix for secret names
+   * @default 'polyacca'
    */
   secretNamePrefix?: string;
 }
 
-export class PolymarketSecrets extends Construct {
-  public readonly builderSecret: secretsmanager.Secret;
+/**
+ * Platform-level secrets for PolyAcca
+ *
+ * Note: User-level Polymarket credentials are stored per-user in DynamoDB,
+ * encrypted with KMS. This construct only handles platform secrets.
+ */
+export class SecretsConstruct extends Construct {
+  /**
+   * JWT signing secret for authentication tokens
+   */
+  public readonly jwtSecret: secretsmanager.Secret;
 
-  constructor(scope: Construct, id: string, props?: PolymarketSecretsProps) {
+  /**
+   * ARN of the JWT secret (for Lambda environment variables)
+   */
+  public readonly jwtSecretArn: string;
+
+  constructor(scope: Construct, id: string, props?: SecretsConstructProps) {
     super(scope, id);
 
     const prefix = props?.secretNamePrefix ?? 'polyacca';
 
-    // Polymarket Builder Secrets
-    this.builderSecret = new secretsmanager.Secret(this, 'PolymarketBuilderSecret', {
-      secretName: `${prefix}/polymarket/builder`,
-      description: 'Polymarket builder API credentials',
+    // JWT Signing Secret - auto-generated secure random string
+    this.jwtSecret = new secretsmanager.Secret(this, 'JwtSecret', {
+      secretName: `${prefix}/jwt-secret`,
+      description: 'JWT signing secret for PolyAcca authentication',
       generateSecretString: {
-        secretStringTemplate: JSON.stringify({
-          apiKey: 'PLACEHOLDER_API_KEY',
-          apiSecret: 'PLACEHOLDER_API_SECRET',
-          passphrase: 'PLACEHOLDER_PASSPHRASE',
-        }),
-        generateStringKey: 'generatedField',
+        excludePunctuation: false,
+        passwordLength: 64,
       },
+    });
+
+    this.jwtSecretArn = this.jwtSecret.secretArn;
+
+    // Output for reference
+    new cdk.CfnOutput(this, 'JwtSecretArn', {
+      value: this.jwtSecretArn,
+      description: 'JWT Secret ARN',
     });
   }
 }

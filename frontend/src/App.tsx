@@ -1,18 +1,21 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { Web3Provider } from "./providers/Web3Provider";
 import { AccumulatorProvider } from "./context/AccumulatorContext";
 import { HomePage } from "./pages/Home";
 import { DesignPage } from "./pages/Design";
 
 function App() {
   return (
-    <BrowserRouter>
-      <AccumulatorProvider>
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/design" element={<DesignPage />} />
-        </Routes>
-      </AccumulatorProvider>
-    </BrowserRouter>
+    <Web3Provider>
+      <BrowserRouter>
+        <AccumulatorProvider>
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/design" element={<DesignPage />} />
+          </Routes>
+        </AccumulatorProvider>
+      </BrowserRouter>
+    </Web3Provider>
   );
 }
 

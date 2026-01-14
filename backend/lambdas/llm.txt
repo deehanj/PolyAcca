@@ -1,0 +1,74 @@
+# PolyAcca Lambdas
+
+## Overview
+Node.js Lambda functions for the PolyAcca accumulator betting platform.
+
+## Directory Structure
+
+```
+lambdas/
+├── shared/              # Shared utilities
+│   ├── types.ts         # TypeScript types for all entities and API
+│   ├── jwt.ts           # JWT sign/verify utilities
+│   ├── dynamo-client.ts # DynamoDB operations and entity helpers
+│   └── polymarket-client.ts # Polymarket CLOB integration
+├── auth/
+│   ├── nonce/           # Generate auth nonce
+│   └── verify/          # Verify wallet signature
+├── authorizer/          # API Gateway Lambda Authorizer
+├── api/
+│   ├── users/           # User profile & credentials
+│   ├── accumulators/    # Accumulator CRUD
+│   └── bets/            # Bet management
+└── processors/
+    ├── stream-handler/  # DynamoDB stream processor
+    └── bet-executor/    # Polymarket order execution
+```
+
+## Authentication Flow
+
+1. Frontend calls POST /auth/nonce with wallet address
+2. Backend generates random nonce, stores in DynamoDB (5 min TTL)
+3. Frontend signs message with wallet (MetaMask)
+4. Frontend calls POST /auth/verify with address + signature
+5. Backend verifies signature using ethers.verifyMessage()
+6. Backend issues JWT with wallet address as subject
+7. All protected routes require JWT in Authorization header
+
+## Accumulator Flow
+
+1. User creates accumulator with ordered list of bets
+2. First bet marked as READY, others as QUEUED
+3. Stream handler detects READY bet, invokes bet executor
+4. Bet executor places order on Polymarket CLOB
+5. When bet settles (external process updates status):
+   - WON: Calculate payout, mark next bet as READY
+   - LOST: Mark accumulator as LOST, cancel remaining bets
+6. Repeat until all bets complete or one loses
+
+## Polymarket Integration
+
+Uses L2 API credentials (apiKey, secret, passphrase) stored per-user.
+Credentials are encrypted with KMS before storage in DynamoDB.
+
+The @polymarket/clob-client package is used for order placement:
+- createAndPostOrder() for placing bets
+- GTC (Good Till Cancelled) order type
+- Market orders execute at target price
+
+## Environment Variables
+
+All Lambdas receive:
+- TABLE_NAME: DynamoDB table name
+- KMS_KEY_ARN: For credential encryption (where needed)
+- JWT_SECRET_ARN: For token signing/verification
+- NODE_OPTIONS: --enable-source-maps
+
+Stream Handler also receives:
+- BET_EXECUTOR_FUNCTION_ARN: For async invocation
+
+## Error Handling
+
+- API errors return { success: false, error: string }
+- Processor errors logged but don't fail the batch
+- Bet execution errors mark accumulator as LOST

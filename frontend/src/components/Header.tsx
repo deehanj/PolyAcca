@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Button } from "./ui/Button";
+import { AuthButton } from "./AuthButton";
 
 export function Header() {
   return (
@@ -24,9 +24,7 @@ export function Header() {
             >
               Design
             </Link>
-            <Button variant="outline" size="sm">
-              Connect Wallet
-            </Button>
+            <AuthButton />
           </div>
         </div>
       </div>

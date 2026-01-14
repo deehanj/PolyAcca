@@ -1,0 +1,65 @@
+# PolyAcca Backend - CDK Infrastructure
+
+## Overview
+PolyAcca is an accumulator betting platform for Polymarket. Users chain multiple bets together,
+with profits from winning bets automatically rolling into subsequent bets.
+
+## Architecture
+
+### Constructs (lib/constructs/)
+
+1. **secrets.ts** - Platform-level secrets (JWT signing key)
+   - User credentials stored per-user in DynamoDB, encrypted with KMS
+
+2. **database.ts** - Single-table DynamoDB with streams
+   - Entities: User, UserCreds, Nonce, Accumulator, Bet
+   - GSI1: Query by status (active accumulators, pending bets)
+   - GSI2: Query bets by market token ID
+   - Streams enabled for event-driven processing
+
+3. **auth.ts** - Wallet-based authentication
+   - Nonce Lambda: Generates nonce for wallet signing
+   - Verify Lambda: Verifies signature, issues JWT
+   - Lambda Authorizer: Validates JWT on protected routes
+
+4. **api.ts** - REST API Gateway
+   - Public: POST /auth/nonce, POST /auth/verify
+   - Protected: /users/me, /accumulators, /accumulators/{id}/bets
+
+5. **processing.ts** - Event processors
+   - Stream Handler: Reacts to bet state changes
+   - Bet Executor: Places orders on Polymarket CLOB
+
+### Key Patterns
+
+- **Single-table DynamoDB**: All entities in one table with PK/SK patterns
+- **Wallet auth**: Users authenticate by signing a nonce with their wallet
+- **Non-custodial**: We store L2 API creds, never private keys
+- **Event-driven**: DynamoDB streams trigger bet chain progression
+- **Least privilege**: Each Lambda has minimal IAM permissions
+
+### Entity Key Patterns
+
+| Entity      | PK                  | SK                    |
+|-------------|---------------------|-----------------------|
+| User        | USER#<address>      | PROFILE               |
+| UserCreds   | USER#<address>      | CREDS#polymarket      |
+| Nonce       | NONCE#<address>     | NONCE                 |
+| Accumulator | USER#<address>      | ACCA#<accaId>         |
+| Bet         | ACCA#<accaId>       | BET#<sequence>        |
+
+### Deployment
+
+```bash
+# Deploy dev environment
+cdk deploy
+
+# Deploy prod environment
+cdk deploy -c environment=prod
+```
+
+## Dependencies
+
+- aws-cdk-lib
+- @polymarket/clob-client (in lambdas)
+- ethers (for signature verification)

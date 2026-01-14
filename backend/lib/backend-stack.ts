@@ -1,77 +1,95 @@
 import * as cdk from 'aws-cdk-lib/core';
 import { Construct } from 'constructs';
-import * as s3 from 'aws-cdk-lib/aws-s3';
-import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
-import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
-import * as s3deploy from 'aws-cdk-lib/aws-s3-deployment';
-import * as path from 'path';
-import { PolymarketSecrets } from './constructs/secrets';
+
+// Constructs
+import { SecretsConstruct } from './constructs/secrets';
+import { DatabaseConstruct } from './constructs/database';
+import { AuthConstruct } from './constructs/auth';
+import { ApiConstruct } from './constructs/api';
+import { BetManagementConstruct } from './constructs/bet-management';
+import { AlchemyConstruct } from './constructs/alchemy';
+
+export interface BackendStackProps extends cdk.StackProps {
+  /**
+   * Environment name (e.g., 'dev', 'prod')
+   * @default 'dev'
+   */
+  environment?: string;
+}
 
 export class BackendStack extends cdk.Stack {
-  public readonly polymarketSecrets: PolymarketSecrets;
+  public readonly secrets: SecretsConstruct;
+  public readonly database: DatabaseConstruct;
+  public readonly auth: AuthConstruct;
+  public readonly api: ApiConstruct;
+  public readonly betManagement: BetManagementConstruct;
+  public readonly alchemy: AlchemyConstruct;
 
-  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
+  constructor(scope: Construct, id: string, props?: BackendStackProps) {
     super(scope, id, props);
 
-    // Polymarket Secrets
-    this.polymarketSecrets = new PolymarketSecrets(this, 'PolymarketSecrets');
+    const environment = props?.environment ?? 'dev';
+    const isProd = environment === 'prod';
 
-    // S3 bucket to host frontend assets
-    const websiteBucket = new s3.Bucket(this, 'WebsiteBucket', {
-      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
-      autoDeleteObjects: true,
+    // ==========================================================================
+    // Secrets (platform-level)
+    // ==========================================================================
+    this.secrets = new SecretsConstruct(this, 'Secrets', {
+      secretNamePrefix: `polyacca/${environment}`,
     });
 
-    // CloudFront Origin Access Identity
-    const originAccessIdentity = new cloudfront.OriginAccessIdentity(
-      this,
-      'OriginAccessIdentity'
-    );
-    websiteBucket.grantRead(originAccessIdentity);
-
-    // CloudFront distribution
-    const distribution = new cloudfront.Distribution(this, 'Distribution', {
-      defaultBehavior: {
-        origin: new origins.S3Origin(websiteBucket, {
-          originAccessIdentity,
-        }),
-        viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-      },
-      defaultRootObject: 'index.html',
-      errorResponses: [
-        {
-          httpStatus: 403,
-          responseHttpStatus: 200,
-          responsePagePath: '/index.html',
-          ttl: cdk.Duration.minutes(5),
-        },
-        {
-          httpStatus: 404,
-          responseHttpStatus: 200,
-          responsePagePath: '/index.html',
-          ttl: cdk.Duration.minutes(5),
-        },
-      ],
+    // ==========================================================================
+    // Database (single-table DynamoDB with streams)
+    // ==========================================================================
+    this.database = new DatabaseConstruct(this, 'Database', {
+      removalPolicy: isProd ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY,
     });
 
-    // Deploy frontend assets to S3
-    new s3deploy.BucketDeployment(this, 'DeployWebsite', {
-      sources: [s3deploy.Source.asset(path.join(__dirname, '../../frontend/dist'))],
-      destinationBucket: websiteBucket,
-      distribution,
-      distributionPaths: ['/*'],
+    // ==========================================================================
+    // Auth (wallet-based authentication)
+    // ==========================================================================
+    this.auth = new AuthConstruct(this, 'Auth', {
+      table: this.database.table,
+      jwtSecretArn: this.secrets.jwtSecretArn,
+      tokenExpiryHours: 24,
     });
 
-    // Output the CloudFront URL
-    new cdk.CfnOutput(this, 'DistributionDomainName', {
-      value: distribution.distributionDomainName,
-      description: 'CloudFront Distribution Domain Name',
+    // ==========================================================================
+    // API (REST API Gateway with Lambda handlers)
+    // ==========================================================================
+    this.api = new ApiConstruct(this, 'Api', {
+      table: this.database.table,
+      encryptionKey: this.database.encryptionKey,
+      auth: this.auth,
     });
 
-    new cdk.CfnOutput(this, 'BucketName', {
-      value: websiteBucket.bucketName,
-      description: 'S3 Bucket Name',
+    // ==========================================================================
+    // Bet Management (stream handlers and bet executor)
+    // ==========================================================================
+    this.betManagement = new BetManagementConstruct(this, 'BetManagement', {
+      table: this.database.table,
+      encryptionKey: this.database.encryptionKey,
+    });
+
+    // ==========================================================================
+    // Alchemy (webhook for on-chain events)
+    // ==========================================================================
+    this.alchemy = new AlchemyConstruct(this, 'Alchemy', {
+      table: this.database.table,
+      api: this.api.api,
+    });
+
+    // ==========================================================================
+    // Outputs
+    // ==========================================================================
+    new cdk.CfnOutput(this, 'ApiEndpoint', {
+      value: this.api.api.url,
+      description: 'API Gateway Endpoint',
+    });
+
+    new cdk.CfnOutput(this, 'Environment', {
+      value: environment,
+      description: 'Deployment Environment',
     });
   }
 }
