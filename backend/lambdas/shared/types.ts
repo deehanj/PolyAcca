@@ -46,6 +46,8 @@ export type SignatureType = 'EOA' | 'POLY_PROXY' | 'GNOSIS_SAFE';
  * User Polymarket credentials (encrypted)
  * PK: USER#<walletAddress>
  * SK: CREDS#polymarket
+ *
+ * Stored in separate credentials table for security isolation.
  */
 export interface UserCredsEntity extends BaseEntity {
   entityType: 'USER_CREDS';
@@ -379,9 +381,5 @@ export interface PolymarketCredentials {
   signatureType: SignatureType;
 }
 
-export interface PolymarketOrder {
-  tokenId: string;
-  side: 'BUY' | 'SELL';
-  price: number;
-  size: number;
-}
+/** Builder credentials (stored in Secrets Manager) for order attribution */
+export type BuilderCredentials = Pick<PolymarketCredentials, 'apiKey' | 'apiSecret' | 'passphrase'>;

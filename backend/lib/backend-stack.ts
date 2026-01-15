@@ -117,6 +117,7 @@ export class BackendStack extends cdk.Stack {
     this.betManagement = new BetManagementConstruct(this, 'BetManagement', {
       table: this.database.table,
       credentialsTable: this.credentialsTable,
+      secrets: this.secrets,
       websocket: this.websocket,
       adminWebsocket: this.adminWebsocket,
     });

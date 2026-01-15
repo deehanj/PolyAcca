@@ -5,7 +5,7 @@
  * - INSERT: First bet in position (created with status=READY)
  * - MODIFY: Subsequent bets (status changed to READY after previous bet won)
  *
- * Places orders on Polymarket CLOB.
+ * Places orders on Polymarket CLOB with builder attribution.
  * On failure, marks bet with specific status and UserChain as FAILED.
  * The position-termination-handler will void remaining bets via stream.
  */
@@ -13,16 +13,57 @@
 import type { DynamoDBStreamEvent, DynamoDBRecord } from 'aws-lambda';
 import { unmarshall } from '@aws-sdk/util-dynamodb';
 import type { AttributeValue } from '@aws-sdk/client-dynamodb';
+import { GetSecretValueCommand, SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
 import {
   updateBetStatus,
   updateUserChainStatus,
 } from '../../shared/dynamo-client';
 import { getUserCreds } from '../../shared/credentials-client';
-import { decryptCredentials, placeOrder } from '../../shared/polymarket-client';
+import {
+  decryptCredentials,
+  placeOrder,
+  setBuilderCredentials,
+  hasBuilderCredentials,
+} from '../../shared/polymarket-client';
 import { createLogger } from '../../shared/logger';
-import type { BetEntity, BetStatus } from '../../shared/types';
+import type { BetEntity, BetStatus, BuilderCredentials } from '../../shared/types';
 
 const log = createLogger('bet-executor');
+
+// Secrets Manager client
+const secretsClient = new SecretsManagerClient({});
+
+// Builder secret ARN from environment
+const BUILDER_SECRET_ARN = process.env.BUILDER_SECRET_ARN;
+
+/**
+ * Load builder credentials from Secrets Manager (cold start only)
+ */
+async function initBuilderCredentials(): Promise<void> {
+  if (hasBuilderCredentials()) {
+    return; // Already loaded
+  }
+
+  if (!BUILDER_SECRET_ARN) {
+    log.warn('BUILDER_SECRET_ARN not set - orders will not have builder attribution');
+    return;
+  }
+
+  try {
+    const response = await secretsClient.send(
+      new GetSecretValueCommand({ SecretId: BUILDER_SECRET_ARN })
+    );
+
+    if (response.SecretString) {
+      const creds: BuilderCredentials = JSON.parse(response.SecretString);
+      setBuilderCredentials(creds);
+      log.info('Builder credentials loaded for order attribution');
+    }
+  } catch (error) {
+    log.errorWithStack('Failed to load builder credentials', error);
+    // Continue without builder attribution - orders will still work
+  }
+}
 
 /**
  * Error types for classifying execution failures
@@ -199,6 +240,9 @@ async function processBetReady(record: DynamoDBRecord): Promise<void> {
  * Handler - processes DynamoDB Stream events for bets with status=READY
  */
 export async function handler(event: DynamoDBStreamEvent): Promise<void> {
+  // Initialize builder credentials for order attribution (cached after first call)
+  await initBuilderCredentials();
+
   log.info('Processing bet records', { count: event.Records.length });
 
   for (const record of event.Records) {

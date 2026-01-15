@@ -14,6 +14,9 @@ export interface DatabaseConstructProps {
 /**
  * Single-table DynamoDB design for PolyAcca
  *
+ * Non-custodial Model: Users link their own Polymarket accounts.
+ * Builder credentials are used for order attribution (RevShare when verified).
+ *
  * Entity patterns:
  * | Entity      | PK                  | SK                    |
  * |-------------|---------------------|-----------------------|

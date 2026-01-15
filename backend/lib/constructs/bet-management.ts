@@ -8,6 +8,7 @@ import * as path from 'path';
 import type { WebSocketConstruct } from './websocket';
 import type { AdminWebSocketConstruct } from './admin-websocket';
 import type { CredentialsTableConstruct } from './credentials-table';
+import type { SecretsConstruct } from './secrets';
 
 export interface BetManagementConstructProps {
   /**
@@ -18,6 +19,10 @@ export interface BetManagementConstructProps {
    * Credentials table construct (for reading Polymarket API keys)
    */
   credentialsTable: CredentialsTableConstruct;
+  /**
+   * Secrets construct (for builder credentials)
+   */
+  secrets: SecretsConstruct;
   /**
    * WebSocket construct for granting notification permissions
    */
@@ -56,7 +61,7 @@ export class BetManagementConstruct extends Construct {
   constructor(scope: Construct, id: string, props: BetManagementConstructProps) {
     super(scope, id);
 
-    const { table, credentialsTable, websocket, adminWebsocket } = props;
+    const { table, credentialsTable, secrets, websocket, adminWebsocket } = props;
 
     // Shared Lambda config
     const lambdaConfig = {
@@ -95,6 +100,7 @@ export class BetManagementConstruct extends Construct {
       environment: {
         ...lambdaConfig.environment,
         ...credentialsLambdaEnv,
+        BUILDER_SECRET_ARN: secrets.builderSecretArn,
       },
     });
 
@@ -177,6 +183,9 @@ export class BetManagementConstruct extends Construct {
     // Only betExecutor and positionTerminationHandler need this
     credentialsTable.grantRead(this.betExecutor);
     credentialsTable.grantRead(this.positionTerminationHandler);
+
+    // Builder secret access (for order attribution)
+    secrets.grantBuilderSecretRead(this.betExecutor);
 
     // WebSocket permission for notification handler
     if (websocket) {

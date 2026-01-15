@@ -1,11 +1,13 @@
 /**
  * Polymarket CLOB client wrapper
  *
- * Handles credential management and order execution
+ * Handles credential management and order execution.
+ * Supports builder attribution for RevShare (when verified).
  */
 
 import { ClobClient, Side, OrderType, type TickSize } from '@polymarket/clob-client';
-import type { PolymarketCredentials, UserCredsEntity } from './types';
+import { BuilderConfig } from '@polymarket/builder-signing-sdk';
+import type { PolymarketCredentials, UserCredsEntity, BuilderCredentials } from './types';
 import { encryptValue, decryptValue } from './kms-client';
 import { createLogger } from './logger';
 
@@ -13,6 +15,33 @@ const logger = createLogger('polymarket-client');
 
 const POLYMARKET_HOST = 'https://clob.polymarket.com';
 const POLYGON_CHAIN_ID = 137;
+
+// Builder credentials - loaded from environment/Secrets Manager
+let cachedBuilderConfig: BuilderConfig | undefined;
+
+// =============================================================================
+// Builder Attribution
+// =============================================================================
+
+/**
+ * Set builder credentials for order attribution
+ */
+export function setBuilderCredentials(creds: BuilderCredentials): void {
+  cachedBuilderConfig = new BuilderConfig({
+    localBuilderCreds: {
+      key: creds.apiKey,
+      secret: creds.apiSecret,
+      passphrase: creds.passphrase,
+    },
+  });
+}
+
+/**
+ * Check if builder credentials are configured
+ */
+export function hasBuilderCredentials(): boolean {
+  return cachedBuilderConfig !== undefined;
+}
 
 // =============================================================================
 // Credential Encryption/Decryption
@@ -53,18 +82,24 @@ export async function decryptCredentials(
 // =============================================================================
 
 /**
- * Create an authenticated ClobClient instance
+ * Create an authenticated ClobClient instance with optional builder attribution
  */
 function createClient(credentials?: PolymarketCredentials): ClobClient {
   if (!credentials) {
     return new ClobClient(POLYMARKET_HOST, POLYGON_CHAIN_ID);
   }
 
+  // ClobClient constructor: host, chainId, signer, creds, signatureType, funderAddress, geoBlockToken, useServerTime, builderConfig
   return new ClobClient(
     POLYMARKET_HOST,
     POLYGON_CHAIN_ID,
-    undefined,
-    { key: credentials.apiKey, secret: credentials.apiSecret, passphrase: credentials.passphrase }
+    undefined, // signer
+    { key: credentials.apiKey, secret: credentials.apiSecret, passphrase: credentials.passphrase },
+    undefined, // signatureType
+    undefined, // funderAddress
+    undefined, // geoBlockToken
+    undefined, // useServerTime
+    cachedBuilderConfig // builderConfig - for order attribution
   );
 }
 
@@ -112,13 +147,6 @@ export interface OrderParams {
   tickSize?: TickSize;
 }
 
-export interface OrderResult {
-  orderId: string;
-  status: 'PLACED' | 'FILLED' | 'REJECTED';
-  filledSize?: number;
-  avgPrice?: number;
-}
-
 /**
  * Place an order on Polymarket CLOB
  */
@@ -157,29 +185,6 @@ export async function placeOrder(
 }
 
 /**
- * Get order status from Polymarket
- */
-export async function getOrderStatus(
-  credentials: PolymarketCredentials,
-  orderId: string
-): Promise<OrderResult> {
-  const client = createClient(credentials);
-
-  try {
-    const order = await client.getOrder(orderId);
-    return {
-      orderId: order.id,
-      status: order.status === 'MATCHED' ? 'FILLED' : 'PLACED',
-      filledSize: parseFloat(order.size_matched ?? '0'),
-      avgPrice: parseFloat(order.price ?? '0'),
-    };
-  } catch (error) {
-    logger.errorWithStack('Failed to get order status', error, { orderId });
-    throw error;
-  }
-}
-
-/**
  * Cancel an order on Polymarket
  */
 export async function cancelOrder(
@@ -196,25 +201,6 @@ export async function cancelOrder(
     return true;
   } catch (error) {
     logger.errorWithStack('Failed to cancel order', error, { orderId });
-    throw error;
-  }
-}
-
-/**
- * Get market price for a token (no authentication required)
- */
-export async function getMarketPrice(
-  tokenId: string
-): Promise<{ bid: number; ask: number; mid: number }> {
-  const client = createClient();
-
-  try {
-    const book = await client.getOrderBook(tokenId);
-    const bestBid = book.bids?.[0]?.price ? parseFloat(book.bids[0].price) : 0;
-    const bestAsk = book.asks?.[0]?.price ? parseFloat(book.asks[0].price) : 1;
-    return { bid: bestBid, ask: bestAsk, mid: (bestBid + bestAsk) / 2 };
-  } catch (error) {
-    logger.errorWithStack('Failed to get market price', error, { tokenId });
     throw error;
   }
 }
