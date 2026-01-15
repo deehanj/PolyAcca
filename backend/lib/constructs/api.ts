@@ -49,6 +49,7 @@ export class ApiConstruct extends Construct {
         minify: true,
         sourceMap: true,
         externalModules: ['@aws-sdk/*'],
+        forceDockerBundling: false,
       },
     };
 

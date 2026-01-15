@@ -63,6 +63,7 @@ export class AlchemyConstruct extends Construct {
         minify: true,
         sourceMap: true,
         externalModules: ['@aws-sdk/*'],
+        forceDockerBundling: false,
       },
       description: 'Processes Alchemy webhook notifications for on-chain events',
     });

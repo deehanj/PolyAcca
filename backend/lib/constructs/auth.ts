@@ -55,6 +55,7 @@ export class AuthConstruct extends Construct {
         minify: true,
         sourceMap: true,
         externalModules: ['@aws-sdk/*'],
+        forceDockerBundling: false,
       },
     });
 
@@ -71,6 +72,7 @@ export class AuthConstruct extends Construct {
         minify: true,
         sourceMap: true,
         externalModules: ['@aws-sdk/*'],
+        forceDockerBundling: false,
       },
     });
 
@@ -90,6 +92,7 @@ export class AuthConstruct extends Construct {
         minify: true,
         sourceMap: true,
         externalModules: ['@aws-sdk/*'],
+        forceDockerBundling: false,
       },
     });
 

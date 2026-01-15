@@ -44,10 +44,10 @@ export async function handler(
     // Reconstruct the signed message
     const message = `${NONCE_MESSAGE_PREFIX}${nonceEntity.nonce}`;
 
-    // Verify the signature
+    // Verify the signature (ethers v5 API)
     let recoveredAddress: string;
     try {
-      recoveredAddress = ethers.verifyMessage(message, request.signature);
+      recoveredAddress = ethers.utils.verifyMessage(message, request.signature);
     } catch {
       return errorResponse(401, 'Invalid signature');
     }

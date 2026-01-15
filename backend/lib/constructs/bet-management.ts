@@ -56,6 +56,7 @@ export class BetManagementConstruct extends Construct {
         minify: true,
         sourceMap: true,
         externalModules: ['@aws-sdk/*'],
+        forceDockerBundling: false,
       },
     };
 
