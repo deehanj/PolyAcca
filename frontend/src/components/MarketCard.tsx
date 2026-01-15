@@ -10,6 +10,10 @@ export interface Market {
   noPrice: number;
   endDate: string;
   image?: string;
+  // Polymarket integration fields
+  conditionId?: string;
+  yesTokenId?: string;
+  noTokenId?: string;
 }
 
 interface MarketCardProps {

@@ -1,133 +1,76 @@
+import { useState } from "react";
 import { Header } from "@/components/Header";
 import { MarketCard, type Market } from "@/components/MarketCard";
 import { AccumulatorSidebar } from "@/components/AccumulatorSidebar";
 import { Button } from "@/components/ui/Button";
 // import { FallingDots } from "@/components/FallingDots";
 import { DotSphere } from "@/components/DotSphere";
-
-// Sample market data
-const markets: Market[] = [
-  {
-    id: "1",
-    question: "Will Bitcoin reach $150,000 by end of 2025?",
-    category: "Crypto",
-    volume: "$2.4M",
-    yesPrice: 0.42,
-    noPrice: 0.58,
-    endDate: "Dec 31, 2025",
-  },
-  {
-    id: "2",
-    question: "Will AI pass the Turing Test by 2026?",
-    category: "Technology",
-    volume: "$890K",
-    yesPrice: 0.67,
-    noPrice: 0.33,
-    endDate: "Dec 31, 2026",
-  },
-  {
-    id: "3",
-    question: "Will there be a manned Mars landing by 2030?",
-    category: "Science",
-    volume: "$1.2M",
-    yesPrice: 0.23,
-    noPrice: 0.77,
-    endDate: "Dec 31, 2030",
-  },
-  {
-    id: "4",
-    question: "Will the next US President be a woman?",
-    category: "Politics",
-    volume: "$5.1M",
-    yesPrice: 0.31,
-    noPrice: 0.69,
-    endDate: "Jan 20, 2029",
-  },
-  {
-    id: "5",
-    question: "Will electric vehicles outsell gas cars in US by 2027?",
-    category: "Business",
-    volume: "$780K",
-    yesPrice: 0.54,
-    noPrice: 0.46,
-    endDate: "Dec 31, 2027",
-  },
-  {
-    id: "6",
-    question: "Will a new pandemic be declared by WHO in 2025?",
-    category: "Health",
-    volume: "$430K",
-    yesPrice: 0.18,
-    noPrice: 0.82,
-    endDate: "Dec 31, 2025",
-  },
-  {
-    id: "7",
-    question: "Will Taylor Swift release a new album in 2025?",
-    category: "Culture",
-    volume: "$320K",
-    yesPrice: 0.89,
-    noPrice: 0.11,
-    endDate: "Dec 31, 2025",
-  },
-  {
-    id: "8",
-    question: "Will the Lakers win the NBA Championship 2025?",
-    category: "Sports",
-    volume: "$1.8M",
-    yesPrice: 0.15,
-    noPrice: 0.85,
-    endDate: "Jun 30, 2025",
-  },
-  {
-    id: "9",
-    question: "Will SpaceX Starship complete an orbital flight in 2025?",
-    category: "Science",
-    volume: "$1.5M",
-    yesPrice: 0.78,
-    noPrice: 0.22,
-    endDate: "Dec 31, 2025",
-  },
-  {
-    id: "10",
-    question: "Will Ethereum flip Bitcoin by market cap in 2026?",
-    category: "Crypto",
-    volume: "$3.2M",
-    yesPrice: 0.12,
-    noPrice: 0.88,
-    endDate: "Dec 31, 2026",
-  },
-  {
-    id: "11",
-    question: "Will Apple release AR glasses in 2025?",
-    category: "Technology",
-    volume: "$920K",
-    yesPrice: 0.35,
-    noPrice: 0.65,
-    endDate: "Dec 31, 2025",
-  },
-  {
-    id: "12",
-    question: "Will Manchester City win the Premier League 2024/25?",
-    category: "Sports",
-    volume: "$2.1M",
-    yesPrice: 0.45,
-    noPrice: 0.55,
-    endDate: "May 25, 2025",
-  },
-];
+import { useMarkets } from "@/hooks/useMarkets";
+import type { Market as ApiMarket } from "@/types/market";
 
 const categories = [
   "All",
-  "Trending",
   "Crypto",
   "Politics",
   "Sports",
-  "Technology",
-  "Culture",
+  "Pop Culture",
+  "Science",
 ];
 
+// Format volume for display (e.g., 2400000 -> "$2.4M")
+function formatVolume(volumeNum: number): string {
+  if (volumeNum >= 1_000_000) {
+    return `$${(volumeNum / 1_000_000).toFixed(1)}M`;
+  }
+  if (volumeNum >= 1_000) {
+    return `$${(volumeNum / 1_000).toFixed(0)}K`;
+  }
+  return `$${volumeNum.toFixed(0)}`;
+}
+
+// Transform API market to MarketCard format
+function transformMarketForCard(market: ApiMarket): Market {
+  return {
+    id: market.id,
+    question: market.question,
+    category: market.category,
+    volume: formatVolume(market.volumeNum),
+    yesPrice: market.yesPrice,
+    noPrice: market.noPrice,
+    endDate: new Date(market.endDate).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    }),
+    image: market.image,
+    conditionId: market.conditionId,
+    yesTokenId: market.yesTokenId,
+    noTokenId: market.noTokenId,
+  };
+}
+
 export function HomePage() {
+  const [selectedCategory, setSelectedCategory] = useState("All");
+  const [offset, setOffset] = useState(0);
+  const limit = 12;
+
+  const { markets, isLoading, error, isFetching } = useMarkets({
+    limit,
+    offset,
+    active: true,
+    category: selectedCategory === "All" ? undefined : selectedCategory,
+    order: "volume",
+  });
+
+  const handleCategoryChange = (category: string) => {
+    setSelectedCategory(category);
+    setOffset(0); // Reset pagination on category change
+  };
+
+  const handleLoadMore = () => {
+    setOffset((prev) => prev + limit);
+  };
+
   return (
     <div className="min-h-screen pr-80 relative">
       {/* Matrix-style falling dots background - temporarily disabled */}
@@ -189,13 +132,19 @@ export function HomePage() {
           <div className="flex items-center justify-between mb-8">
             <h2 className="text-xl font-semibold text-foreground">
               Live Markets
+              {isFetching && !isLoading && (
+                <span className="ml-2 text-sm text-muted-foreground">
+                  Updating...
+                </span>
+              )}
             </h2>
             <div className="flex gap-2">
-              {categories.map((category, index) => (
+              {categories.map((category) => (
                 <Button
                   key={category}
-                  variant={index === 0 ? "primary" : "ghost"}
+                  variant={selectedCategory === category ? "primary" : "ghost"}
                   size="sm"
+                  onClick={() => handleCategoryChange(category)}
                 >
                   {category}
                 </Button>
@@ -203,17 +152,47 @@ export function HomePage() {
             </div>
           </div>
 
+          {/* Loading State */}
+          {isLoading && (
+            <div className="flex justify-center py-12">
+              <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full" />
+            </div>
+          )}
+
+          {/* Error State */}
+          {error && (
+            <div className="text-center py-12 text-destructive">
+              Failed to load markets: {error}
+            </div>
+          )}
+
           {/* Markets Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {markets.map((market) => (
-              <MarketCard key={market.id} market={market} />
-            ))}
-          </div>
+          {!isLoading && !error && markets.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {markets.map((market) => (
+                <MarketCard
+                  key={market.id}
+                  market={transformMarketForCard(market)}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Empty State */}
+          {!isLoading && !error && markets.length === 0 && (
+            <div className="text-center py-12 text-muted-foreground">
+              No markets found for this category.
+            </div>
+          )}
 
           {/* Load More - Left aligned */}
-          <div className="mt-12">
-            <Button variant="outline">Load More Markets</Button>
-          </div>
+          {markets.length >= limit && (
+            <div className="mt-12">
+              <Button variant="outline" onClick={handleLoadMore}>
+                Load More Markets
+              </Button>
+            </div>
+          )}
         </div>
       </section>
 

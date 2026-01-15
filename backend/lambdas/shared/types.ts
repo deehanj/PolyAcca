@@ -383,3 +383,107 @@ export interface PolymarketCredentials {
 
 /** Builder credentials (stored in Secrets Manager) for order attribution */
 export type BuilderCredentials = Pick<PolymarketCredentials, 'apiKey' | 'apiSecret' | 'passphrase'>;
+
+export interface PolymarketOrder {
+  tokenId: string;
+  side: 'BUY' | 'SELL';
+  price: number;
+  size: number;
+}
+
+// =============================================================================
+// Gamma API Types
+// =============================================================================
+
+/**
+ * Raw market response from Gamma API
+ * Reference: https://gamma-api.polymarket.com/markets
+ */
+export interface GammaApiMarket {
+  id: string;
+  conditionId: string;
+  slug: string;
+  category: string;
+  question: string;
+  description: string;
+  outcomes: string; // JSON string: '["Yes", "No"]'
+  marketType: string;
+  endDate: string;
+  createdAt: string;
+  updatedAt: string;
+  volume: string;
+  volumeNum: number;
+  liquidity: string;
+  liquidityNum: number;
+  outcomePrices: string; // JSON string: '["0.42", "0.58"]'
+  clobTokenIds: string; // JSON string: '["123...", "456..."]'
+  active: boolean;
+  closed: boolean;
+  archived: boolean;
+  image?: string;
+  icon?: string;
+  volume24hr?: number;
+  volume1wk?: number;
+  events?: GammaApiEvent[];
+}
+
+export interface GammaApiEvent {
+  id: string;
+  title: string;
+  slug: string;
+  category: string;
+  startDate?: string;
+  endDate?: string;
+}
+
+/**
+ * Transformed market for frontend consumption
+ */
+export interface GammaMarket {
+  id: string;
+  conditionId: string;
+  slug: string;
+  question: string;
+  description?: string;
+  category: string;
+  endDate: string;
+  image?: string;
+  // Parsed outcome prices
+  yesPrice: number;
+  noPrice: number;
+  // Parsed token IDs
+  yesTokenId: string;
+  noTokenId: string;
+  // Volume and liquidity
+  volume: string;
+  volumeNum: number;
+  liquidity: string;
+  liquidityNum: number;
+  volume24hr?: number;
+  // Status
+  active: boolean;
+  closed: boolean;
+}
+
+/**
+ * API response for market listing
+ */
+export interface MarketsListResponse {
+  markets: GammaMarket[];
+  total?: number;
+  limit: number;
+  offset: number;
+}
+
+/**
+ * Query parameters for market listing
+ */
+export interface MarketsQueryParams {
+  limit?: number;
+  offset?: number;
+  active?: boolean;
+  closed?: boolean;
+  category?: string;
+  order?: 'volume' | 'liquidity' | 'endDate' | 'created';
+  ascending?: boolean;
+}

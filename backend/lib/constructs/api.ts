@@ -28,6 +28,7 @@ export class ApiConstruct extends Construct {
   public readonly api: apigateway.RestApi;
   public readonly usersFunction: nodejs.NodejsFunction;
   public readonly chainsFunction: nodejs.NodejsFunction;
+  public readonly marketsFunction: nodejs.NodejsFunction;
 
   constructor(scope: Construct, id: string, props: ApiConstructProps) {
     super(scope, id);
@@ -70,6 +71,14 @@ export class ApiConstruct extends Construct {
       ...lambdaConfig,
       entry: path.join(__dirname, '../../lambdas/api/chains/index.ts'),
       handler: 'handler',
+    });
+
+    // Markets Lambda - public market listing (no auth required)
+    this.marketsFunction = new nodejs.NodejsFunction(this, 'MarketsFunction', {
+      ...lambdaConfig,
+      entry: path.join(__dirname, '../../lambdas/api/markets/index.ts'),
+      handler: 'handler',
+      timeout: cdk.Duration.seconds(15), // Shorter timeout for external API calls
     });
 
     // Grant DynamoDB permissions (scoped by Lambda function needs)
@@ -129,6 +138,13 @@ export class ApiConstruct extends Construct {
     chainIdResource.addMethod('GET', new apigateway.LambdaIntegration(this.chainsFunction), protectedMethodOptions);
     chainIdResource.addMethod('DELETE', new apigateway.LambdaIntegration(this.chainsFunction), protectedMethodOptions);
     chainUsersResource.addMethod('GET', new apigateway.LambdaIntegration(this.chainsFunction), protectedMethodOptions);
+
+    // Markets endpoints (public - no auth required)
+    const marketsResource = this.api.root.addResource('markets');
+    const marketIdResource = marketsResource.addResource('{marketId}');
+
+    marketsResource.addMethod('GET', new apigateway.LambdaIntegration(this.marketsFunction));
+    marketIdResource.addMethod('GET', new apigateway.LambdaIntegration(this.marketsFunction));
 
     // Outputs
     new cdk.CfnOutput(this, 'ApiUrl', {
