@@ -1,20 +1,20 @@
 /**
- * Accumulators Lambda - Router
+ * Chains Lambda - Router
  *
  * Routes requests to appropriate handlers:
- * - GET /accumulators - List user's accumulators
- * - POST /accumulators - Create user acca
- * - GET /accumulators/{id} - Get user acca details
- * - GET /accumulators/{id}/users - Get all users on an accumulator
- * - DELETE /accumulators/{id} - Cancel user acca
+ * - GET /chains - List user's chains
+ * - POST /chains - Create user chain
+ * - GET /chains/{id} - Get user chain details
+ * - GET /chains/{id}/users - Get all users on a chain
+ * - DELETE /chains/{id} - Cancel user chain
  */
 
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import type { ApiResponse } from '../../shared/types';
 import { HEADERS, getWalletAddress, errorResponse } from './utils';
-import { listUserAccas, getUserAccaById, getAccumulatorUsers } from './get';
-import { createUserAcca } from './post';
-import { cancelUserAcca } from './delete';
+import { listUserChains, getUserChainById, getChainUsers } from './get';
+import { createUserChain } from './post';
+import { cancelUserChain } from './delete';
 
 export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
   try {
@@ -25,37 +25,37 @@ export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayPr
     }
 
     const method = event.httpMethod;
-    const accumulatorId = event.pathParameters?.accumulatorId;
+    const chainId = event.pathParameters?.chainId;
     const isUsersRoute = event.path.endsWith('/users');
 
     // Route handling
-    if (accumulatorId) {
-      // Routes with {accumulatorId}
+    if (chainId) {
+      // Routes with {chainId}
       if (isUsersRoute && method === 'GET') {
-        return getAccumulatorUsers(accumulatorId);
+        return getChainUsers(chainId);
       }
 
       switch (method) {
         case 'GET':
-          return getUserAccaById(walletAddress, accumulatorId);
+          return getUserChainById(walletAddress, chainId);
         case 'DELETE':
-          return cancelUserAcca(walletAddress, accumulatorId);
+          return cancelUserChain(walletAddress, chainId);
         default:
           return errorResponse(405, 'Method not allowed');
       }
     } else {
-      // Routes without {accumulatorId}
+      // Routes without {chainId}
       switch (method) {
         case 'GET':
-          return listUserAccas(walletAddress);
+          return listUserChains(walletAddress);
         case 'POST':
-          return createUserAcca(walletAddress, event.body);
+          return createUserChain(walletAddress, event.body);
         default:
           return errorResponse(405, 'Method not allowed');
       }
     }
   } catch (error) {
-    console.error('Accumulators handler error:', error);
+    console.error('Chains handler error:', error);
     return {
       statusCode: 500,
       headers: HEADERS,

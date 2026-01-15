@@ -1,36 +1,36 @@
 /**
- * POST handler for accumulators
+ * POST handler for chains
  *
- * - POST /accumulators - Create user acca (creates accumulator if needed)
+ * - POST /chains - Create user chain (creates chain if needed)
  */
 
 import type { APIGatewayProxyResult } from 'aws-lambda';
 import { randomUUID } from 'crypto';
 import {
-  upsertAccumulator,
-  getUserAcca,
-  saveUserAcca,
+  upsertChain,
+  getUserChain,
+  saveUserChain,
   saveBet,
   keys,
   gsiKeys,
 } from '../../shared/dynamo-client';
 import {
-  generateAccumulatorId,
+  generateChainId,
   type CreatePositionRequest,
-  type AccumulatorEntity,
-  type UserAccaEntity,
+  type ChainEntity,
+  type UserChainEntity,
   type BetEntity,
-  type AccumulatorLeg,
+  type ChainLeg,
 } from '../../shared/types';
-import { errorResponse, getUserAccaDetail, successResponse } from './utils';
+import { errorResponse, getUserChainDetail, successResponse } from './utils';
 
 /**
- * POST /accumulators - Create user acca
+ * POST /chains - Create user chain
  *
- * If the accumulator chain doesn't exist, it creates it.
- * Then creates the user's acca and bets.
+ * If the chain doesn't exist, it creates it.
+ * Then creates the user's chain position and bets.
  */
-export async function createUserAcca(
+export async function createUserChain(
   walletAddress: string,
   body: string | null
 ): Promise<APIGatewayProxyResult> {
@@ -51,7 +51,7 @@ export async function createUserAcca(
   }
 
   if (request.legs.length > 10) {
-    return errorResponse(400, 'Maximum 10 legs per accumulator');
+    return errorResponse(400, 'Maximum 10 legs per chain');
   }
 
   if (!request.initialStake || parseFloat(request.initialStake) <= 0) {
@@ -76,13 +76,13 @@ export async function createUserAcca(
 
   const now = new Date().toISOString();
 
-  // Generate deterministic accumulator ID from chain
-  const accumulatorId = generateAccumulatorId(request.legs);
+  // Generate deterministic chain ID from chain definition
+  const chainId = generateChainId(request.legs);
 
-  // Build accumulator definition
-  const accumulatorKeys = keys.accumulator(accumulatorId);
+  // Build chain definition
+  const chainKeys = keys.chain(chainId);
 
-  const legs: AccumulatorLeg[] = request.legs.map((leg, index) => ({
+  const legs: ChainLeg[] = request.legs.map((leg, index) => ({
     sequence: index + 1,
     conditionId: leg.conditionId,
     tokenId: leg.tokenId,
@@ -91,13 +91,13 @@ export async function createUserAcca(
   }));
 
   // Simple chain format for debugging: ["conditionId:YES", "conditionId:NO"]
-  const chain = request.legs.map((leg) => `${leg.conditionId}:${leg.side}`);
+  const chainArray = request.legs.map((leg) => `${leg.conditionId}:${leg.side}`);
 
-  const accumulator: AccumulatorEntity = {
-    ...accumulatorKeys,
-    entityType: 'ACCUMULATOR',
-    accumulatorId,
-    chain,
+  const chainEntity: ChainEntity = {
+    ...chainKeys,
+    entityType: 'CHAIN',
+    chainId,
+    chain: chainArray,
     legs,
     totalValue: 0, // Will be set by upsert
     status: 'ACTIVE',
@@ -106,23 +106,23 @@ export async function createUserAcca(
   };
 
   // Upsert: creates if not exists, adds stake to totalValue if exists
-  await upsertAccumulator(accumulator, request.initialStake);
+  await upsertChain(chainEntity, request.initialStake);
 
-  // Check if user already has an acca on this accumulator
-  const existingUserAcca = await getUserAcca(accumulatorId, walletAddress);
-  if (existingUserAcca) {
-    return errorResponse(400, 'You already have a position on this accumulator');
+  // Check if user already has a position on this chain
+  const existingUserChain = await getUserChain(chainId, walletAddress);
+  if (existingUserChain) {
+    return errorResponse(400, 'You already have a position on this chain');
   }
 
-  // Create user acca
-  const userAccaKeys = keys.position(accumulatorId, walletAddress);
-  const userAccaGsi = gsiKeys.userAccaByUser(walletAddress, accumulatorId);
+  // Create user chain
+  const userChainKeys = keys.position(chainId, walletAddress);
+  const userChainGsi = gsiKeys.userChainByUser(walletAddress, chainId);
 
-  const userAcca: UserAccaEntity = {
-    ...userAccaKeys,
-    ...userAccaGsi,
-    entityType: 'USER_ACCA',
-    accumulatorId,
+  const userChain: UserChainEntity = {
+    ...userChainKeys,
+    ...userChainGsi,
+    entityType: 'USER_CHAIN',
+    chainId,
     walletAddress: walletAddress.toLowerCase(),
     initialStake: request.initialStake,
     currentValue: request.initialStake,
@@ -133,7 +133,7 @@ export async function createUserAcca(
     updatedAt: now,
   };
 
-  await saveUserAcca(userAcca);
+  await saveUserChain(userChain);
 
   // Create bet entities for each leg
   let currentStake = parseFloat(request.initialStake);
@@ -143,7 +143,7 @@ export async function createUserAcca(
     const sequence = i + 1;
     const betId = randomUUID();
 
-    const betKeys = keys.bet(accumulatorId, walletAddress, sequence);
+    const betKeys = keys.bet(chainId, walletAddress, sequence);
     const betGsi1 = gsiKeys.betByStatus(sequence === 1 ? 'READY' : 'QUEUED', now);
     const betGsi2 = gsiKeys.betByCondition(legInput.conditionId, betId);
 
@@ -157,7 +157,7 @@ export async function createUserAcca(
       ...betGsi2,
       entityType: 'BET',
       betId,
-      accumulatorId,
+      chainId,
       walletAddress: walletAddress.toLowerCase(),
       sequence,
       conditionId: legInput.conditionId,
@@ -178,7 +178,7 @@ export async function createUserAcca(
     currentStake = parseFloat(potentialPayout);
   }
 
-  // Return created user acca with details
-  const detail = await getUserAccaDetail(userAcca);
+  // Return created user chain with details
+  const detail = await getUserChainDetail(userChain);
   return successResponse(detail, 201);
 }

@@ -23,14 +23,14 @@ export interface BetManagementConstructProps {
  *
  * Event-driven bet processing with stream handlers:
  *
- * Flow 1: New Accumulator (first bet)
- *   API creates accumulator + bets (first bet status=READY) →
+ * Flow 1: New Chain (first bet)
+ *   API creates chain + bets (first bet status=READY) →
  *   DDB Stream INSERT → BetExecutor
  *
  * Flow 2: Market Resolution
  *   Webhook updates market → MarketResolutionHandler → Settle bets →
  *   Mark next bet READY → DDB Stream MODIFY → BetExecutor
- *   Or: Payout (last bet won) / Mark accumulator LOST
+ *   Or: Payout (last bet won) / Mark chain LOST
  */
 export class BetManagementConstruct extends Construct {
   public readonly marketResolutionHandler: nodejs.NodejsFunction;

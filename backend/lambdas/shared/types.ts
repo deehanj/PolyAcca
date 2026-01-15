@@ -69,9 +69,9 @@ export interface NonceEntity extends BaseEntity {
 }
 
 /**
- * Accumulator leg definition (part of chain)
+ * Chain leg definition (part of chain)
  */
-export interface AccumulatorLeg {
+export interface ChainLeg {
   sequence: number;
   conditionId: string;
   tokenId: string;
@@ -80,45 +80,45 @@ export interface AccumulatorLeg {
 }
 
 /**
- * Accumulator entity - shared chain definition (immutable once created)
- * PK: ACCA#<accumulatorId>
+ * Chain entity - shared chain definition (immutable once created)
+ * PK: CHAIN#<chainId>
  * SK: DEFINITION
  *
- * The accumulatorId is a deterministic hash of the chain (conditions + sides)
+ * The chainId is a deterministic hash of the chain (conditions + sides)
  */
-export interface AccumulatorEntity extends BaseEntity {
-  entityType: 'ACCUMULATOR';
-  accumulatorId: string; // Hash of chain: sha256(cond1:side1|cond2:side2|...)
+export interface ChainEntity extends BaseEntity {
+  entityType: 'CHAIN';
+  chainId: string; // Hash of chain: sha256(cond1:side1|cond2:side2|...)
   chain: string[]; // Simple format for debugging: ["conditionId:YES", "conditionId:NO"]
-  legs: AccumulatorLeg[]; // Full leg details
+  legs: ChainLeg[]; // Full leg details
   totalValue: number; // Aggregate of all user stakes (USDC)
-  status: AccumulatorStatus; // Based on market resolutions
+  status: ChainStatus; // Based on market resolutions
 }
 
-export type AccumulatorStatus =
+export type ChainStatus =
   | 'ACTIVE' // Markets still open
   | 'WON' // All legs won
   | 'LOST'; // A leg lost
 
 /**
- * UserAcca entity - user's stake on an accumulator chain
- * PK: ACCA#<accumulatorId>
+ * UserChain entity - user's stake on a chain
+ * PK: CHAIN#<chainId>
  * SK: USER#<walletAddress>
- * GSI1PK: USER#<walletAddress> (for listing user's accumulators)
- * GSI1SK: ACCA#<accumulatorId>
+ * GSI1PK: USER#<walletAddress> (for listing user's chains)
+ * GSI1SK: CHAIN#<chainId>
  */
-export interface UserAccaEntity extends BaseEntity {
-  entityType: 'USER_ACCA';
-  accumulatorId: string;
+export interface UserChainEntity extends BaseEntity {
+  entityType: 'USER_CHAIN';
+  chainId: string;
   walletAddress: string;
   initialStake: string; // USDC amount as string (to preserve precision)
   currentValue: string; // Current accumulated value
   completedLegs: number; // How many legs have settled
   currentLegSequence: number; // Which leg is currently active
-  status: UserAccaStatus;
+  status: UserChainStatus;
 }
 
-export type UserAccaStatus =
+export type UserChainStatus =
   | 'PENDING' // Not started
   | 'ACTIVE' // Currently running
   | 'WON' // All bets won
@@ -128,7 +128,7 @@ export type UserAccaStatus =
 
 /**
  * Bet entity - user's individual bet execution within a position
- * PK: ACCA#<accumulatorId>
+ * PK: CHAIN#<chainId>
  * SK: BET#<walletAddress>#<sequence>
  * GSI1PK: BETSTATUS#<status>
  * GSI1SK: <createdAt>
@@ -138,7 +138,7 @@ export type UserAccaStatus =
 export interface BetEntity extends BaseEntity {
   entityType: 'BET';
   betId: string;
-  accumulatorId: string;
+  chainId: string;
   walletAddress: string;
   sequence: number;
   conditionId: string; // Polymarket condition ID (market identifier)
@@ -211,14 +211,14 @@ export type MarketStatus =
   | 'CANCELLED'; // Market cancelled/voided
 
 // =============================================================================
-// Accumulator ID Generation
+// Chain ID Generation
 // =============================================================================
 
 /**
- * Generate a deterministic accumulator ID from the chain definition
+ * Generate a deterministic chain ID from the chain definition
  * Same chain always produces the same ID (idempotent)
  */
-export function generateAccumulatorId(
+export function generateChainId(
   legs: Array<{ conditionId: string; side: 'YES' | 'NO' }>
 ): string {
   const chain = legs
@@ -281,7 +281,7 @@ export interface SetCredentialsRequest {
   signatureType?: SignatureType;
 }
 
-// Accumulators
+// Chains
 export interface CreateLegInput {
   conditionId: string;
   tokenId: string;
@@ -295,27 +295,27 @@ export interface CreatePositionRequest {
   initialStake: string;
 }
 
-export interface AccumulatorSummary {
-  accumulatorId: string;
+export interface ChainSummary {
+  chainId: string;
   chain: string[]; // Array of "conditionId:side" pairs
   totalValue: number; // Aggregate of all user stakes (USDC)
-  status: AccumulatorStatus;
+  status: ChainStatus;
   createdAt: string;
 }
 
-export interface UserAccaSummary {
-  accumulatorId: string;
+export interface UserChainSummary {
+  chainId: string;
   walletAddress: string;
   initialStake: string;
   currentValue: string;
   completedLegs: number;
   totalLegs: number;
-  status: UserAccaStatus;
+  status: UserChainStatus;
   createdAt: string;
 }
 
-export interface UserAccaDetail extends UserAccaSummary {
-  accumulator: AccumulatorSummary;
+export interface UserChainDetail extends UserChainSummary {
+  chain: ChainSummary;
   bets: BetSummary[];
 }
 

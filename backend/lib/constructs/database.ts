@@ -20,13 +20,14 @@ export interface DatabaseConstructProps {
  * | User        | USER#<address>      | PROFILE               |
  * | UserCreds   | USER#<address>      | CREDS#polymarket      |
  * | Nonce       | NONCE#<address>     | NONCE                 |
- * | Accumulator | USER#<address>      | ACCA#<accaId>         |
- * | Bet         | ACCA#<accaId>       | BET#<sequence>        |
+ * | Chain       | CHAIN#<chainId>     | DEFINITION            |
+ * | UserChain   | CHAIN#<chainId>     | USER#<address>        |
+ * | Bet         | CHAIN#<chainId>     | BET#<address>#<seq>   |
  *
  * GSI1 (by status):
  * | Entity      | GSI1PK              | GSI1SK                |
  * |-------------|---------------------|-----------------------|
- * | Accumulator | STATUS#<status>     | <createdAt>           |
+ * | UserChain   | STATUS#<status>     | <createdAt>           |
  * | Bet         | BETSTATUS#<status>  | <createdAt>           |
  */
 export class DatabaseConstruct extends Construct {
@@ -57,7 +58,7 @@ export class DatabaseConstruct extends Construct {
       timeToLiveAttribute: 'TTL',
     });
 
-    // GSI1: Query by status (for active accumulators, pending bets)
+    // GSI1: Query by status (for active chains, pending bets)
     this.table.addGlobalSecondaryIndex({
       indexName: 'GSI1',
       partitionKey: { name: 'GSI1PK', type: dynamodb.AttributeType.STRING },

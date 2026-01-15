@@ -27,7 +27,7 @@ export interface ApiConstructProps {
 export class ApiConstruct extends Construct {
   public readonly api: apigateway.RestApi;
   public readonly usersFunction: nodejs.NodejsFunction;
-  public readonly accumulatorsFunction: nodejs.NodejsFunction;
+  public readonly chainsFunction: nodejs.NodejsFunction;
 
   constructor(scope: Construct, id: string, props: ApiConstructProps) {
     super(scope, id);
@@ -60,16 +60,16 @@ export class ApiConstruct extends Construct {
       handler: 'handler',
     });
 
-    // Accumulators Lambda - accumulator chain management
-    this.accumulatorsFunction = new nodejs.NodejsFunction(this, 'AccumulatorsFunction', {
+    // Chains Lambda - chain management
+    this.chainsFunction = new nodejs.NodejsFunction(this, 'ChainsFunction', {
       ...lambdaConfig,
-      entry: path.join(__dirname, '../../lambdas/api/accumulators/index.ts'),
+      entry: path.join(__dirname, '../../lambdas/api/chains/index.ts'),
       handler: 'handler',
     });
 
     // Grant DynamoDB permissions (scoped by Lambda function needs)
     table.grantReadWriteData(this.usersFunction);
-    table.grantReadWriteData(this.accumulatorsFunction);
+    table.grantReadWriteData(this.chainsFunction);
 
     // Grant KMS permissions for credential encryption/decryption
     encryptionKey.grantEncryptDecrypt(this.usersFunction);
@@ -77,7 +77,7 @@ export class ApiConstruct extends Construct {
     // REST API
     this.api = new apigateway.RestApi(this, 'PolyAccaApi', {
       restApiName: 'PolyAcca API',
-      description: 'PolyAcca Accumulator Betting API',
+      description: 'PolyAcca Chain Betting API',
       deployOptions: {
         stageName: 'v1',
         throttlingBurstLimit: 100,
@@ -114,14 +114,14 @@ export class ApiConstruct extends Construct {
     credentialsResource.addMethod('PUT', new apigateway.LambdaIntegration(this.usersFunction), protectedMethodOptions);
     credentialsResource.addMethod('DELETE', new apigateway.LambdaIntegration(this.usersFunction), protectedMethodOptions);
 
-    // Accumulators endpoints
-    const accumulatorsResource = this.api.root.addResource('accumulators');
-    const accumulatorIdResource = accumulatorsResource.addResource('{accumulatorId}');
+    // Chains endpoints
+    const chainsResource = this.api.root.addResource('chains');
+    const chainIdResource = chainsResource.addResource('{chainId}');
 
-    accumulatorsResource.addMethod('GET', new apigateway.LambdaIntegration(this.accumulatorsFunction), protectedMethodOptions);
-    accumulatorsResource.addMethod('POST', new apigateway.LambdaIntegration(this.accumulatorsFunction), protectedMethodOptions);
-    accumulatorIdResource.addMethod('GET', new apigateway.LambdaIntegration(this.accumulatorsFunction), protectedMethodOptions);
-    accumulatorIdResource.addMethod('DELETE', new apigateway.LambdaIntegration(this.accumulatorsFunction), protectedMethodOptions);
+    chainsResource.addMethod('GET', new apigateway.LambdaIntegration(this.chainsFunction), protectedMethodOptions);
+    chainsResource.addMethod('POST', new apigateway.LambdaIntegration(this.chainsFunction), protectedMethodOptions);
+    chainIdResource.addMethod('GET', new apigateway.LambdaIntegration(this.chainsFunction), protectedMethodOptions);
+    chainIdResource.addMethod('DELETE', new apigateway.LambdaIntegration(this.chainsFunction), protectedMethodOptions);
 
     // Outputs
     new cdk.CfnOutput(this, 'ApiUrl', {

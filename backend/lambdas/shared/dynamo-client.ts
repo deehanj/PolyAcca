@@ -21,11 +21,11 @@ import type {
   UserEntity,
   UserCredsEntity,
   NonceEntity,
-  AccumulatorEntity,
-  UserAccaEntity,
+  ChainEntity,
+  UserChainEntity,
   BetEntity,
   MarketEntity,
-  UserAccaStatus,
+  UserChainStatus,
   BetStatus,
   MarketStatus,
 } from './types';
@@ -62,21 +62,21 @@ export const keys = {
     SK: 'NONCE',
   }),
 
-  // Accumulator chain definition
-  accumulator: (accumulatorId: string) => ({
-    PK: `ACCA#${accumulatorId}`,
+  // Chain definition
+  chain: (chainId: string) => ({
+    PK: `CHAIN#${chainId}`,
     SK: 'DEFINITION',
   }),
 
-  // User's position on an accumulator
-  position: (accumulatorId: string, walletAddress: string) => ({
-    PK: `ACCA#${accumulatorId}`,
+  // User's position on a chain
+  position: (chainId: string, walletAddress: string) => ({
+    PK: `CHAIN#${chainId}`,
     SK: `USER#${walletAddress.toLowerCase()}`,
   }),
 
   // User's bet within a position
-  bet: (accumulatorId: string, walletAddress: string, sequence: number) => ({
-    PK: `ACCA#${accumulatorId}`,
+  bet: (chainId: string, walletAddress: string, sequence: number) => ({
+    PK: `CHAIN#${chainId}`,
     SK: `BET#${walletAddress.toLowerCase()}#${String(sequence).padStart(3, '0')}`,
   }),
 
@@ -91,10 +91,10 @@ export const keys = {
 // =============================================================================
 
 export const gsiKeys = {
-  // For listing user's accumulators
-  userAccaByUser: (walletAddress: string, accumulatorId: string) => ({
+  // For listing user's chains
+  userChainByUser: (walletAddress: string, chainId: string) => ({
     GSI1PK: `USER#${walletAddress.toLowerCase()}`,
-    GSI1SK: `ACCA#${accumulatorId}`,
+    GSI1SK: `CHAIN#${chainId}`,
   }),
 
   betByStatus: (status: BetStatus, createdAt: string) => ({
@@ -322,22 +322,22 @@ export async function deleteNonce(walletAddress: string): Promise<void> {
 }
 
 // =============================================================================
-// Accumulator Operations (shared chain definition)
+// Chain Operations (shared chain definition)
 // =============================================================================
 
-export async function getAccumulator(accumulatorId: string): Promise<AccumulatorEntity | null> {
-  const { PK, SK } = keys.accumulator(accumulatorId);
-  return getItem<AccumulatorEntity>(PK, SK);
+export async function getChain(chainId: string): Promise<ChainEntity | null> {
+  const { PK, SK } = keys.chain(chainId);
+  return getItem<ChainEntity>(PK, SK);
 }
 
 /**
- * Upsert accumulator - creates if not exists, updates totalValue if exists
+ * Upsert chain - creates if not exists, updates totalValue if exists
  */
-export async function upsertAccumulator(
-  accumulator: AccumulatorEntity,
+export async function upsertChain(
+  chain: ChainEntity,
   additionalStake: string
 ): Promise<void> {
-  const { PK, SK } = keys.accumulator(accumulator.accumulatorId);
+  const { PK, SK } = keys.chain(chain.chainId);
   const now = new Date().toISOString();
 
   await docClient.send(
@@ -345,7 +345,7 @@ export async function upsertAccumulator(
       TableName: TABLE_NAME,
       Key: { PK, SK },
       UpdateExpression: `
-        SET accumulatorId = if_not_exists(accumulatorId, :accumulatorId),
+        SET chainId = if_not_exists(chainId, :chainId),
             entityType = if_not_exists(entityType, :entityType),
             chain = if_not_exists(chain, :chain),
             legs = if_not_exists(legs, :legs),
@@ -355,12 +355,12 @@ export async function upsertAccumulator(
             updatedAt = :now
       `,
       ExpressionAttributeValues: {
-        ':accumulatorId': accumulator.accumulatorId,
-        ':entityType': 'ACCUMULATOR',
-        ':chain': accumulator.chain,
-        ':legs': accumulator.legs,
-        ':status': accumulator.status,
-        ':createdAt': accumulator.createdAt,
+        ':chainId': chain.chainId,
+        ':entityType': 'CHAIN',
+        ':chain': chain.chain,
+        ':legs': chain.legs,
+        ':status': chain.status,
+        ':createdAt': chain.createdAt,
         ':zero': 0,
         ':additionalStake': parseFloat(additionalStake),
         ':now': now,
@@ -373,13 +373,13 @@ export async function upsertAccumulator(
 }
 
 /**
- * Decrement accumulator totalValue (used when user cancels their position)
+ * Decrement chain totalValue (used when user cancels their position)
  */
-export async function decrementAccumulatorTotalValue(
-  accumulatorId: string,
+export async function decrementChainTotalValue(
+  chainId: string,
   amount: number
 ): Promise<void> {
-  const { PK, SK } = keys.accumulator(accumulatorId);
+  const { PK, SK } = keys.chain(chainId);
   const now = new Date().toISOString();
 
   await docClient.send(
@@ -396,37 +396,37 @@ export async function decrementAccumulatorTotalValue(
 }
 
 // =============================================================================
-// UserAcca Operations (user's stake on an accumulator)
+// UserChain Operations (user's stake on a chain)
 // =============================================================================
 
-export async function getUserAcca(
-  accumulatorId: string,
+export async function getUserChain(
+  chainId: string,
   walletAddress: string
-): Promise<UserAccaEntity | null> {
-  const { PK, SK } = keys.position(accumulatorId, walletAddress);
-  return getItem<UserAccaEntity>(PK, SK);
+): Promise<UserChainEntity | null> {
+  const { PK, SK } = keys.position(chainId, walletAddress);
+  return getItem<UserChainEntity>(PK, SK);
 }
 
-export async function getUserAccas(walletAddress: string): Promise<UserAccaEntity[]> {
-  return queryByGSI<UserAccaEntity>('GSI1', 'GSI1PK', `USER#${walletAddress.toLowerCase()}`, 'ACCA#');
+export async function getUserChains(walletAddress: string): Promise<UserChainEntity[]> {
+  return queryByGSI<UserChainEntity>('GSI1', 'GSI1PK', `USER#${walletAddress.toLowerCase()}`, 'CHAIN#');
 }
 
-export async function getAccumulatorUserAccas(accumulatorId: string): Promise<UserAccaEntity[]> {
-  const pk = `ACCA#${accumulatorId}`;
-  return queryItems<UserAccaEntity>(pk, 'USER#');
+export async function getChainUserChains(chainId: string): Promise<UserChainEntity[]> {
+  const pk = `CHAIN#${chainId}`;
+  return queryItems<UserChainEntity>(pk, 'USER#');
 }
 
-export async function saveUserAcca(userAcca: UserAccaEntity): Promise<void> {
-  await putItem(userAcca);
+export async function saveUserChain(userChain: UserChainEntity): Promise<void> {
+  await putItem(userChain);
 }
 
-export async function updateUserAccaStatus(
-  accumulatorId: string,
+export async function updateUserChainStatus(
+  chainId: string,
   walletAddress: string,
-  status: UserAccaStatus,
-  updates?: Partial<UserAccaEntity>
+  status: UserChainStatus,
+  updates?: Partial<UserChainEntity>
 ): Promise<void> {
-  const { PK, SK } = keys.position(accumulatorId, walletAddress);
+  const { PK, SK } = keys.position(chainId, walletAddress);
   const now = new Date().toISOString();
 
   const expressionValues: Record<string, unknown> = { ':status': status, ':now': now };
@@ -453,19 +453,19 @@ export async function updateUserAccaStatus(
 // =============================================================================
 
 export async function getBet(
-  accumulatorId: string,
+  chainId: string,
   walletAddress: string,
   sequence: number
 ): Promise<BetEntity | null> {
-  const { PK, SK } = keys.bet(accumulatorId, walletAddress, sequence);
+  const { PK, SK } = keys.bet(chainId, walletAddress, sequence);
   return getItem<BetEntity>(PK, SK);
 }
 
 export async function getPositionBets(
-  accumulatorId: string,
+  chainId: string,
   walletAddress: string
 ): Promise<BetEntity[]> {
-  const pk = `ACCA#${accumulatorId}`;
+  const pk = `CHAIN#${chainId}`;
   const skPrefix = `BET#${walletAddress.toLowerCase()}#`;
   return queryItems<BetEntity>(pk, skPrefix);
 }
@@ -475,13 +475,13 @@ export async function saveBet(bet: BetEntity): Promise<void> {
 }
 
 export async function updateBetStatus(
-  accumulatorId: string,
+  chainId: string,
   walletAddress: string,
   sequence: number,
   status: BetStatus,
   updates?: Partial<BetEntity>
 ): Promise<void> {
-  const { PK, SK } = keys.bet(accumulatorId, walletAddress, sequence);
+  const { PK, SK } = keys.bet(chainId, walletAddress, sequence);
   const now = new Date().toISOString();
 
   const expressionValues: Record<string, unknown> = {

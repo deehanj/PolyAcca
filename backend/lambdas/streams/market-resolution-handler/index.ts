@@ -13,10 +13,10 @@ import { unmarshall } from '@aws-sdk/util-dynamodb';
 import type { AttributeValue } from '@aws-sdk/client-dynamodb';
 import {
   getBetsByCondition,
-  getAccumulator,
-  getUserAcca,
+  getChain,
+  getUserChain,
   updateBetStatus,
-  updateUserAccaStatus,
+  updateUserChainStatus,
   getBet,
 } from '../../shared/dynamo-client';
 import { createLogger } from '../../shared/logger';
@@ -56,7 +56,7 @@ async function settleBet(
   const now = new Date().toISOString();
 
   // Update bet status to SETTLED
-  await updateBetStatus(bet.accumulatorId, bet.walletAddress, bet.sequence, 'SETTLED', {
+  await updateBetStatus(bet.chainId, bet.walletAddress, bet.sequence, 'SETTLED', {
     outcome: won ? 'WON' : 'LOST',
     actualPayout: payout,
     settledAt: now,
@@ -75,38 +75,38 @@ async function settleBet(
 }
 
 /**
- * Handle user acca after bet settlement
+ * Handle user chain after bet settlement
  */
-async function handleUserAccaAfterSettlement(
+async function handleUserChainAfterSettlement(
   bet: BetEntity,
   won: boolean,
   payout: string
 ): Promise<void> {
-  // Get the accumulator to know total legs
-  const accumulator = await getAccumulator(bet.accumulatorId);
+  // Get the chain to know total legs
+  const chain = await getChain(bet.chainId);
 
-  if (!accumulator) {
-    log.error('Accumulator not found', { accumulatorId: bet.accumulatorId });
+  if (!chain) {
+    log.error('Chain not found', { chainId: bet.chainId });
     return;
   }
 
-  // Get the user's acca
-  const userAcca = await getUserAcca(bet.accumulatorId, bet.walletAddress);
+  // Get the user's chain
+  const userChain = await getUserChain(bet.chainId, bet.walletAddress);
 
-  if (!userAcca) {
-    log.error('UserAcca not found', { accumulatorId: bet.accumulatorId, walletAddress: bet.walletAddress });
+  if (!userChain) {
+    log.error('UserChain not found', { chainId: bet.chainId, walletAddress: bet.walletAddress });
     return;
   }
 
   if (!won) {
-    // Bet lost - mark user acca as LOST
+    // Bet lost - mark user chain as LOST
     // The position-termination-handler will void remaining QUEUED bets via stream
-    log.info('Bet lost, marking user acca as LOST', {
-      accumulatorId: bet.accumulatorId,
+    log.info('Bet lost, marking user chain as LOST', {
+      chainId: bet.chainId,
       walletAddress: bet.walletAddress,
     });
 
-    await updateUserAccaStatus(bet.accumulatorId, bet.walletAddress, 'LOST', {
+    await updateUserChainStatus(bet.chainId, bet.walletAddress, 'LOST', {
       completedLegs: bet.sequence,
     });
 
@@ -114,17 +114,17 @@ async function handleUserAccaAfterSettlement(
   }
 
   // Bet won
-  const isLastBet = bet.sequence === accumulator.legs.length;
+  const isLastBet = bet.sequence === chain.legs.length;
 
   if (isLastBet) {
-    // All bets won! Mark user acca as WON
-    log.info('All bets won, marking user acca as WON', {
-      accumulatorId: bet.accumulatorId,
+    // All bets won! Mark user chain as WON
+    log.info('All bets won, marking user chain as WON', {
+      chainId: bet.chainId,
       walletAddress: bet.walletAddress,
       payout,
     });
 
-    await updateUserAccaStatus(bet.accumulatorId, bet.walletAddress, 'WON', {
+    await updateUserChainStatus(bet.chainId, bet.walletAddress, 'WON', {
       currentValue: payout,
       completedLegs: bet.sequence,
     });
@@ -132,34 +132,34 @@ async function handleUserAccaAfterSettlement(
     // TODO: Trigger payout to user's wallet
     log.warn('Payout not yet implemented', { payout, walletAddress: bet.walletAddress });
   } else {
-    // More bets to go - update user acca and mark next bet as READY
+    // More bets to go - update user chain and mark next bet as READY
     const nextSequence = bet.sequence + 1;
 
     log.info('Bet won, marking next bet as READY', {
-      accumulatorId: bet.accumulatorId,
+      chainId: bet.chainId,
       walletAddress: bet.walletAddress,
       nextSequence,
       newStake: payout,
     });
 
-    // Update user acca with new current value and progress
-    await updateUserAccaStatus(bet.accumulatorId, bet.walletAddress, 'ACTIVE', {
+    // Update user chain with new current value and progress
+    await updateUserChainStatus(bet.chainId, bet.walletAddress, 'ACTIVE', {
       currentValue: payout,
       completedLegs: bet.sequence,
       currentLegSequence: nextSequence,
     });
 
     // Get next bet and mark it as READY
-    const nextBet = await getBet(bet.accumulatorId, bet.walletAddress, nextSequence);
+    const nextBet = await getBet(bet.chainId, bet.walletAddress, nextSequence);
 
     if (nextBet) {
       // Mark next bet as READY - the stream will trigger BetExecutor
-      await updateBetStatus(bet.accumulatorId, bet.walletAddress, nextSequence, 'READY');
+      await updateBetStatus(bet.chainId, bet.walletAddress, nextSequence, 'READY');
 
       log.debug('Next bet marked as READY, BetExecutor will pick it up');
     } else {
       log.error('Next bet not found', {
-        accumulatorId: bet.accumulatorId,
+        chainId: bet.chainId,
         walletAddress: bet.walletAddress,
         nextSequence,
       });
@@ -204,7 +204,7 @@ async function processMarketResolution(record: DynamoDBRecord): Promise<void> {
   for (const bet of filledBets) {
     try {
       const { won, payout } = await settleBet(bet, market.outcome);
-      await handleUserAccaAfterSettlement(bet, won, payout);
+      await handleUserChainAfterSettlement(bet, won, payout);
     } catch (error) {
       log.errorWithStack('Error settling bet', error, { betId: bet.betId });
       // Continue with other bets, don't fail entire batch

@@ -6,7 +6,7 @@
  * - MODIFY: Subsequent bets (status changed to READY after previous bet won)
  *
  * Places orders on Polymarket CLOB.
- * On failure, marks bet with specific status and UserAcca as FAILED.
+ * On failure, marks bet with specific status and UserChain as FAILED.
  * The position-termination-handler will void remaining bets via stream.
  */
 
@@ -15,7 +15,7 @@ import { unmarshall } from '@aws-sdk/util-dynamodb';
 import type { AttributeValue } from '@aws-sdk/client-dynamodb';
 import {
   updateBetStatus,
-  updateUserAccaStatus,
+  updateUserChainStatus,
   getUserCreds,
 } from '../../shared/dynamo-client';
 import { decryptCredentials, placeOrder } from '../../shared/polymarket-client';
@@ -79,7 +79,7 @@ function classifyError(error: unknown): BetStatus {
 }
 
 /**
- * Handle execution failure - mark bet and UserAcca with appropriate status
+ * Handle execution failure - mark bet and UserChain with appropriate status
  */
 async function handleExecutionFailure(
   bet: BetEntity,
@@ -90,15 +90,15 @@ async function handleExecutionFailure(
   log.error('Execution failed, marking bet and position', {
     betId: bet.betId,
     betStatus,
-    accumulatorId: bet.accumulatorId,
+    chainId: bet.chainId,
     walletAddress: bet.walletAddress,
   });
 
   // Mark bet with specific failure status
-  await updateBetStatus(bet.accumulatorId, bet.walletAddress, bet.sequence, betStatus);
+  await updateBetStatus(bet.chainId, bet.walletAddress, bet.sequence, betStatus);
 
-  // Mark UserAcca as FAILED - stream will handle voiding remaining bets
-  await updateUserAccaStatus(bet.accumulatorId, bet.walletAddress, 'FAILED', {
+  // Mark UserChain as FAILED - stream will handle voiding remaining bets
+  await updateUserChainStatus(bet.chainId, bet.walletAddress, 'FAILED', {
     completedLegs: bet.sequence - 1,
   });
 }
@@ -109,7 +109,7 @@ async function handleExecutionFailure(
 async function executeBet(bet: BetEntity): Promise<void> {
   log.info('Executing bet', {
     betId: bet.betId,
-    accumulatorId: bet.accumulatorId,
+    chainId: bet.chainId,
     walletAddress: bet.walletAddress,
     tokenId: bet.tokenId,
     side: bet.side,
@@ -119,7 +119,7 @@ async function executeBet(bet: BetEntity): Promise<void> {
 
   try {
     // Mark bet as EXECUTING
-    await updateBetStatus(bet.accumulatorId, bet.walletAddress, bet.sequence, 'EXECUTING');
+    await updateBetStatus(bet.chainId, bet.walletAddress, bet.sequence, 'EXECUTING');
 
     // Get user's Polymarket credentials
     const creds = await getUserCreds(bet.walletAddress);
@@ -145,14 +145,14 @@ async function executeBet(bet: BetEntity): Promise<void> {
 
     // Update bet status to PLACED with order ID
     const now = new Date().toISOString();
-    await updateBetStatus(bet.accumulatorId, bet.walletAddress, bet.sequence, 'PLACED', {
+    await updateBetStatus(bet.chainId, bet.walletAddress, bet.sequence, 'PLACED', {
       orderId,
       executedAt: now,
     });
 
     // For now, assume order fills immediately and update to FILLED
     // In production, you'd monitor order status via Polymarket API or webhooks
-    await updateBetStatus(bet.accumulatorId, bet.walletAddress, bet.sequence, 'FILLED');
+    await updateBetStatus(bet.chainId, bet.walletAddress, bet.sequence, 'FILLED');
 
     log.info('Bet execution complete', { betId: bet.betId });
   } catch (error) {

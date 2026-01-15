@@ -1,7 +1,7 @@
 # PolyAcca Lambdas
 
 ## Overview
-Node.js Lambda functions for the PolyAcca accumulator betting platform.
+Node.js Lambda functions for the PolyAcca chain betting platform.
 
 ## Directory Structure
 
@@ -18,11 +18,11 @@ lambdas/
 ├── authorizer/          # API Gateway Lambda Authorizer
 ├── api/
 │   ├── users/           # User profile & credentials
-│   ├── accumulators/    # Accumulator CRUD
+│   ├── chains/          # Chain CRUD
 │   └── bets/            # Bet management
-└── processors/
-    ├── stream-handler/  # DynamoDB stream processor
-    └── bet-executor/    # Polymarket order execution
+└── streams/
+    ├── bet-executor/    # Polymarket order execution
+    └── market-resolution-handler/  # Market settlement
 ```
 
 ## Authentication Flow
@@ -35,15 +35,15 @@ lambdas/
 6. Backend issues JWT with wallet address as subject
 7. All protected routes require JWT in Authorization header
 
-## Accumulator Flow
+## Chain Flow
 
-1. User creates accumulator with ordered list of bets
+1. User creates chain with ordered list of bets
 2. First bet marked as READY, others as QUEUED
 3. Stream handler detects READY bet, invokes bet executor
 4. Bet executor places order on Polymarket CLOB
 5. When bet settles (external process updates status):
    - WON: Calculate payout, mark next bet as READY
-   - LOST: Mark accumulator as LOST, cancel remaining bets
+   - LOST: Mark chain as LOST, cancel remaining bets
 6. Repeat until all bets complete or one loses
 
 ## Polymarket Integration
@@ -71,4 +71,4 @@ Stream Handler also receives:
 
 - API errors return { success: false, error: string }
 - Processor errors logged but don't fail the batch
-- Bet execution errors mark accumulator as LOST
+- Bet execution errors mark chain as LOST

@@ -1,7 +1,7 @@
 # PolyAcca Backend - CDK Infrastructure
 
 ## Overview
-PolyAcca is an accumulator betting platform for Polymarket. Users chain multiple bets together,
+PolyAcca is a chain betting platform for Polymarket. Users chain multiple bets together,
 with profits from winning bets automatically rolling into subsequent bets.
 
 ## Architecture
@@ -12,9 +12,9 @@ with profits from winning bets automatically rolling into subsequent bets.
    - User credentials stored per-user in DynamoDB, encrypted with KMS
 
 2. **database.ts** - Single-table DynamoDB with streams
-   - Entities: User, UserCreds, Nonce, Accumulator, Bet
-   - GSI1: Query by status (active accumulators, pending bets)
-   - GSI2: Query bets by market token ID
+   - Entities: User, UserCreds, Nonce, Chain, UserChain, Bet
+   - GSI1: Query by status (active chains, pending bets)
+   - GSI2: Query bets by market condition ID
    - Streams enabled for event-driven processing
 
 3. **auth.ts** - Wallet-based authentication
@@ -24,11 +24,11 @@ with profits from winning bets automatically rolling into subsequent bets.
 
 4. **api.ts** - REST API Gateway
    - Public: POST /auth/nonce, POST /auth/verify
-   - Protected: /users/me, /accumulators, /accumulators/{id}/bets
+   - Protected: /users/me, /chains, /chains/{chainId}
 
-5. **processing.ts** - Event processors
-   - Stream Handler: Reacts to bet state changes
+5. **bet-management.ts** - Event processors
    - Bet Executor: Places orders on Polymarket CLOB
+   - Market Resolution Handler: Settles bets when markets resolve
 
 ### Key Patterns
 
@@ -45,8 +45,9 @@ with profits from winning bets automatically rolling into subsequent bets.
 | User        | USER#<address>      | PROFILE               |
 | UserCreds   | USER#<address>      | CREDS#polymarket      |
 | Nonce       | NONCE#<address>     | NONCE                 |
-| Accumulator | USER#<address>      | ACCA#<accaId>         |
-| Bet         | ACCA#<accaId>       | BET#<sequence>        |
+| Chain       | CHAIN#<chainId>     | DEFINITION            |
+| UserChain   | CHAIN#<chainId>     | USER#<address>        |
+| Bet         | CHAIN#<chainId>     | BET#<address>#<seq>   |
 
 ### Deployment
 
