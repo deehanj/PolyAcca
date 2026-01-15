@@ -10,13 +10,13 @@ import { unmarshall } from '@aws-sdk/util-dynamodb';
 import type { AttributeValue } from '@aws-sdk/client-dynamodb';
 import { getAllAdminConnections, deleteAdminConnection } from '../../shared/dynamo-client';
 import { broadcastToConnections } from '../../shared/websocket-broadcast';
-import type { ChainEntity, BetEntity, UserChainEntity } from '../../shared/types';
+import type { ChainEntity, BetEntity, UserChainEntity, MarketEntity } from '../../shared/types';
 import { requireEnvVar } from '../../utils/envVars';
 
 const ADMIN_WEBSOCKET_ENDPOINT = requireEnvVar('ADMIN_WEBSOCKET_ENDPOINT');
 
-type EntityType = 'CHAIN' | 'BET' | 'USER_CHAIN';
-const TRACKED_ENTITIES: EntityType[] = ['CHAIN', 'BET', 'USER_CHAIN'];
+type EntityType = 'CHAIN' | 'BET' | 'USER_CHAIN' | 'MARKET';
+const TRACKED_ENTITIES: EntityType[] = ['CHAIN', 'BET', 'USER_CHAIN', 'MARKET'];
 
 /** Get entity type from DynamoDB record */
 function getEntityType(record: DynamoDBRecord): EntityType | null {
@@ -37,20 +37,13 @@ async function processRecord(record: DynamoDBRecord): Promise<void> {
   const oldImage = record.dynamodb?.OldImage;
 
   const entity = newImage
-    ? (unmarshall(newImage as Record<string, AttributeValue>) as ChainEntity | BetEntity | UserChainEntity)
+    ? (unmarshall(newImage as Record<string, AttributeValue>) as ChainEntity | BetEntity | UserChainEntity | MarketEntity)
     : undefined;
   const oldEntity = oldImage
-    ? (unmarshall(oldImage as Record<string, AttributeValue>) as ChainEntity | BetEntity | UserChainEntity)
+    ? (unmarshall(oldImage as Record<string, AttributeValue>) as ChainEntity | BetEntity | UserChainEntity | MarketEntity)
     : undefined;
 
   if (!entity && !oldEntity) return;
-
-  // Skip MODIFY if status unchanged (reduces noise)
-  if (eventName === 'MODIFY' && oldEntity && entity) {
-    const oldStatus = (oldEntity as { status?: string }).status;
-    const newStatus = (entity as { status?: string }).status;
-    if (oldStatus === newStatus) return;
-  }
 
   console.log('Processing admin update:', { eventName, entityType, PK: entity?.PK });
 

@@ -18,6 +18,7 @@ import {
   getAllChains,
   getAllChainBets,
   getChainUsers,
+  getAllMarkets,
 } from '../../shared/dynamo-client';
 import { requireEnvVar } from '../../utils/envVars';
 
@@ -58,11 +59,30 @@ interface AdminBetData {
   actualPayout?: string;
 }
 
+interface AdminMarketData {
+  conditionId: string;
+  questionId: string;
+  question: string;
+  description?: string;
+  status: string;
+  endDate: string;
+  resolutionDate?: string;
+  outcome?: string;
+  volume?: string;
+  liquidity?: string;
+  lastSyncedAt: string;
+}
+
+interface AdminState {
+  chains: AdminChainData[];
+  markets: AdminMarketData[];
+}
+
 /**
  * Build full admin state snapshot
  */
-async function buildAdminState(): Promise<AdminChainData[]> {
-  const chains = await getAllChains();
+async function buildAdminState(): Promise<AdminState> {
+  const [chains, markets] = await Promise.all([getAllChains(), getAllMarkets()]);
 
   const chainData: AdminChainData[] = await Promise.all(
     chains.map(async (chain) => {
@@ -126,7 +146,25 @@ async function buildAdminState(): Promise<AdminChainData[]> {
   // Sort chains by createdAt desc
   chainData.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-  return chainData;
+  // Map markets to admin format
+  const marketData: AdminMarketData[] = markets.map((market) => ({
+    conditionId: market.conditionId,
+    questionId: market.questionId,
+    question: market.question,
+    description: market.description,
+    status: market.status,
+    endDate: market.endDate,
+    resolutionDate: market.resolutionDate,
+    outcome: market.outcome,
+    volume: market.volume,
+    liquidity: market.liquidity,
+    lastSyncedAt: market.lastSyncedAt,
+  }));
+
+  // Sort markets by endDate desc
+  marketData.sort((a, b) => new Date(b.endDate).getTime() - new Date(a.endDate).getTime());
+
+  return { chains: chainData, markets: marketData };
 }
 
 export const handler: APIGatewayProxyWebsocketHandlerV2 = async (event) => {

@@ -641,6 +641,22 @@ export async function getAllChainBets(chainId: string): Promise<BetEntity[]> {
   return queryItems<BetEntity>(pk, 'BET#');
 }
 
+/**
+ * Get all markets (admin only)
+ */
+export async function getAllMarkets(): Promise<MarketEntity[]> {
+  const { ScanCommand } = await import('@aws-sdk/lib-dynamodb');
+  const result = await docClient.send(
+    new ScanCommand({
+      TableName: TABLE_NAME,
+      FilterExpression: 'begins_with(PK, :pk) AND SK = :sk',
+      ExpressionAttributeValues: { ':pk': 'MARKET#', ':sk': 'MARKET' },
+    })
+  );
+
+  return (result.Items as MarketEntity[]) || [];
+}
+
 // =============================================================================
 // Admin Connection Operations
 // =============================================================================

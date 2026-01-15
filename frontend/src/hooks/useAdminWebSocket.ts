@@ -63,6 +63,22 @@ export interface AdminChainData {
   users: AdminUserData[];
 }
 
+export type MarketStatus = 'ACTIVE' | 'CLOSED' | 'RESOLVED';
+
+export interface AdminMarketData {
+  conditionId: string;
+  questionId: string;
+  question: string;
+  description?: string;
+  status: MarketStatus;
+  endDate: string;
+  resolutionDate?: string;
+  outcome?: 'YES' | 'NO';
+  volume?: string;
+  liquidity?: string;
+  lastSyncedAt: string;
+}
+
 interface AdminUpdateEntity {
   chainId?: string;
   walletAddress?: string;
@@ -85,21 +101,34 @@ interface AdminUpdateEntity {
   potentialPayout?: string;
   outcome?: string;
   actualPayout?: string;
+  // Market fields
+  questionId?: string;
+  question?: string;
+  endDate?: string;
+  resolutionDate?: string;
+  volume?: string;
+  liquidity?: string;
+  lastSyncedAt?: string;
+}
+
+interface AdminState {
+  chains: AdminChainData[];
+  markets: AdminMarketData[];
 }
 
 interface AdminUpdateMessage {
   type: 'ADMIN_STATE' | 'ADMIN_UPDATE';
   data:
-    | AdminChainData[]
+    | AdminState
     | {
-        entityType: 'CHAIN' | 'BET' | 'USER_CHAIN';
+        entityType: 'CHAIN' | 'BET' | 'USER_CHAIN' | 'MARKET';
         eventName: 'INSERT' | 'MODIFY';
         entity: AdminUpdateEntity;
       };
 }
 
 /** Apply an incremental update to chains state */
-function applyUpdate(
+function applyChainsUpdate(
   chains: AdminChainData[],
   entityType: string,
   eventName: string,
@@ -231,10 +260,58 @@ function applyUpdate(
   return chains;
 }
 
+/** Apply an incremental update to markets state */
+function applyMarketsUpdate(
+  markets: AdminMarketData[],
+  eventName: string,
+  entity: AdminUpdateEntity
+): AdminMarketData[] {
+  const { conditionId } = entity;
+  if (!conditionId) return markets;
+
+  if (eventName === 'INSERT' && !markets.some((m) => m.conditionId === conditionId)) {
+    return [
+      ...markets,
+      {
+        conditionId,
+        questionId: entity.questionId || '',
+        question: entity.question || '',
+        description: entity.description,
+        status: (entity.status as MarketStatus) || 'ACTIVE',
+        endDate: entity.endDate || new Date().toISOString(),
+        resolutionDate: entity.resolutionDate,
+        outcome: entity.outcome as 'YES' | 'NO' | undefined,
+        volume: entity.volume,
+        liquidity: entity.liquidity,
+        lastSyncedAt: entity.lastSyncedAt || new Date().toISOString(),
+      },
+    ];
+  }
+
+  if (eventName === 'MODIFY') {
+    return markets.map((m) =>
+      m.conditionId === conditionId
+        ? {
+            ...m,
+            status: (entity.status as MarketStatus) ?? m.status,
+            resolutionDate: entity.resolutionDate ?? m.resolutionDate,
+            outcome: (entity.outcome as 'YES' | 'NO' | undefined) ?? m.outcome,
+            volume: entity.volume ?? m.volume,
+            liquidity: entity.liquidity ?? m.liquidity,
+            lastSyncedAt: entity.lastSyncedAt ?? m.lastSyncedAt,
+          }
+        : m
+    );
+  }
+
+  return markets;
+}
+
 export function useAdminWebSocket() {
   const { token, isAuthenticated } = useAuth();
   const { isAdmin } = useUserProfile();
   const [chains, setChains] = useState<AdminChainData[]>([]);
+  const [markets, setMarkets] = useState<AdminMarketData[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const wsUrl = useMemo(() => {
@@ -245,15 +322,22 @@ export function useAdminWebSocket() {
   const handleMessage = useCallback((data: unknown) => {
     const message = data as AdminUpdateMessage;
 
-    if (message.type === 'ADMIN_STATE' && Array.isArray(message.data)) {
-      console.log('Received admin state:', message.data.length, 'chains');
-      setChains(message.data);
+    if (message.type === 'ADMIN_STATE' && message.data && 'chains' in message.data) {
+      const state = message.data as AdminState;
+      console.log('Received admin state:', state.chains.length, 'chains,', state.markets.length, 'markets');
+      setChains(state.chains);
+      setMarkets(state.markets);
     }
 
-    if (message.type === 'ADMIN_UPDATE' && message.data && typeof message.data === 'object' && !Array.isArray(message.data)) {
+    if (message.type === 'ADMIN_UPDATE' && message.data && 'entityType' in message.data) {
       const { entityType, eventName, entity } = message.data;
       console.log('Received admin update:', entityType, eventName);
-      setChains((prev) => applyUpdate(prev, entityType, eventName, entity));
+
+      if (entityType === 'MARKET') {
+        setMarkets((prev) => applyMarketsUpdate(prev, eventName, entity));
+      } else {
+        setChains((prev) => applyChainsUpdate(prev, entityType, eventName, entity));
+      }
     }
   }, []);
 
@@ -275,7 +359,9 @@ export function useAdminWebSocket() {
   return {
     isConnected,
     chains,
+    markets,
     error,
     chainCount: chains.length,
+    marketCount: markets.length,
   };
 }

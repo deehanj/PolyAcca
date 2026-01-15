@@ -11,6 +11,7 @@ import {
   useAdminWebSocket,
   type AdminChainData,
   type AdminBetData,
+  type AdminMarketData,
 } from '../hooks/useAdminWebSocket';
 
 // Status badge colors
@@ -22,6 +23,10 @@ const statusColors: Record<string, string> = {
   PENDING: 'bg-gray-500/20 text-gray-400',
   CANCELLED: 'bg-gray-500/20 text-gray-400',
   FAILED: 'bg-red-500/20 text-red-400',
+
+  // Market statuses
+  CLOSED: 'bg-yellow-500/20 text-yellow-400',
+  RESOLVED: 'bg-green-500/20 text-green-400',
 
   // Bet lifecycle statuses
   QUEUED: 'bg-gray-500/20 text-gray-400',
@@ -56,6 +61,13 @@ function formatAddress(address: string): string {
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleString();
+}
+
+function formatCurrency(value: string | undefined): string | null {
+  if (!value) return null;
+  const num = parseFloat(value);
+  if (isNaN(num)) return null;
+  return `$${num.toLocaleString()}`;
 }
 
 // Connection status indicator
@@ -138,6 +150,37 @@ function BetRow({ bet }: { bet: AdminBetData }) {
   );
 }
 
+// Market card
+function MarketCard({ market }: { market: AdminMarketData }) {
+  return (
+    <div className="p-4 rounded-lg border border-border bg-card">
+      <div className="flex items-start justify-between gap-4 mb-2">
+        <h3 className="font-medium text-sm flex-1">{market.question}</h3>
+        <StatusBadge status={market.status} />
+      </div>
+      {market.outcome && (
+        <div className="mb-2">
+          <span className="text-sm">
+            Outcome:{' '}
+            <span className={market.outcome === 'YES' ? 'text-green-400 font-medium' : 'text-red-400 font-medium'}>
+              {market.outcome}
+            </span>
+          </span>
+        </div>
+      )}
+      <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+        <div>End: {formatDate(market.endDate)}</div>
+        {market.resolutionDate && <div>Resolved: {formatDate(market.resolutionDate)}</div>}
+        {formatCurrency(market.volume) && <div>Volume: {formatCurrency(market.volume)}</div>}
+        {formatCurrency(market.liquidity) && <div>Liquidity: {formatCurrency(market.liquidity)}</div>}
+      </div>
+      <div className="mt-2 text-xs text-muted-foreground">
+        <code className="bg-muted px-1 rounded">{market.conditionId.slice(0, 16)}...</code>
+      </div>
+    </div>
+  );
+}
+
 // Chain detail panel - shows data from the WebSocket state
 function ChainDetailPanel({ chain }: { chain: AdminChainData }) {
   return (
@@ -203,10 +246,13 @@ function ChainDetailPanel({ chain }: { chain: AdminChainData }) {
   );
 }
 
+type Tab = 'chains' | 'markets';
+
 export function AdminPage() {
   const { isAdmin, isLoading: profileLoading } = useUserProfile();
-  const { isConnected, chains, error } = useAdminWebSocket();
+  const { isConnected, chains, markets, error } = useAdminWebSocket();
   const [selectedChainId, setSelectedChainId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<Tab>('chains');
 
   // Redirect non-admins
   if (!profileLoading && !isAdmin) {
@@ -264,39 +310,80 @@ export function AdminPage() {
 
         {/* Content */}
         {isConnected && (
-          <div className="grid lg:grid-cols-[350px_1fr] gap-6">
-            {/* Chain list */}
-            <div className="space-y-3">
-              <h2 className="text-lg font-semibold mb-4">
+          <>
+            {/* Tabs */}
+            <div className="flex gap-2 mb-6 border-b border-border">
+              <button
+                onClick={() => setActiveTab('chains')}
+                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === 'chains'
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                }`}
+              >
                 Chains ({chains.length})
-              </h2>
-              {chains.length === 0 ? (
-                <p className="text-muted-foreground text-sm">No chains created yet.</p>
-              ) : (
-                chains.map((chain) => (
-                  <ChainCard
-                    key={chain.chainId}
-                    chain={chain}
-                    isSelected={selectedChainId === chain.chainId}
-                    onSelect={() => setSelectedChainId(
-                      selectedChainId === chain.chainId ? null : chain.chainId
-                    )}
-                  />
-                ))
-              )}
+              </button>
+              <button
+                onClick={() => setActiveTab('markets')}
+                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === 'markets'
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Markets ({markets.length})
+              </button>
             </div>
 
-            {/* Detail panel */}
-            <div className="lg:border-l lg:border-border lg:pl-6">
-              {selectedChain ? (
-                <ChainDetailPanel chain={selectedChain} />
-              ) : (
-                <div className="flex items-center justify-center h-64 text-muted-foreground">
-                  Select a chain to view details
+            {/* Chains Tab */}
+            {activeTab === 'chains' && (
+              <div className="grid lg:grid-cols-[350px_1fr] gap-6">
+                {/* Chain list */}
+                <div className="space-y-3">
+                  {chains.length === 0 ? (
+                    <p className="text-muted-foreground text-sm">No chains created yet.</p>
+                  ) : (
+                    chains.map((chain) => (
+                      <ChainCard
+                        key={chain.chainId}
+                        chain={chain}
+                        isSelected={selectedChainId === chain.chainId}
+                        onSelect={() => setSelectedChainId(
+                          selectedChainId === chain.chainId ? null : chain.chainId
+                        )}
+                      />
+                    ))
+                  )}
                 </div>
-              )}
-            </div>
-          </div>
+
+                {/* Detail panel */}
+                <div className="lg:border-l lg:border-border lg:pl-6">
+                  {selectedChain ? (
+                    <ChainDetailPanel chain={selectedChain} />
+                  ) : (
+                    <div className="flex items-center justify-center h-64 text-muted-foreground">
+                      Select a chain to view details
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Markets Tab */}
+            {activeTab === 'markets' && (
+              <div className="space-y-4">
+                {markets.length === 0 ? (
+                  <p className="text-muted-foreground text-sm">No markets tracked yet.</p>
+                ) : (
+                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {markets.map((market) => (
+                      <MarketCard key={market.conditionId} market={market} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </>
         )}
       </main>
     </div>

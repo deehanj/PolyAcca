@@ -307,8 +307,10 @@ export class BetManagementConstruct extends Construct {
       })
     );
 
-    // Admin Notification Handler: CHAIN/BET/USER_CHAIN INSERT and MODIFY
+    // Admin Notification Handler: CHAIN/BET/USER_CHAIN/MARKET changes
     // Broadcasts all relevant entity changes to admin dashboard
+    // Note: Max 5 filters per event source, so we filter by entityType only
+    // and let all event types (INSERT/MODIFY) through
     this.adminNotificationHandler.addEventSource(
       new eventsources.DynamoEventSource(table, {
         startingPosition: lambda.StartingPosition.TRIM_HORIZON,
@@ -316,57 +318,35 @@ export class BetManagementConstruct extends Construct {
         bisectBatchOnError: true,
         retryAttempts: 2,
         filters: [
-          // CHAIN INSERT (new chain created)
+          // CHAIN changes
           lambda.FilterCriteria.filter({
-            eventName: lambda.FilterRule.isEqual('INSERT'),
             dynamodb: {
               NewImage: {
                 entityType: { S: lambda.FilterRule.isEqual('CHAIN') },
               },
             },
           }),
-          // CHAIN MODIFY (totalValue, status changes)
+          // BET changes
           lambda.FilterCriteria.filter({
-            eventName: lambda.FilterRule.isEqual('MODIFY'),
-            dynamodb: {
-              NewImage: {
-                entityType: { S: lambda.FilterRule.isEqual('CHAIN') },
-              },
-            },
-          }),
-          // BET INSERT (new bet created)
-          lambda.FilterCriteria.filter({
-            eventName: lambda.FilterRule.isEqual('INSERT'),
             dynamodb: {
               NewImage: {
                 entityType: { S: lambda.FilterRule.isEqual('BET') },
               },
             },
           }),
-          // BET MODIFY (status changes: READY, PLACED, WON, LOST, etc.)
+          // USER_CHAIN changes
           lambda.FilterCriteria.filter({
-            eventName: lambda.FilterRule.isEqual('MODIFY'),
-            dynamodb: {
-              NewImage: {
-                entityType: { S: lambda.FilterRule.isEqual('BET') },
-              },
-            },
-          }),
-          // USER_CHAIN INSERT (new user position)
-          lambda.FilterCriteria.filter({
-            eventName: lambda.FilterRule.isEqual('INSERT'),
             dynamodb: {
               NewImage: {
                 entityType: { S: lambda.FilterRule.isEqual('USER_CHAIN') },
               },
             },
           }),
-          // USER_CHAIN MODIFY (status changes: ACTIVE, LOST, WON, etc.)
+          // MARKET changes
           lambda.FilterCriteria.filter({
-            eventName: lambda.FilterRule.isEqual('MODIFY'),
             dynamodb: {
               NewImage: {
-                entityType: { S: lambda.FilterRule.isEqual('USER_CHAIN') },
+                entityType: { S: lambda.FilterRule.isEqual('MARKET') },
               },
             },
           }),
