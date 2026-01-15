@@ -129,7 +129,7 @@ async function setCredentials(
     apiKey: request.apiKey,
     apiSecret: request.apiSecret,
     passphrase: request.passphrase,
-    signatureType: request.signatureType ?? 0,
+    signatureType: request.signatureType ?? 'EOA',
   });
 
   const now = new Date().toISOString();
@@ -143,7 +143,7 @@ async function setCredentials(
     encryptedApiKey: encrypted.encryptedApiKey,
     encryptedApiSecret: encrypted.encryptedApiSecret,
     encryptedPassphrase: encrypted.encryptedPassphrase,
-    signatureType: request.signatureType ?? 0,
+    signatureType: request.signatureType ?? 'EOA',
     createdAt: now,
     updatedAt: now,
   };

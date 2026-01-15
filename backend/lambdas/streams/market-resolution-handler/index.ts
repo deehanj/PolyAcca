@@ -4,8 +4,8 @@
  * Triggered when a market status changes to RESOLVED.
  * Settles all bets on that market and triggers next actions:
  * - If bet WON and more bets: Mark next bet READY
- * - If bet WON and last bet: Mark accumulator WON, trigger payout
- * - If bet LOST: Mark accumulator LOST
+ * - If bet WON and last bet: Mark position WON, trigger payout
+ * - If bet LOST: Mark position LOST
  */
 
 import type { DynamoDBStreamEvent, DynamoDBRecord } from 'aws-lambda';
@@ -14,11 +14,15 @@ import type { AttributeValue } from '@aws-sdk/client-dynamodb';
 import {
   getBetsByCondition,
   getAccumulator,
+  getUserAcca,
   updateBetStatus,
-  updateAccumulatorStatus,
+  updateUserAccaStatus,
   getBet,
 } from '../../shared/dynamo-client';
+import { createLogger } from '../../shared/logger';
 import type { MarketEntity, BetEntity } from '../../shared/types';
+
+const log = createLogger('market-resolution-handler');
 
 /**
  * Determine if a bet won based on market outcome and bet side
@@ -52,14 +56,15 @@ async function settleBet(
   const now = new Date().toISOString();
 
   // Update bet status to SETTLED
-  await updateBetStatus(bet.accumulatorId, bet.sequence, 'SETTLED', {
+  await updateBetStatus(bet.accumulatorId, bet.walletAddress, bet.sequence, 'SETTLED', {
     outcome: won ? 'WON' : 'LOST',
     actualPayout: payout,
     settledAt: now,
   });
 
-  console.log('Bet settled:', {
+  log.info('Bet settled', {
     betId: bet.betId,
+    walletAddress: bet.walletAddress,
     side: bet.side,
     marketOutcome,
     won,
@@ -70,70 +75,94 @@ async function settleBet(
 }
 
 /**
- * Handle accumulator after bet settlement
+ * Handle user acca after bet settlement
  */
-async function handleAccumulatorAfterSettlement(
+async function handleUserAccaAfterSettlement(
   bet: BetEntity,
   won: boolean,
   payout: string
 ): Promise<void> {
-  const accumulator = await getAccumulator(bet.walletAddress, bet.accumulatorId);
+  // Get the accumulator to know total legs
+  const accumulator = await getAccumulator(bet.accumulatorId);
 
   if (!accumulator) {
-    console.error('Accumulator not found:', bet.accumulatorId);
+    log.error('Accumulator not found', { accumulatorId: bet.accumulatorId });
+    return;
+  }
+
+  // Get the user's acca
+  const userAcca = await getUserAcca(bet.accumulatorId, bet.walletAddress);
+
+  if (!userAcca) {
+    log.error('UserAcca not found', { accumulatorId: bet.accumulatorId, walletAddress: bet.walletAddress });
     return;
   }
 
   if (!won) {
-    // Bet lost - mark accumulator as LOST
-    console.log('Bet lost, marking accumulator as LOST:', bet.accumulatorId);
-    await updateAccumulatorStatus(bet.walletAddress, bet.accumulatorId, 'LOST', {
-      completedBets: bet.sequence,
+    // Bet lost - mark user acca as LOST
+    // The position-termination-handler will void remaining QUEUED bets via stream
+    log.info('Bet lost, marking user acca as LOST', {
+      accumulatorId: bet.accumulatorId,
+      walletAddress: bet.walletAddress,
     });
+
+    await updateUserAccaStatus(bet.accumulatorId, bet.walletAddress, 'LOST', {
+      completedLegs: bet.sequence,
+    });
+
     return;
   }
 
   // Bet won
-  const isLastBet = bet.sequence === accumulator.totalBets;
+  const isLastBet = bet.sequence === accumulator.legs.length;
 
   if (isLastBet) {
-    // All bets won! Mark accumulator as WON
-    console.log('All bets won! Marking accumulator as WON:', bet.accumulatorId);
-    await updateAccumulatorStatus(bet.walletAddress, bet.accumulatorId, 'WON', {
+    // All bets won! Mark user acca as WON
+    log.info('All bets won, marking user acca as WON', {
+      accumulatorId: bet.accumulatorId,
+      walletAddress: bet.walletAddress,
+      payout,
+    });
+
+    await updateUserAccaStatus(bet.accumulatorId, bet.walletAddress, 'WON', {
       currentValue: payout,
-      completedBets: bet.sequence,
+      completedLegs: bet.sequence,
     });
 
     // TODO: Trigger payout to user's wallet
-    console.log('TODO: Trigger payout of', payout, 'USDC to', bet.walletAddress);
+    log.warn('Payout not yet implemented', { payout, walletAddress: bet.walletAddress });
   } else {
-    // More bets to go - update accumulator and mark next bet as READY
+    // More bets to go - update user acca and mark next bet as READY
     const nextSequence = bet.sequence + 1;
 
-    console.log('Bet won, marking next bet as READY:', {
+    log.info('Bet won, marking next bet as READY', {
       accumulatorId: bet.accumulatorId,
+      walletAddress: bet.walletAddress,
       nextSequence,
       newStake: payout,
     });
 
-    // Update accumulator with new current value and progress
-    await updateAccumulatorStatus(bet.walletAddress, bet.accumulatorId, 'ACTIVE', {
+    // Update user acca with new current value and progress
+    await updateUserAccaStatus(bet.accumulatorId, bet.walletAddress, 'ACTIVE', {
       currentValue: payout,
-      completedBets: bet.sequence,
-      currentBetSequence: nextSequence,
+      completedLegs: bet.sequence,
+      currentLegSequence: nextSequence,
     });
 
-    // Get next bet and update its stake (payout from previous bet)
-    const nextBet = await getBet(bet.accumulatorId, nextSequence);
+    // Get next bet and mark it as READY
+    const nextBet = await getBet(bet.accumulatorId, bet.walletAddress, nextSequence);
 
     if (nextBet) {
-      // Update next bet with new stake (from previous win) and mark READY
-      // Note: updateBetStatus will update GSI1 for READY status
-      await updateBetStatus(bet.accumulatorId, nextSequence, 'READY');
+      // Mark next bet as READY - the stream will trigger BetExecutor
+      await updateBetStatus(bet.accumulatorId, bet.walletAddress, nextSequence, 'READY');
 
-      console.log('Next bet marked as READY, BetReadyHandler will pick it up');
+      log.debug('Next bet marked as READY, BetExecutor will pick it up');
     } else {
-      console.error('Next bet not found:', { accumulatorId: bet.accumulatorId, nextSequence });
+      log.error('Next bet not found', {
+        accumulatorId: bet.accumulatorId,
+        walletAddress: bet.walletAddress,
+        nextSequence,
+      });
     }
   }
 }
@@ -143,7 +172,7 @@ async function handleAccumulatorAfterSettlement(
  */
 async function processMarketResolution(record: DynamoDBRecord): Promise<void> {
   if (!record.dynamodb?.NewImage) {
-    console.warn('No NewImage in record');
+    log.warn('No NewImage in record');
     return;
   }
 
@@ -153,11 +182,11 @@ async function processMarketResolution(record: DynamoDBRecord): Promise<void> {
   ) as MarketEntity;
 
   if (!market.outcome) {
-    console.error('Market resolved without outcome:', market.conditionId);
+    log.error('Market resolved without outcome', { conditionId: market.conditionId });
     return;
   }
 
-  console.log('Processing market resolution:', {
+  log.info('Processing market resolution', {
     conditionId: market.conditionId,
     question: market.question,
     outcome: market.outcome,
@@ -169,22 +198,22 @@ async function processMarketResolution(record: DynamoDBRecord): Promise<void> {
   // Filter to only FILLED bets (waiting for resolution)
   const filledBets = bets.filter((bet) => bet.status === 'FILLED');
 
-  console.log(`Found ${filledBets.length} filled bets to settle`);
+  log.info('Found filled bets to settle', { count: filledBets.length });
 
   // Settle each bet
   for (const bet of filledBets) {
     try {
       const { won, payout } = await settleBet(bet, market.outcome);
-      await handleAccumulatorAfterSettlement(bet, won, payout);
+      await handleUserAccaAfterSettlement(bet, won, payout);
     } catch (error) {
-      console.error('Error settling bet:', bet.betId, error);
+      log.errorWithStack('Error settling bet', error, { betId: bet.betId });
       // Continue with other bets, don't fail entire batch
     }
   }
 }
 
 export async function handler(event: DynamoDBStreamEvent): Promise<void> {
-  console.log(`Processing ${event.Records.length} market resolution records`);
+  log.info('Processing market resolution records', { count: event.Records.length });
 
   for (const record of event.Records) {
     try {
@@ -192,7 +221,7 @@ export async function handler(event: DynamoDBStreamEvent): Promise<void> {
         await processMarketResolution(record);
       }
     } catch (error) {
-      console.error('Error processing market resolution record:', error);
+      log.errorWithStack('Error processing market resolution record', error);
       throw error; // Re-throw to trigger DLQ/retry
     }
   }

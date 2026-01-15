@@ -120,7 +120,6 @@ export class ApiConstruct extends Construct {
     accumulatorsResource.addMethod('GET', new apigateway.LambdaIntegration(this.accumulatorsFunction), protectedMethodOptions);
     accumulatorsResource.addMethod('POST', new apigateway.LambdaIntegration(this.accumulatorsFunction), protectedMethodOptions);
     accumulatorIdResource.addMethod('GET', new apigateway.LambdaIntegration(this.accumulatorsFunction), protectedMethodOptions);
-    accumulatorIdResource.addMethod('PATCH', new apigateway.LambdaIntegration(this.accumulatorsFunction), protectedMethodOptions);
     accumulatorIdResource.addMethod('DELETE', new apigateway.LambdaIntegration(this.accumulatorsFunction), protectedMethodOptions);
 
     // Outputs

@@ -1,44 +1,44 @@
 /**
- * DELETE handler for accumulators
+ * DELETE handler for user accas
  *
- * - DELETE /accumulators/{id} - Cancel accumulator
+ * - DELETE /accumulators/{id} - Cancel user acca
  */
 
 import type { APIGatewayProxyResult } from 'aws-lambda';
 import {
-  getAccumulator,
-  updateAccumulatorStatus,
-  getAccumulatorBets,
+  getUserAcca,
+  updateUserAccaStatus,
+  getPositionBets,
   updateBetStatus,
 } from '../../shared/dynamo-client';
 import { errorResponse, successResponse } from './utils';
 
 /**
- * DELETE /accumulators/{id} - Cancel accumulator
+ * DELETE /accumulators/{id} - Cancel user acca
  */
-export async function cancelAccumulator(
+export async function cancelUserAcca(
   walletAddress: string,
   accumulatorId: string
 ): Promise<APIGatewayProxyResult> {
-  const accumulator = await getAccumulator(walletAddress, accumulatorId);
+  const userAcca = await getUserAcca(accumulatorId, walletAddress);
 
-  if (!accumulator) {
+  if (!userAcca) {
     return errorResponse(404, 'Accumulator not found');
   }
 
-  // Can only cancel PENDING or ACTIVE accumulators
-  if (!['PENDING', 'ACTIVE'].includes(accumulator.status)) {
-    return errorResponse(400, `Cannot cancel accumulator with status: ${accumulator.status}`);
+  // Can only cancel PENDING or ACTIVE user accas
+  if (!['PENDING', 'ACTIVE'].includes(userAcca.status)) {
+    return errorResponse(400, `Cannot cancel accumulator with status: ${userAcca.status}`);
   }
 
-  // Update accumulator status
-  await updateAccumulatorStatus(walletAddress, accumulatorId, 'CANCELLED');
+  // Update user acca status
+  await updateUserAccaStatus(accumulatorId, walletAddress, 'CANCELLED');
 
   // Cancel all pending/queued bets
-  const bets = await getAccumulatorBets(accumulatorId);
+  const bets = await getPositionBets(accumulatorId, walletAddress);
   for (const bet of bets) {
     if (['QUEUED', 'READY'].includes(bet.status)) {
-      await updateBetStatus(accumulatorId, bet.sequence, 'CANCELLED');
+      await updateBetStatus(accumulatorId, walletAddress, bet.sequence, 'CANCELLED');
     }
   }
 

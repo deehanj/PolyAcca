@@ -3,19 +3,18 @@
  *
  * Routes requests to appropriate handlers:
  * - GET /accumulators - List user's accumulators
- * - POST /accumulators - Create new accumulator with bets
- * - GET /accumulators/{id} - Get accumulator details
- * - PATCH /accumulators/{id} - Modify accumulator chain
- * - DELETE /accumulators/{id} - Cancel accumulator
+ * - POST /accumulators - Create user acca
+ * - GET /accumulators/{id} - Get user acca details
+ * - GET /accumulators/{id}/users - Get all users on an accumulator
+ * - DELETE /accumulators/{id} - Cancel user acca
  */
 
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import type { ApiResponse } from '../../shared/types';
 import { HEADERS, getWalletAddress, errorResponse } from './utils';
-import { listAccumulators, getAccumulatorById } from './get';
-import { createAccumulator } from './post';
-import { patchAccumulator } from './patch';
-import { cancelAccumulator } from './delete';
+import { listUserAccas, getUserAccaById, getAccumulatorUsers } from './get';
+import { createUserAcca } from './post';
+import { cancelUserAcca } from './delete';
 
 export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
   try {
@@ -27,17 +26,20 @@ export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayPr
 
     const method = event.httpMethod;
     const accumulatorId = event.pathParameters?.accumulatorId;
+    const isUsersRoute = event.path.endsWith('/users');
 
     // Route handling
     if (accumulatorId) {
       // Routes with {accumulatorId}
+      if (isUsersRoute && method === 'GET') {
+        return getAccumulatorUsers(accumulatorId);
+      }
+
       switch (method) {
         case 'GET':
-          return getAccumulatorById(walletAddress, accumulatorId);
-        case 'PATCH':
-          return patchAccumulator(walletAddress, accumulatorId, event.body);
+          return getUserAccaById(walletAddress, accumulatorId);
         case 'DELETE':
-          return cancelAccumulator(walletAddress, accumulatorId);
+          return cancelUserAcca(walletAddress, accumulatorId);
         default:
           return errorResponse(405, 'Method not allowed');
       }
@@ -45,9 +47,9 @@ export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayPr
       // Routes without {accumulatorId}
       switch (method) {
         case 'GET':
-          return listAccumulators(walletAddress);
+          return listUserAccas(walletAddress);
         case 'POST':
-          return createAccumulator(walletAddress, event.body);
+          return createUserAcca(walletAddress, event.body);
         default:
           return errorResponse(405, 'Method not allowed');
       }

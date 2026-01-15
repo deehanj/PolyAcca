@@ -2,10 +2,12 @@
  * Bet Executor
  *
  * Triggered via DynamoDB Stream when a bet has status=READY:
- * - INSERT: First bet in accumulator (created with status=READY)
+ * - INSERT: First bet in position (created with status=READY)
  * - MODIFY: Subsequent bets (status changed to READY after previous bet won)
  *
  * Places orders on Polymarket CLOB.
+ * On failure, marks bet with specific status and UserAcca as FAILED.
+ * The position-termination-handler will void remaining bets via stream.
  */
 
 import type { DynamoDBStreamEvent, DynamoDBRecord } from 'aws-lambda';
@@ -13,17 +15,102 @@ import { unmarshall } from '@aws-sdk/util-dynamodb';
 import type { AttributeValue } from '@aws-sdk/client-dynamodb';
 import {
   updateBetStatus,
+  updateUserAccaStatus,
   getUserCreds,
 } from '../../shared/dynamo-client';
 import { decryptCredentials, placeOrder } from '../../shared/polymarket-client';
-import type { BetEntity } from '../../shared/types';
+import { createLogger } from '../../shared/logger';
+import type { BetEntity, BetStatus } from '../../shared/types';
+
+const log = createLogger('bet-executor');
+
+/**
+ * Error types for classifying execution failures
+ */
+interface ExecutionError extends Error {
+  code?: string;
+  type?: string;
+}
+
+/**
+ * Classify an error into a specific BetStatus
+ */
+function classifyError(error: unknown): BetStatus {
+  if (!(error instanceof Error)) {
+    return 'UNKNOWN_FAILURE';
+  }
+
+  const err = error as ExecutionError;
+  const message = err.message?.toLowerCase() || '';
+  const code = err.code?.toLowerCase() || '';
+
+  // Credential issues
+  if (message.includes('credential') || message.includes('api key') ||
+      message.includes('unauthorized') || code === 'unauthorized') {
+    return 'NO_CREDENTIALS';
+  }
+
+  // Liquidity issues
+  if (message.includes('liquidity') || message.includes('insufficient') ||
+      message.includes('not enough')) {
+    return 'INSUFFICIENT_LIQUIDITY';
+  }
+
+  // Market closed
+  if (message.includes('market closed') || message.includes('market suspended') ||
+      message.includes('trading halted') || message.includes('resolved')) {
+    return 'MARKET_CLOSED';
+  }
+
+  // Order rejected
+  if (message.includes('rejected') || message.includes('invalid order') ||
+      code === 'order_rejected') {
+    return 'ORDER_REJECTED';
+  }
+
+  // Known technical errors
+  if (message.includes('timeout') || message.includes('network') ||
+      message.includes('econnrefused') || message.includes('rate limit')) {
+    return 'EXECUTION_ERROR';
+  }
+
+  // Unknown failure
+  return 'UNKNOWN_FAILURE';
+}
+
+/**
+ * Handle execution failure - mark bet and UserAcca with appropriate status
+ */
+async function handleExecutionFailure(
+  bet: BetEntity,
+  error: unknown
+): Promise<void> {
+  const betStatus = classifyError(error);
+
+  log.error('Execution failed, marking bet and position', {
+    betId: bet.betId,
+    betStatus,
+    accumulatorId: bet.accumulatorId,
+    walletAddress: bet.walletAddress,
+  });
+
+  // Mark bet with specific failure status
+  await updateBetStatus(bet.accumulatorId, bet.walletAddress, bet.sequence, betStatus);
+
+  // Mark UserAcca as FAILED - stream will handle voiding remaining bets
+  await updateUserAccaStatus(bet.accumulatorId, bet.walletAddress, 'FAILED', {
+    completedLegs: bet.sequence - 1,
+  });
+}
 
 /**
  * Execute a bet - place order on Polymarket
  */
 async function executeBet(bet: BetEntity): Promise<void> {
-  console.log('Executing bet:', {
+  log.info('Executing bet', {
     betId: bet.betId,
+    accumulatorId: bet.accumulatorId,
+    walletAddress: bet.walletAddress,
     tokenId: bet.tokenId,
     side: bet.side,
     targetPrice: bet.targetPrice,
@@ -32,14 +119,14 @@ async function executeBet(bet: BetEntity): Promise<void> {
 
   try {
     // Mark bet as EXECUTING
-    await updateBetStatus(bet.accumulatorId, bet.sequence, 'EXECUTING');
+    await updateBetStatus(bet.accumulatorId, bet.walletAddress, bet.sequence, 'EXECUTING');
 
     // Get user's Polymarket credentials
     const creds = await getUserCreds(bet.walletAddress);
 
     if (!creds) {
-      console.error('User credentials not found:', bet.walletAddress);
-      await updateBetStatus(bet.accumulatorId, bet.sequence, 'CANCELLED');
+      log.error('User credentials not found', { walletAddress: bet.walletAddress });
+      await handleExecutionFailure(bet, new Error('User credentials not found'));
       return;
     }
 
@@ -54,28 +141,25 @@ async function executeBet(bet: BetEntity): Promise<void> {
       size: parseFloat(bet.stake) / parseFloat(bet.targetPrice), // Shares = stake / price
     });
 
-    console.log('Order placed:', { betId: bet.betId, orderId });
+    log.info('Order placed', { betId: bet.betId, orderId });
 
     // Update bet status to PLACED with order ID
     const now = new Date().toISOString();
-    await updateBetStatus(bet.accumulatorId, bet.sequence, 'PLACED', {
+    await updateBetStatus(bet.accumulatorId, bet.walletAddress, bet.sequence, 'PLACED', {
       orderId,
       executedAt: now,
     });
 
     // For now, assume order fills immediately and update to FILLED
     // In production, you'd monitor order status via Polymarket API or webhooks
-    await updateBetStatus(bet.accumulatorId, bet.sequence, 'FILLED');
+    await updateBetStatus(bet.accumulatorId, bet.walletAddress, bet.sequence, 'FILLED');
 
-    console.log('Bet execution complete:', bet.betId);
+    log.info('Bet execution complete', { betId: bet.betId });
   } catch (error) {
-    console.error('Bet execution failed:', { betId: bet.betId, error });
-
-    // Mark bet as failed - back to READY for retry
-    // In production, implement proper retry logic with backoff
-    await updateBetStatus(bet.accumulatorId, bet.sequence, 'READY');
-
-    throw error;
+    log.errorWithStack('Bet execution failed', error, { betId: bet.betId });
+    await handleExecutionFailure(bet, error);
+    // Don't throw - we've handled the failure by marking statuses
+    // The position-termination-handler will clean up via stream
   }
 }
 
@@ -84,7 +168,7 @@ async function executeBet(bet: BetEntity): Promise<void> {
  */
 async function processBetReady(record: DynamoDBRecord): Promise<void> {
   if (!record.dynamodb?.NewImage) {
-    console.warn('No NewImage in record');
+    log.warn('No NewImage in record');
     return;
   }
 
@@ -97,9 +181,14 @@ async function processBetReady(record: DynamoDBRecord): Promise<void> {
     record.dynamodb.NewImage as Record<string, AttributeValue>
   ) as BetEntity;
 
+  // Only process BET entities with status READY
+  if (newImage.entityType !== 'BET' || newImage.status !== 'READY') {
+    return;
+  }
+
   // Only process if status actually changed to READY (not already READY)
   if (oldImage?.status === 'READY') {
-    console.log('Bet already was READY, skipping:', newImage.betId);
+    log.debug('Bet already was READY, skipping', { betId: newImage.betId });
     return;
   }
 
@@ -110,7 +199,7 @@ async function processBetReady(record: DynamoDBRecord): Promise<void> {
  * Handler - processes DynamoDB Stream events for bets with status=READY
  */
 export async function handler(event: DynamoDBStreamEvent): Promise<void> {
-  console.log(`Processing ${event.Records.length} bet records`);
+  log.info('Processing bet records', { count: event.Records.length });
 
   for (const record of event.Records) {
     try {
@@ -119,7 +208,7 @@ export async function handler(event: DynamoDBStreamEvent): Promise<void> {
         await processBetReady(record);
       }
     } catch (error) {
-      console.error('Error processing bet record:', error);
+      log.errorWithStack('Error processing bet record', error);
       throw error; // Re-throw to trigger DLQ/retry
     }
   }

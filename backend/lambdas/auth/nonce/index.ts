@@ -9,16 +9,9 @@
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { randomBytes } from 'crypto';
 import { saveNonce } from '../../shared/dynamo-client';
-import type { NonceRequest, NonceResponse, ApiResponse } from '../../shared/types';
-
-const NONCE_MESSAGE_PREFIX = 'Sign this message to authenticate with PolyAcca:\n\nNonce: ';
-
-/**
- * Validate Ethereum address format
- */
-function isValidAddress(address: string): boolean {
-  return /^0x[a-fA-F0-9]{40}$/.test(address);
-}
+import type { NonceRequest, NonceResponse } from '../../shared/types';
+import { NONCE_MESSAGE_PREFIX, isValidAddress } from '../../shared/auth-utils';
+import { HEADERS, errorResponse, successResponse } from '../../shared/api-utils';
 
 /**
  * Generate a cryptographically secure nonce
@@ -30,36 +23,17 @@ function generateNonce(): string {
 export async function handler(
   event: APIGatewayProxyEvent
 ): Promise<APIGatewayProxyResult> {
-  const headers = {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
-  };
-
   try {
     // Parse request body
     if (!event.body) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({
-          success: false,
-          error: 'Request body is required',
-        } as ApiResponse),
-      };
+      return errorResponse(400, 'Request body is required');
     }
 
     const request: NonceRequest = JSON.parse(event.body);
 
     // Validate wallet address
     if (!request.walletAddress || !isValidAddress(request.walletAddress)) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({
-          success: false,
-          error: 'Invalid wallet address format',
-        } as ApiResponse),
-      };
+      return errorResponse(400, 'Invalid wallet address format');
     }
 
     // Generate nonce
@@ -69,29 +43,9 @@ export async function handler(
     // Store nonce in DynamoDB (with TTL)
     await saveNonce(request.walletAddress, nonce);
 
-    const response: ApiResponse<NonceResponse> = {
-      success: true,
-      data: {
-        nonce,
-        message,
-      },
-    };
-
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify(response),
-    };
+    return successResponse<NonceResponse>({ nonce, message });
   } catch (error) {
     console.error('Nonce generation error:', error);
-
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({
-        success: false,
-        error: 'Internal server error',
-      } as ApiResponse),
-    };
+    return errorResponse(500, 'Internal server error');
   }
 }

@@ -4,6 +4,8 @@
  * Single-table DynamoDB entity types and API types
  */
 
+import { createHash } from 'crypto';
+
 // =============================================================================
 // DynamoDB Entity Types
 // =============================================================================
@@ -36,6 +38,11 @@ export interface UserEntity extends BaseEntity {
 }
 
 /**
+ * Polymarket signature types for order signing
+ */
+export type SignatureType = 'EOA' | 'POLY_PROXY' | 'GNOSIS_SAFE';
+
+/**
  * User Polymarket credentials (encrypted)
  * PK: USER#<walletAddress>
  * SK: CREDS#polymarket
@@ -46,7 +53,7 @@ export interface UserCredsEntity extends BaseEntity {
   encryptedApiKey: string;
   encryptedApiSecret: string;
   encryptedPassphrase: string;
-  signatureType: number; // 0=EOA, 1=POLY_PROXY, 2=GNOSIS_SAFE
+  signatureType: SignatureType;
 }
 
 /**
@@ -62,36 +69,67 @@ export interface NonceEntity extends BaseEntity {
 }
 
 /**
- * Accumulator entity - a chain of bets
- * PK: USER#<walletAddress>
- * SK: ACCA#<accumulatorId>
- * GSI1PK: STATUS#<status>
- * GSI1SK: <createdAt>
+ * Accumulator leg definition (part of chain)
+ */
+export interface AccumulatorLeg {
+  sequence: number;
+  conditionId: string;
+  tokenId: string;
+  side: 'YES' | 'NO';
+  marketQuestion: string;
+}
+
+/**
+ * Accumulator entity - shared chain definition (immutable once created)
+ * PK: ACCA#<accumulatorId>
+ * SK: DEFINITION
+ *
+ * The accumulatorId is a deterministic hash of the chain (conditions + sides)
  */
 export interface AccumulatorEntity extends BaseEntity {
   entityType: 'ACCUMULATOR';
-  accumulatorId: string;
-  walletAddress: string;
-  name: string;
-  status: AccumulatorStatus;
-  initialStake: string; // USDC amount as string (to preserve precision)
-  currentValue: string; // Current accumulated value
-  totalBets: number;
-  completedBets: number;
-  currentBetSequence: number; // Which bet in the chain is active
+  accumulatorId: string; // Hash of chain: sha256(cond1:side1|cond2:side2|...)
+  chain: string[]; // Simple format for debugging: ["conditionId:YES", "conditionId:NO"]
+  legs: AccumulatorLeg[]; // Full leg details
+  totalValue: number; // Aggregate of all user stakes (USDC)
+  status: AccumulatorStatus; // Based on market resolutions
 }
 
 export type AccumulatorStatus =
+  | 'ACTIVE' // Markets still open
+  | 'WON' // All legs won
+  | 'LOST'; // A leg lost
+
+/**
+ * UserAcca entity - user's stake on an accumulator chain
+ * PK: ACCA#<accumulatorId>
+ * SK: USER#<walletAddress>
+ * GSI1PK: USER#<walletAddress> (for listing user's accumulators)
+ * GSI1SK: ACCA#<accumulatorId>
+ */
+export interface UserAccaEntity extends BaseEntity {
+  entityType: 'USER_ACCA';
+  accumulatorId: string;
+  walletAddress: string;
+  initialStake: string; // USDC amount as string (to preserve precision)
+  currentValue: string; // Current accumulated value
+  completedLegs: number; // How many legs have settled
+  currentLegSequence: number; // Which leg is currently active
+  status: UserAccaStatus;
+}
+
+export type UserAccaStatus =
   | 'PENDING' // Not started
   | 'ACTIVE' // Currently running
   | 'WON' // All bets won
   | 'LOST' // A bet lost
-  | 'CANCELLED'; // User cancelled
+  | 'CANCELLED' // User cancelled
+  | 'FAILED'; // Execution failed (detail on bet)
 
 /**
- * Bet entity - individual bet in an accumulator
+ * Bet entity - user's individual bet execution within a position
  * PK: ACCA#<accumulatorId>
- * SK: BET#<sequence> (padded, e.g., BET#001)
+ * SK: BET#<walletAddress>#<sequence>
  * GSI1PK: BETSTATUS#<status>
  * GSI1SK: <createdAt>
  * GSI2PK: CONDITION#<conditionId>
@@ -119,13 +157,27 @@ export interface BetEntity extends BaseEntity {
 }
 
 export type BetStatus =
+  // Lifecycle
   | 'QUEUED' // Waiting for previous bet to complete
   | 'READY' // Ready to execute (previous bet won)
   | 'EXECUTING' // Order being placed
   | 'PLACED' // Order placed, waiting for fill
   | 'FILLED' // Order filled, waiting for market resolution
   | 'SETTLED' // Market resolved
-  | 'CANCELLED'; // Bet cancelled
+
+  // Terminal - User action
+  | 'CANCELLED' // User cancelled
+
+  // Terminal - Chain broken
+  | 'VOIDED' // Earlier bet lost/failed
+
+  // Terminal - Execution failures
+  | 'INSUFFICIENT_LIQUIDITY' // Market lacks liquidity at target price
+  | 'NO_CREDENTIALS' // Missing/invalid Polymarket credentials
+  | 'ORDER_REJECTED' // Polymarket rejected the order
+  | 'MARKET_CLOSED' // Market closed/suspended/resolved
+  | 'EXECUTION_ERROR' // Known technical failure (timeout, network, etc.)
+  | 'UNKNOWN_FAILURE'; // Unexpected/unclassified failure
 
 /**
  * Market entity - cached Polymarket market data
@@ -157,6 +209,27 @@ export type MarketStatus =
   | 'CLOSED' // Trading closed, awaiting resolution
   | 'RESOLVED' // Market resolved with outcome
   | 'CANCELLED'; // Market cancelled/voided
+
+// =============================================================================
+// Accumulator ID Generation
+// =============================================================================
+
+/**
+ * Generate a deterministic accumulator ID from the chain definition
+ * Same chain always produces the same ID (idempotent)
+ */
+export function generateAccumulatorId(
+  legs: Array<{ conditionId: string; side: 'YES' | 'NO' }>
+): string {
+  const chain = legs
+    .map((l) => `${l.conditionId}:${l.side}`)
+    .join('|');
+
+  return createHash('sha256')
+    .update(chain)
+    .digest('hex')
+    .slice(0, 16); // 16 char hex = 64 bits
+}
 
 // =============================================================================
 // API Request/Response Types
@@ -205,17 +278,11 @@ export interface SetCredentialsRequest {
   apiKey: string;
   apiSecret: string;
   passphrase: string;
-  signatureType?: number;
+  signatureType?: SignatureType;
 }
 
 // Accumulators
-export interface CreateAccumulatorRequest {
-  name: string;
-  initialStake: string;
-  bets: CreateBetInput[];
-}
-
-export interface CreateBetInput {
+export interface CreateLegInput {
   conditionId: string;
   tokenId: string;
   marketQuestion: string;
@@ -223,18 +290,32 @@ export interface CreateBetInput {
   targetPrice: string;
 }
 
+export interface CreatePositionRequest {
+  legs: CreateLegInput[];
+  initialStake: string;
+}
+
 export interface AccumulatorSummary {
   accumulatorId: string;
-  name: string;
+  chain: string[]; // Array of "conditionId:side" pairs
+  totalValue: number; // Aggregate of all user stakes (USDC)
   status: AccumulatorStatus;
-  initialStake: string;
-  currentValue: string;
-  totalBets: number;
-  completedBets: number;
   createdAt: string;
 }
 
-export interface AccumulatorDetail extends AccumulatorSummary {
+export interface UserAccaSummary {
+  accumulatorId: string;
+  walletAddress: string;
+  initialStake: string;
+  currentValue: string;
+  completedLegs: number;
+  totalLegs: number;
+  status: UserAccaStatus;
+  createdAt: string;
+}
+
+export interface UserAccaDetail extends UserAccaSummary {
+  accumulator: AccumulatorSummary;
   bets: BetSummary[];
 }
 
@@ -271,7 +352,7 @@ export interface PolymarketCredentials {
   apiKey: string;
   apiSecret: string;
   passphrase: string;
-  signatureType: number;
+  signatureType: SignatureType;
 }
 
 export interface PolymarketOrder {

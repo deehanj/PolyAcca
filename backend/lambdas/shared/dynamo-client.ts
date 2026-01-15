@@ -22,9 +22,10 @@ import type {
   UserCredsEntity,
   NonceEntity,
   AccumulatorEntity,
+  UserAccaEntity,
   BetEntity,
   MarketEntity,
-  AccumulatorStatus,
+  UserAccaStatus,
   BetStatus,
   MarketStatus,
 } from './types';
@@ -59,23 +60,26 @@ export const keys = {
     SK: 'NONCE',
   }),
 
-  accumulator: (walletAddress: string, accumulatorId: string) => ({
-    PK: `USER#${walletAddress.toLowerCase()}`,
-    SK: `ACCA#${accumulatorId}`,
+  // Accumulator chain definition
+  accumulator: (accumulatorId: string) => ({
+    PK: `ACCA#${accumulatorId}`,
+    SK: 'DEFINITION',
   }),
 
-  bet: (accumulatorId: string, sequence: number) => ({
+  // User's position on an accumulator
+  position: (accumulatorId: string, walletAddress: string) => ({
     PK: `ACCA#${accumulatorId}`,
-    SK: `BET#${String(sequence).padStart(3, '0')}`,
+    SK: `USER#${walletAddress.toLowerCase()}`,
+  }),
+
+  // User's bet within a position
+  bet: (accumulatorId: string, walletAddress: string, sequence: number) => ({
+    PK: `ACCA#${accumulatorId}`,
+    SK: `BET#${walletAddress.toLowerCase()}#${String(sequence).padStart(3, '0')}`,
   }),
 
   market: (conditionId: string) => ({
     PK: `MARKET#${conditionId}`,
-    SK: 'MARKET',
-  }),
-
-  marketByToken: (tokenId: string) => ({
-    PK: `TOKEN#${tokenId}`,
     SK: 'MARKET',
   }),
 };
@@ -85,9 +89,10 @@ export const keys = {
 // =============================================================================
 
 export const gsiKeys = {
-  accumulatorByStatus: (status: AccumulatorStatus, createdAt: string) => ({
-    GSI1PK: `STATUS#${status}`,
-    GSI1SK: createdAt,
+  // For listing user's accumulators
+  userAccaByUser: (walletAddress: string, accumulatorId: string) => ({
+    GSI1PK: `USER#${walletAddress.toLowerCase()}`,
+    GSI1SK: `ACCA#${accumulatorId}`,
   }),
 
   betByStatus: (status: BetStatus, createdAt: string) => ({
@@ -99,12 +104,32 @@ export const gsiKeys = {
     GSI2PK: `CONDITION#${conditionId}`,
     GSI2SK: `BET#${betId}`,
   }),
-
-  marketByStatus: (status: MarketStatus, endDate: string) => ({
-    GSI1PK: `MARKETSTATUS#${status}`,
-    GSI1SK: endDate,
-  }),
 };
+
+// =============================================================================
+// Update Expression Helpers
+// =============================================================================
+
+/**
+ * Append optional fields to an UpdateExpression
+ */
+function appendUpdates(
+  updates: Record<string, unknown> | undefined,
+  fields: string[],
+  expression: string,
+  values: Record<string, unknown>
+): string {
+  if (!updates) return expression;
+
+  for (const field of fields) {
+    const value = updates[field as keyof typeof updates];
+    if (value !== undefined) {
+      expression += `, ${field} = :${field}`;
+      values[`:${field}`] = value;
+    }
+  }
+  return expression;
+}
 
 // =============================================================================
 // Generic Operations
@@ -183,10 +208,9 @@ export async function queryByGSI<T extends BaseEntity>(
 }
 
 // =============================================================================
-// Entity-Specific Operations
+// User Operations
 // =============================================================================
 
-// User operations
 export async function getUser(walletAddress: string): Promise<UserEntity | null> {
   const { PK, SK } = keys.user(walletAddress);
   return getItem<UserEntity>(PK, SK);
@@ -295,56 +319,121 @@ export async function deleteNonce(walletAddress: string): Promise<void> {
   await deleteItem(PK, SK);
 }
 
-// Accumulator operations
-export async function getAccumulator(
-  walletAddress: string,
-  accumulatorId: string
-): Promise<AccumulatorEntity | null> {
-  const { PK, SK } = keys.accumulator(walletAddress, accumulatorId);
+// =============================================================================
+// Accumulator Operations (shared chain definition)
+// =============================================================================
+
+export async function getAccumulator(accumulatorId: string): Promise<AccumulatorEntity | null> {
+  const { PK, SK } = keys.accumulator(accumulatorId);
   return getItem<AccumulatorEntity>(PK, SK);
 }
 
-export async function getUserAccumulators(walletAddress: string): Promise<AccumulatorEntity[]> {
-  const pk = `USER#${walletAddress.toLowerCase()}`;
-  return queryItems<AccumulatorEntity>(pk, 'ACCA#');
-}
-
-export async function saveAccumulator(accumulator: AccumulatorEntity): Promise<void> {
-  await putItem(accumulator);
-}
-
-export async function updateAccumulatorStatus(
-  walletAddress: string,
-  accumulatorId: string,
-  status: AccumulatorStatus,
-  updates?: Partial<AccumulatorEntity>
+/**
+ * Upsert accumulator - creates if not exists, updates totalValue if exists
+ */
+export async function upsertAccumulator(
+  accumulator: AccumulatorEntity,
+  additionalStake: string
 ): Promise<void> {
-  const { PK, SK } = keys.accumulator(walletAddress, accumulatorId);
+  const { PK, SK } = keys.accumulator(accumulator.accumulatorId);
   const now = new Date().toISOString();
 
-  let updateExpression = 'SET #status = :status, updatedAt = :now, GSI1PK = :gsi1pk, GSI1SK = :gsi1sk';
-  const expressionValues: Record<string, unknown> = {
-    ':status': status,
-    ':now': now,
-    ':gsi1pk': `STATUS#${status}`,
-    ':gsi1sk': now,
-  };
-  const expressionNames: Record<string, string> = {
-    '#status': 'status',
-  };
+  await docClient.send(
+    new UpdateCommand({
+      TableName: TABLE_NAME,
+      Key: { PK, SK },
+      UpdateExpression: `
+        SET accumulatorId = if_not_exists(accumulatorId, :accumulatorId),
+            entityType = if_not_exists(entityType, :entityType),
+            chain = if_not_exists(chain, :chain),
+            legs = if_not_exists(legs, :legs),
+            #status = if_not_exists(#status, :status),
+            createdAt = if_not_exists(createdAt, :createdAt),
+            totalValue = if_not_exists(totalValue, :zero) + :additionalStake,
+            updatedAt = :now
+      `,
+      ExpressionAttributeValues: {
+        ':accumulatorId': accumulator.accumulatorId,
+        ':entityType': 'ACCUMULATOR',
+        ':chain': accumulator.chain,
+        ':legs': accumulator.legs,
+        ':status': accumulator.status,
+        ':createdAt': accumulator.createdAt,
+        ':zero': 0,
+        ':additionalStake': parseFloat(additionalStake),
+        ':now': now,
+      },
+      ExpressionAttributeNames: {
+        '#status': 'status',
+      },
+    })
+  );
+}
 
-  if (updates?.currentValue) {
-    updateExpression += ', currentValue = :currentValue';
-    expressionValues[':currentValue'] = updates.currentValue;
-  }
-  if (updates?.completedBets !== undefined) {
-    updateExpression += ', completedBets = :completedBets';
-    expressionValues[':completedBets'] = updates.completedBets;
-  }
-  if (updates?.currentBetSequence !== undefined) {
-    updateExpression += ', currentBetSequence = :currentBetSequence';
-    expressionValues[':currentBetSequence'] = updates.currentBetSequence;
-  }
+/**
+ * Decrement accumulator totalValue (used when user cancels their position)
+ */
+export async function decrementAccumulatorTotalValue(
+  accumulatorId: string,
+  amount: number
+): Promise<void> {
+  const { PK, SK } = keys.accumulator(accumulatorId);
+  const now = new Date().toISOString();
+
+  await docClient.send(
+    new UpdateCommand({
+      TableName: TABLE_NAME,
+      Key: { PK, SK },
+      UpdateExpression: 'SET totalValue = totalValue - :amount, updatedAt = :now',
+      ExpressionAttributeValues: {
+        ':amount': amount,
+        ':now': now,
+      },
+    })
+  );
+}
+
+// =============================================================================
+// UserAcca Operations (user's stake on an accumulator)
+// =============================================================================
+
+export async function getUserAcca(
+  accumulatorId: string,
+  walletAddress: string
+): Promise<UserAccaEntity | null> {
+  const { PK, SK } = keys.position(accumulatorId, walletAddress);
+  return getItem<UserAccaEntity>(PK, SK);
+}
+
+export async function getUserAccas(walletAddress: string): Promise<UserAccaEntity[]> {
+  return queryByGSI<UserAccaEntity>('GSI1', 'GSI1PK', `USER#${walletAddress.toLowerCase()}`, 'ACCA#');
+}
+
+export async function getAccumulatorUserAccas(accumulatorId: string): Promise<UserAccaEntity[]> {
+  const pk = `ACCA#${accumulatorId}`;
+  return queryItems<UserAccaEntity>(pk, 'USER#');
+}
+
+export async function saveUserAcca(userAcca: UserAccaEntity): Promise<void> {
+  await putItem(userAcca);
+}
+
+export async function updateUserAccaStatus(
+  accumulatorId: string,
+  walletAddress: string,
+  status: UserAccaStatus,
+  updates?: Partial<UserAccaEntity>
+): Promise<void> {
+  const { PK, SK } = keys.position(accumulatorId, walletAddress);
+  const now = new Date().toISOString();
+
+  const expressionValues: Record<string, unknown> = { ':status': status, ':now': now };
+  const updateExpression = appendUpdates(
+    updates,
+    ['currentValue', 'completedLegs', 'currentLegSequence'],
+    'SET #status = :status, updatedAt = :now',
+    expressionValues
+  );
 
   await docClient.send(
     new UpdateCommand({
@@ -352,71 +441,59 @@ export async function updateAccumulatorStatus(
       Key: { PK, SK },
       UpdateExpression: updateExpression,
       ExpressionAttributeValues: expressionValues,
-      ExpressionAttributeNames: expressionNames,
+      ExpressionAttributeNames: { '#status': 'status' },
     })
   );
 }
 
-// Bet operations
-export async function getBet(accumulatorId: string, sequence: number): Promise<BetEntity | null> {
-  const { PK, SK } = keys.bet(accumulatorId, sequence);
+// =============================================================================
+// Bet Operations (user's individual bet within a position)
+// =============================================================================
+
+export async function getBet(
+  accumulatorId: string,
+  walletAddress: string,
+  sequence: number
+): Promise<BetEntity | null> {
+  const { PK, SK } = keys.bet(accumulatorId, walletAddress, sequence);
   return getItem<BetEntity>(PK, SK);
 }
 
-export async function getAccumulatorBets(accumulatorId: string): Promise<BetEntity[]> {
+export async function getPositionBets(
+  accumulatorId: string,
+  walletAddress: string
+): Promise<BetEntity[]> {
   const pk = `ACCA#${accumulatorId}`;
-  return queryItems<BetEntity>(pk, 'BET#');
+  const skPrefix = `BET#${walletAddress.toLowerCase()}#`;
+  return queryItems<BetEntity>(pk, skPrefix);
 }
 
 export async function saveBet(bet: BetEntity): Promise<void> {
   await putItem(bet);
 }
 
-export async function deleteBet(accumulatorId: string, sequence: number): Promise<void> {
-  const { PK, SK } = keys.bet(accumulatorId, sequence);
-  await deleteItem(PK, SK);
-}
-
 export async function updateBetStatus(
   accumulatorId: string,
+  walletAddress: string,
   sequence: number,
   status: BetStatus,
   updates?: Partial<BetEntity>
 ): Promise<void> {
-  const { PK, SK } = keys.bet(accumulatorId, sequence);
+  const { PK, SK } = keys.bet(accumulatorId, walletAddress, sequence);
   const now = new Date().toISOString();
 
-  let updateExpression = 'SET #status = :status, updatedAt = :now, GSI1PK = :gsi1pk, GSI1SK = :gsi1sk';
   const expressionValues: Record<string, unknown> = {
     ':status': status,
     ':now': now,
     ':gsi1pk': `BETSTATUS#${status}`,
     ':gsi1sk': now,
   };
-  const expressionNames: Record<string, string> = {
-    '#status': 'status',
-  };
-
-  if (updates?.orderId) {
-    updateExpression += ', orderId = :orderId';
-    expressionValues[':orderId'] = updates.orderId;
-  }
-  if (updates?.executedAt) {
-    updateExpression += ', executedAt = :executedAt';
-    expressionValues[':executedAt'] = updates.executedAt;
-  }
-  if (updates?.settledAt) {
-    updateExpression += ', settledAt = :settledAt';
-    expressionValues[':settledAt'] = updates.settledAt;
-  }
-  if (updates?.outcome) {
-    updateExpression += ', outcome = :outcome';
-    expressionValues[':outcome'] = updates.outcome;
-  }
-  if (updates?.actualPayout) {
-    updateExpression += ', actualPayout = :actualPayout';
-    expressionValues[':actualPayout'] = updates.actualPayout;
-  }
+  const updateExpression = appendUpdates(
+    updates,
+    ['orderId', 'executedAt', 'settledAt', 'outcome', 'actualPayout'],
+    'SET #status = :status, updatedAt = :now, GSI1PK = :gsi1pk, GSI1SK = :gsi1sk',
+    expressionValues
+  );
 
   await docClient.send(
     new UpdateCommand({
@@ -424,21 +501,22 @@ export async function updateBetStatus(
       Key: { PK, SK },
       UpdateExpression: updateExpression,
       ExpressionAttributeValues: expressionValues,
-      ExpressionAttributeNames: expressionNames,
+      ExpressionAttributeNames: { '#status': 'status' },
     })
   );
 }
 
-// Market operations
+export async function getBetsByCondition(conditionId: string): Promise<BetEntity[]> {
+  return queryByGSI<BetEntity>('GSI2', 'GSI2PK', `CONDITION#${conditionId}`, 'BET#');
+}
+
+// =============================================================================
+// Market Operations
+// =============================================================================
+
 export async function getMarket(conditionId: string): Promise<MarketEntity | null> {
   const { PK, SK } = keys.market(conditionId);
   return getItem<MarketEntity>(PK, SK);
-}
-
-export async function getMarketByTokenId(tokenId: string): Promise<MarketEntity | null> {
-  // Query GSI2 to find market by token ID
-  const results = await queryByGSI<MarketEntity>('GSI2', 'GSI2PK', `TOKEN#${tokenId}`);
-  return results[0] || null;
 }
 
 export async function saveMarket(market: MarketEntity): Promise<void> {
@@ -466,10 +544,6 @@ export async function saveMarket(market: MarketEntity): Promise<void> {
   await Promise.all([putItem(yesTokenLookup), putItem(noTokenLookup)]);
 }
 
-export async function getMarketsByStatus(status: MarketStatus): Promise<MarketEntity[]> {
-  return queryByGSI<MarketEntity>('GSI1', 'GSI1PK', `MARKETSTATUS#${status}`);
-}
-
 export async function updateMarketStatus(
   conditionId: string,
   status: MarketStatus,
@@ -478,33 +552,27 @@ export async function updateMarketStatus(
   const { PK, SK } = keys.market(conditionId);
   const now = new Date().toISOString();
 
-  let updateExpression = 'SET #status = :status, updatedAt = :now, lastSyncedAt = :now, GSI1PK = :gsi1pk';
   const expressionValues: Record<string, unknown> = {
     ':status': status,
     ':now': now,
     ':gsi1pk': `MARKETSTATUS#${status}`,
   };
-  const expressionNames: Record<string, string> = {
-    '#status': 'status',
-  };
 
+  let baseExpression = 'SET #status = :status, updatedAt = :now, lastSyncedAt = :now, GSI1PK = :gsi1pk';
+
+  // resolutionDate also updates GSI1SK
   if (updates?.resolutionDate) {
-    updateExpression += ', resolutionDate = :resolutionDate, GSI1SK = :gsi1sk';
+    baseExpression += ', resolutionDate = :resolutionDate, GSI1SK = :gsi1sk';
     expressionValues[':resolutionDate'] = updates.resolutionDate;
     expressionValues[':gsi1sk'] = updates.resolutionDate;
   }
-  if (updates?.outcome) {
-    updateExpression += ', outcome = :outcome';
-    expressionValues[':outcome'] = updates.outcome;
-  }
-  if (updates?.volume) {
-    updateExpression += ', volume = :volume';
-    expressionValues[':volume'] = updates.volume;
-  }
-  if (updates?.liquidity) {
-    updateExpression += ', liquidity = :liquidity';
-    expressionValues[':liquidity'] = updates.liquidity;
-  }
+
+  const updateExpression = appendUpdates(
+    updates,
+    ['outcome', 'volume', 'liquidity'],
+    baseExpression,
+    expressionValues
+  );
 
   await docClient.send(
     new UpdateCommand({
@@ -512,11 +580,7 @@ export async function updateMarketStatus(
       Key: { PK, SK },
       UpdateExpression: updateExpression,
       ExpressionAttributeValues: expressionValues,
-      ExpressionAttributeNames: expressionNames,
+      ExpressionAttributeNames: { '#status': 'status' },
     })
   );
-}
-
-export async function getBetsByCondition(conditionId: string): Promise<BetEntity[]> {
-  return queryByGSI<BetEntity>('GSI2', 'GSI2PK', `CONDITION#${conditionId}`, 'BET#');
 }

@@ -2,55 +2,62 @@
  * Shared utilities for accumulators handlers
  */
 
-import type { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import type {
-  ApiResponse,
   AccumulatorSummary,
-  AccumulatorDetail,
+  UserAccaSummary,
+  UserAccaDetail,
   BetSummary,
   AccumulatorEntity,
+  UserAccaEntity,
   BetEntity,
 } from '../../shared/types';
-import { getAccumulator, getAccumulatorBets } from '../../shared/dynamo-client';
+import { getAccumulator, getPositionBets } from '../../shared/dynamo-client';
 
-export const HEADERS = {
-  'Content-Type': 'application/json',
-  'Access-Control-Allow-Origin': '*',
-};
-
-/**
- * Extract wallet address from authorizer context
- */
-export function getWalletAddress(event: APIGatewayProxyEvent): string | null {
-  return event.requestContext.authorizer?.walletAddress || null;
-}
+// Re-export common utilities from shared
+export { HEADERS, getWalletAddress, errorResponse, successResponse } from '../../shared/api-utils';
 
 /**
  * Convert AccumulatorEntity to AccumulatorSummary
  */
-export function toSummary(entity: AccumulatorEntity): AccumulatorSummary {
+export function toAccumulatorSummary(entity: AccumulatorEntity): AccumulatorSummary {
   return {
     accumulatorId: entity.accumulatorId,
-    name: entity.name,
+    chain: entity.chain,
+    totalValue: entity.totalValue,
     status: entity.status,
-    initialStake: entity.initialStake,
-    currentValue: entity.currentValue,
-    totalBets: entity.totalBets,
-    completedBets: entity.completedBets,
     createdAt: entity.createdAt,
+  };
+}
+
+/**
+ * Convert UserAccaEntity to UserAccaSummary
+ */
+export function toUserAccaSummary(
+  userAcca: UserAccaEntity,
+  totalLegs: number
+): UserAccaSummary {
+  return {
+    accumulatorId: userAcca.accumulatorId,
+    walletAddress: userAcca.walletAddress,
+    initialStake: userAcca.initialStake,
+    currentValue: userAcca.currentValue,
+    completedLegs: userAcca.completedLegs,
+    totalLegs,
+    status: userAcca.status,
+    createdAt: userAcca.createdAt,
   };
 }
 
 /**
  * Convert BetEntity to BetSummary
  */
-export function toBetSummary(entity: BetEntity): BetSummary {
+export function toBetSummary(entity: BetEntity, marketQuestion: string): BetSummary {
   return {
     betId: entity.betId,
     sequence: entity.sequence,
     conditionId: entity.conditionId,
     tokenId: entity.tokenId,
-    marketQuestion: entity.marketQuestion,
+    marketQuestion,
     side: entity.side,
     targetPrice: entity.targetPrice,
     stake: entity.stake,
@@ -62,45 +69,27 @@ export function toBetSummary(entity: BetEntity): BetSummary {
 }
 
 /**
- * Build error response
+ * Get user acca with full details (including accumulator and bets)
  */
-export function errorResponse(statusCode: number, error: string): APIGatewayProxyResult {
-  return {
-    statusCode,
-    headers: HEADERS,
-    body: JSON.stringify({ success: false, error } as ApiResponse),
-  };
-}
-
-/**
- * Build success response
- */
-export function successResponse<T>(data: T, statusCode = 200): APIGatewayProxyResult {
-  return {
-    statusCode,
-    headers: HEADERS,
-    body: JSON.stringify({ success: true, data } as ApiResponse<T>),
-  };
-}
-
-/**
- * Get accumulator with full details (including bets)
- */
-export async function getAccumulatorDetail(
-  walletAddress: string,
-  accumulatorId: string
-): Promise<AccumulatorDetail | null> {
-  const accumulator = await getAccumulator(walletAddress, accumulatorId);
+export async function getUserAccaDetail(
+  userAcca: UserAccaEntity
+): Promise<UserAccaDetail | null> {
+  const accumulator = await getAccumulator(userAcca.accumulatorId);
 
   if (!accumulator) {
     return null;
   }
 
-  const bets = await getAccumulatorBets(accumulatorId);
-  const betSummaries = bets.map(toBetSummary).sort((a, b) => a.sequence - b.sequence);
+  const bets = await getPositionBets(userAcca.accumulatorId, userAcca.walletAddress);
+
+  // Get market questions from bets (stored when bet was created)
+  const betSummaries = bets
+    .map((bet) => toBetSummary(bet, bet.marketQuestion))
+    .sort((a, b) => a.sequence - b.sequence);
 
   return {
-    ...toSummary(accumulator),
+    ...toUserAccaSummary(userAcca, accumulator.chain.length),
+    accumulator: toAccumulatorSummary(accumulator),
     bets: betSummaries,
   };
 }
