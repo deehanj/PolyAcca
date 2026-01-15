@@ -9,7 +9,7 @@
  * - ADDRESS_ACTIVITY: Token transfers, contract interactions
  * - MINED_TRANSACTION: Transaction confirmations
  * - DROPPED_TRANSACTION: Failed/dropped transactions
- * - GRAPHQL: Custom GraphQL query results
+ * - GRAPHQL: Custom GraphQL query results (used for ConditionResolution events)
  */
 
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
@@ -31,6 +31,19 @@ let cachedSigningKey: string | null = null;
 const POLYMARKET_CTF_ADDRESS = '0x4D97DCd97eC945f40cF65F87097ACe5EA0476045'.toLowerCase();
 const POLYMARKET_NEG_RISK_CTF = '0xC5d563A36AE78145C45a50134d48A1215220f80a'.toLowerCase();
 
+/**
+ * ConditionResolution event signature from Gnosis Conditional Tokens contract
+ * event ConditionResolution(
+ *   bytes32 indexed conditionId,
+ *   address indexed oracle,
+ *   bytes32 indexed questionId,
+ *   uint outcomeSlotCount,
+ *   uint256[] payoutNumerators
+ * )
+ * Topic hash: keccak256("ConditionResolution(bytes32,address,bytes32,uint256,uint256[])")
+ */
+const CONDITION_RESOLUTION_TOPIC = '0xb44d84d3289691f71497564b85d4233648d9dbae8cbdea4b9eeca8be75c83ecb';
+
 // Alchemy webhook event types
 interface AlchemyWebhookEvent {
   webhookId: string;
@@ -38,9 +51,29 @@ interface AlchemyWebhookEvent {
   createdAt: string;
   type: 'ADDRESS_ACTIVITY' | 'MINED_TRANSACTION' | 'DROPPED_TRANSACTION' | 'GRAPHQL';
   event: {
-    network: string;
+    network?: string;
     activity?: AlchemyActivity[];
     transaction?: AlchemyTransaction;
+    // GRAPHQL custom webhook format
+    data?: {
+      block: {
+        number?: number;
+        hash?: string;
+        logs: AlchemyGraphQLLog[];
+      };
+    };
+  };
+}
+
+// Log format from GRAPHQL custom webhooks
+interface AlchemyGraphQLLog {
+  topics: string[];
+  data: string;
+  address?: string;
+  blockNumber?: string;
+  transactionHash?: string;
+  transaction?: {
+    hash: string;
   };
 }
 
@@ -131,6 +164,116 @@ function isPolymarketActivity(activity: AlchemyActivity): boolean {
 }
 
 /**
+ * Parsed ConditionResolution event data
+ */
+interface ConditionResolutionEvent {
+  conditionId: string;
+  oracle: string;
+  questionId: string;
+  outcomeSlotCount: number;
+  payoutNumerators: bigint[];
+}
+
+/**
+ * Parse ConditionResolution event from log topics and data
+ *
+ * Event signature:
+ * ConditionResolution(bytes32 indexed conditionId, address indexed oracle, bytes32 indexed questionId, uint outcomeSlotCount, uint256[] payoutNumerators)
+ *
+ * Topics:
+ * [0] = event signature hash
+ * [1] = conditionId (indexed, bytes32)
+ * [2] = oracle address (indexed, address padded to bytes32)
+ * [3] = questionId (indexed, bytes32)
+ *
+ * Data (ABI encoded):
+ * - outcomeSlotCount (uint256)
+ * - payoutNumerators offset (uint256) - points to array
+ * - payoutNumerators length (uint256)
+ * - payoutNumerators values (uint256[])
+ */
+function parseConditionResolutionEvent(
+  topics: string[],
+  data: string
+): ConditionResolutionEvent | null {
+  // Validate we have the right event
+  if (topics.length < 4 || topics[0].toLowerCase() !== CONDITION_RESOLUTION_TOPIC) {
+    return null;
+  }
+
+  // Parse indexed parameters from topics
+  const conditionId = topics[1]; // bytes32
+  const oracle = '0x' + topics[2].slice(-40); // address is last 20 bytes (40 hex chars)
+  const questionId = topics[3]; // bytes32
+
+  // Parse non-indexed parameters from data
+  // Remove '0x' prefix for easier parsing
+  const dataHex = data.startsWith('0x') ? data.slice(2) : data;
+
+  // Each uint256 is 32 bytes = 64 hex chars
+  // Data layout:
+  // [0-64]: outcomeSlotCount
+  // [64-128]: offset to payoutNumerators array (should be 64 = 0x40)
+  // [128-192]: length of payoutNumerators array
+  // [192+]: array elements
+
+  if (dataHex.length < 128) {
+    console.error('Data too short for ConditionResolution event');
+    return null;
+  }
+
+  const outcomeSlotCount = parseInt(dataHex.slice(0, 64), 16);
+  const arrayLength = parseInt(dataHex.slice(128, 192), 16);
+
+  const payoutNumerators: bigint[] = [];
+  for (let i = 0; i < arrayLength; i++) {
+    const start = 192 + i * 64;
+    const end = start + 64;
+    if (dataHex.length >= end) {
+      payoutNumerators.push(BigInt('0x' + dataHex.slice(start, end)));
+    }
+  }
+
+  return {
+    conditionId,
+    oracle,
+    questionId,
+    outcomeSlotCount,
+    payoutNumerators,
+  };
+}
+
+/**
+ * Determine market outcome from payout numerators
+ *
+ * For binary markets (2 outcomes):
+ * - [X, 0] where X > 0 = YES wins (outcome index 0)
+ * - [0, X] where X > 0 = NO wins (outcome index 1)
+ *
+ * Note: Polymarket uses YES=index 0, NO=index 1 for binary markets
+ */
+function determineOutcome(payoutNumerators: bigint[]): 'YES' | 'NO' | null {
+  if (payoutNumerators.length !== 2) {
+    console.warn('Non-binary market detected, payouts:', payoutNumerators.map(String));
+    // For multi-outcome markets, we'd need more complex logic
+    // For now, return null to skip
+    return null;
+  }
+
+  const [yesPayut, noPayout] = payoutNumerators;
+
+  if (yesPayut > 0n && noPayout === 0n) {
+    return 'YES';
+  } else if (noPayout > 0n && yesPayut === 0n) {
+    return 'NO';
+  } else {
+    // Split resolution or invalid
+    console.warn('Unexpected payout distribution:', { yes: String(yesPayut), no: String(noPayout) });
+    return null;
+  }
+}
+
+/**
  * Handle market resolution event
  * Updates market status in DynamoDB which triggers MarketResolutionHandler
  */
@@ -165,7 +308,7 @@ async function handleMarketResolution(
 
 /**
  * Process ADDRESS_ACTIVITY events
- * Looks for Polymarket settlement transactions
+ * Looks for Polymarket ConditionResolution events
  */
 async function handleAddressActivity(activities: AlchemyActivity[]): Promise<void> {
   for (const activity of activities) {
@@ -185,21 +328,69 @@ async function handleAddressActivity(activities: AlchemyActivity[]): Promise<voi
     console.log('Polymarket activity detected:', activity.hash);
 
     // Parse event logs to detect resolution
-    // The ConditionResolution event has signature:
-    // ConditionResolution(bytes32 indexed conditionId, uint256[] payoutNumerators)
-    if (activity.log?.topics) {
-      const eventSignature = activity.log.topics[0];
-      // ConditionResolution event signature
-      const CONDITION_RESOLUTION_SIG = '0xb3a1afa09f29b3e9b7d5d1f9a4e8e9b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9'; // Placeholder
+    if (activity.log?.topics && activity.log.data) {
+      const resolution = parseConditionResolutionEvent(activity.log.topics, activity.log.data);
 
-      if (eventSignature === CONDITION_RESOLUTION_SIG) {
-        const conditionId = activity.log.topics[1]; // indexed conditionId
-        // Parse payout from data to determine outcome
-        // This is a placeholder - actual parsing would depend on event structure
-        const outcome: 'YES' | 'NO' = 'YES'; // Placeholder
+      if (resolution) {
+        console.log('ConditionResolution event detected:', {
+          conditionId: resolution.conditionId,
+          oracle: resolution.oracle,
+          outcomeSlotCount: resolution.outcomeSlotCount,
+          payoutNumerators: resolution.payoutNumerators.map(String),
+        });
 
-        await handleMarketResolution(conditionId, outcome);
+        const outcome = determineOutcome(resolution.payoutNumerators);
+        if (outcome) {
+          await handleMarketResolution(resolution.conditionId, outcome);
+        } else {
+          console.warn('Could not determine outcome for condition:', resolution.conditionId);
+        }
       }
+    }
+  }
+}
+
+/**
+ * Process GRAPHQL custom webhook events
+ * This is the preferred method for listening to ConditionResolution events
+ */
+async function handleGraphQLWebhook(logs: AlchemyGraphQLLog[]): Promise<void> {
+  console.log(`Processing ${logs.length} logs from GRAPHQL webhook`);
+
+  for (const log of logs) {
+    // Check if this is a ConditionResolution event
+    if (!log.topics || log.topics.length < 4) {
+      continue;
+    }
+
+    if (log.topics[0].toLowerCase() !== CONDITION_RESOLUTION_TOPIC) {
+      continue;
+    }
+
+    const txHash = log.transaction?.hash || log.transactionHash || 'unknown';
+    console.log('ConditionResolution event found in tx:', txHash);
+
+    const resolution = parseConditionResolutionEvent(log.topics, log.data);
+
+    if (!resolution) {
+      console.error('Failed to parse ConditionResolution event');
+      continue;
+    }
+
+    console.log('Parsed ConditionResolution:', {
+      conditionId: resolution.conditionId,
+      oracle: resolution.oracle,
+      questionId: resolution.questionId,
+      outcomeSlotCount: resolution.outcomeSlotCount,
+      payoutNumerators: resolution.payoutNumerators.map(String),
+    });
+
+    const outcome = determineOutcome(resolution.payoutNumerators);
+
+    if (outcome) {
+      await handleMarketResolution(resolution.conditionId, outcome);
+    } else {
+      console.warn('Could not determine outcome for condition:', resolution.conditionId);
     }
   }
 }
@@ -272,7 +463,17 @@ export async function handler(
 
     // Process based on event type
     switch (webhookEvent.type) {
+      case 'GRAPHQL':
+        // Custom webhook for ConditionResolution events (preferred method)
+        if (webhookEvent.event.data?.block?.logs) {
+          await handleGraphQLWebhook(webhookEvent.event.data.block.logs);
+        } else {
+          console.warn('GRAPHQL webhook received but no logs found in payload');
+        }
+        break;
+
       case 'ADDRESS_ACTIVITY':
+        // Fallback method - also supports ConditionResolution detection
         if (webhookEvent.event.activity) {
           await handleAddressActivity(webhookEvent.event.activity);
         }
