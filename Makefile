@@ -8,6 +8,7 @@ install-fe:
 
 install-be:
 	cd backend && npm install
+	cd backend/lambdas && npm install
 
 # Run frontend development server
 dev:
@@ -53,6 +54,7 @@ destroy:
 clean:
 	rm -rf frontend/dist
 	rm -rf backend/cdk.out
+	find backend -type f \( -name "*.js" -o -name "*.d.ts" \) -not -path "*/node_modules/*" -delete
 
 # Quick git update
 update:

@@ -13,6 +13,7 @@ import { createToken } from '../../shared/jwt';
 import type { VerifyRequest, VerifyResponse } from '../../shared/types';
 import { NONCE_MESSAGE_PREFIX, isValidAddress } from '../../shared/auth-utils';
 import { errorResponse, successResponse } from '../../shared/api-utils';
+import { optionalEnvVar } from '../../utils/envVars';
 
 export async function handler(
   event: APIGatewayProxyEvent
@@ -67,7 +68,7 @@ export async function handler(
     const token = await createToken(request.walletAddress);
 
     // Calculate expiry
-    const expiryHours = parseInt(process.env.TOKEN_EXPIRY_HOURS || '24', 10);
+    const expiryHours = parseInt(optionalEnvVar('TOKEN_EXPIRY_HOURS') || '24', 10);
     const expiresAt = new Date(Date.now() + expiryHours * 60 * 60 * 1000).toISOString();
 
     return successResponse<VerifyResponse>({

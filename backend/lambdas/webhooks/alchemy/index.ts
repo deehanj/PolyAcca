@@ -22,6 +22,10 @@ import {
   getMarket,
   updateMarketStatus,
 } from '../../shared/dynamo-client';
+import { requireEnvVar } from '../../utils/envVars';
+
+// Environment variables - validated at module load time
+const WEBHOOK_SECRET_ARN = requireEnvVar('WEBHOOK_SECRET_ARN');
 
 const secretsClient = new SecretsManagerClient({});
 
@@ -116,13 +120,8 @@ async function getSigningKey(): Promise<string> {
     return cachedSigningKey;
   }
 
-  const secretArn = process.env.WEBHOOK_SECRET_ARN;
-  if (!secretArn) {
-    throw new Error('WEBHOOK_SECRET_ARN environment variable not set');
-  }
-
   const response = await secretsClient.send(
-    new GetSecretValueCommand({ SecretId: secretArn })
+    new GetSecretValueCommand({ SecretId: WEBHOOK_SECRET_ARN })
   );
 
   if (!response.SecretString) {

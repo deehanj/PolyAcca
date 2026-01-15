@@ -10,9 +10,12 @@ import {
   EncryptCommand,
 } from '@aws-sdk/client-kms';
 import type { PolymarketCredentials, UserCredsEntity } from './types';
+import { requireEnvVar } from '../utils/envVars';
+
+// Environment variables - validated at module load time
+const KMS_KEY_ARN = requireEnvVar('KMS_KEY_ARN');
 
 const kmsClient = new KMSClient({});
-const KMS_KEY_ARN = process.env.KMS_KEY_ARN!;
 
 // =============================================================================
 // Credential Encryption/Decryption

@@ -1,5 +1,7 @@
 import * as cdk from 'aws-cdk-lib/core';
+import { Aspects } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
+import * as path from 'path';
 
 // Constructs
 import { SecretsConstruct } from './constructs/secrets';
@@ -8,6 +10,12 @@ import { AuthConstruct } from './constructs/auth';
 import { ApiConstruct } from './constructs/api';
 import { BetManagementConstruct } from './constructs/bet-management';
 import { AlchemyConstruct } from './constructs/alchemy';
+import { AlertsConstruct } from './constructs/alerts';
+
+// Aspects
+import { LambdaErrorAlertAspect } from './aspects/LambdaErrorAlertAspect';
+import { SqsDlqAlertAspect } from './aspects/SqsDlqAlertAspect';
+import { NodejsLambdaEnvValidationAspect } from './aspects/NodejsLambdaEnvValidationAspect';
 
 export interface BackendStackProps extends cdk.StackProps {
   /**
@@ -24,12 +32,20 @@ export class BackendStack extends cdk.Stack {
   public readonly api: ApiConstruct;
   public readonly betManagement: BetManagementConstruct;
   public readonly alchemy: AlchemyConstruct;
+  public readonly alerts: AlertsConstruct;
 
   constructor(scope: Construct, id: string, props?: BackendStackProps) {
     super(scope, id, props);
 
     const environment = props?.environment ?? 'dev';
     const isProd = environment === 'prod';
+
+    // ==========================================================================
+    // Alerts (must be created first so aspects can reference the topic)
+    // ==========================================================================
+    this.alerts = new AlertsConstruct(this, 'Alerts', {
+      environment,
+    });
 
     // ==========================================================================
     // Secrets (platform-level)
@@ -78,6 +94,33 @@ export class BackendStack extends cdk.Stack {
       table: this.database.table,
       api: this.api.api,
     });
+
+    // ==========================================================================
+    // Aspects (applied after all constructs are created)
+    // ==========================================================================
+
+    // Validate environment variables at synth time
+    Aspects.of(this).add(
+      new NodejsLambdaEnvValidationAspect({
+        rootDir: path.join(__dirname, '../..'),
+      })
+    );
+
+    // Add error monitoring to all Lambda functions
+    Aspects.of(this).add(
+      new LambdaErrorAlertAspect({
+        alertsTopic: this.alerts.alertsTopic,
+        alarmNamePrefix: `PolyAcca-${environment}`,
+      })
+    );
+
+    // Add DLQ monitoring to all Dead Letter Queues
+    Aspects.of(this).add(
+      new SqsDlqAlertAspect({
+        alertsTopic: this.alerts.alertsTopic,
+        alarmNamePrefix: `PolyAcca-${environment}`,
+      })
+    );
 
     // ==========================================================================
     // Outputs

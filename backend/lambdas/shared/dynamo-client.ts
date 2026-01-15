@@ -29,6 +29,10 @@ import type {
   BetStatus,
   MarketStatus,
 } from './types';
+import { requireEnvVar } from '../utils/envVars';
+
+// Environment variables - validated at module load time
+const TABLE_NAME = requireEnvVar('TABLE_NAME');
 
 // Initialize DynamoDB client
 const client = new DynamoDBClient({});
@@ -37,8 +41,6 @@ export const docClient = DynamoDBDocumentClient.from(client, {
     removeUndefinedValues: true,
   },
 });
-
-const TABLE_NAME = process.env.TABLE_NAME!;
 
 // =============================================================================
 // Key Builders

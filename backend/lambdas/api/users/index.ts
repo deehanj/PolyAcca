@@ -16,6 +16,7 @@ import {
   saveUserCreds,
   deleteUserCreds,
   keys,
+  docClient,
 } from '../../shared/dynamo-client';
 import { encryptCredentials } from '../../shared/polymarket-client';
 import type {
@@ -25,10 +26,11 @@ import type {
   SetCredentialsRequest,
   UserCredsEntity,
 } from '../../shared/types';
-import { docClient } from '../../shared/dynamo-client';
 import { UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import { requireEnvVar } from '../../utils/envVars';
 
-const TABLE_NAME = process.env.TABLE_NAME!;
+// Environment variables - validated at module load time
+const TABLE_NAME = requireEnvVar('TABLE_NAME');
 
 /**
  * Extract wallet address from authorizer context

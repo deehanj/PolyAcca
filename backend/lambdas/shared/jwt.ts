@@ -8,6 +8,10 @@ import {
 } from '@aws-sdk/client-secrets-manager';
 import { createHmac } from 'crypto';
 import type { JwtPayload } from './types';
+import { requireEnvVar, optionalEnvVar } from '../utils/envVars';
+
+// Environment variables - validated at module load time
+const JWT_SECRET_ARN = requireEnvVar('JWT_SECRET_ARN');
 
 const secretsClient = new SecretsManagerClient({});
 
@@ -21,13 +25,8 @@ async function getJwtSecret(): Promise<string> {
     return cachedSecret;
   }
 
-  const secretArn = process.env.JWT_SECRET_ARN;
-  if (!secretArn) {
-    throw new Error('JWT_SECRET_ARN environment variable not set');
-  }
-
   const response = await secretsClient.send(
-    new GetSecretValueCommand({ SecretId: secretArn })
+    new GetSecretValueCommand({ SecretId: JWT_SECRET_ARN })
   );
 
   if (!response.SecretString) {
@@ -124,7 +123,7 @@ export async function verifyJwt(token: string): Promise<JwtPayload> {
  * Create a JWT token for a wallet address
  */
 export async function createToken(walletAddress: string): Promise<string> {
-  const expiryHours = parseInt(process.env.TOKEN_EXPIRY_HOURS || '24', 10);
+  const expiryHours = parseInt(optionalEnvVar('TOKEN_EXPIRY_HOURS') || '24', 10);
   const now = Math.floor(Date.now() / 1000);
 
   const payload: JwtPayload = {
