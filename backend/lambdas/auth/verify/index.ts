@@ -87,7 +87,7 @@ export async function handler(
     // Verify the signature
     let recoveredAddress: string;
     try {
-      recoveredAddress = ethers.utils.verifyMessage(message, request.signature);
+      recoveredAddress = ethers.verifyMessage(message, request.signature);
     } catch {
       return {
         statusCode: 401,
