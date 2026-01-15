@@ -3,6 +3,13 @@ import { useState, useEffect, useCallback } from 'react';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
+if (!API_URL) {
+  console.error(
+    '[PolyAcca] VITE_API_URL is not configured. Authentication will not work.\n' +
+    'Set VITE_API_URL environment variable when building the frontend.'
+  );
+}
+
 interface AuthState {
   token: string | null;
   isAuthenticating: boolean;

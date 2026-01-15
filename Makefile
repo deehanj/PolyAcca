@@ -31,7 +31,7 @@ bootstrap:
 	cd backend && npx cdk bootstrap
 
 # Deploy backend only (API, Database, etc.)
-deploy-backend: build-cdk bootstrap
+deploy-backend:
 	cd backend && npx cdk deploy BackendStack --require-approval never
 
 # Get API URL from deployed backend
@@ -39,16 +39,20 @@ get-api-url:
 	@aws cloudformation describe-stacks --stack-name BackendStack --query "Stacks[0].Outputs[?OutputKey=='ApiEndpoint'].OutputValue" --output text
 
 # Build frontend with API URL from deployed backend
-build-frontend:
+build-frontend-with-api:
 	$(eval API_URL := $(shell aws cloudformation describe-stacks --stack-name BackendStack --query "Stacks[0].Outputs[?OutputKey=='ApiEndpoint'].OutputValue" --output text))
 	cd frontend && VITE_API_URL=$(API_URL) npm run build
 
 # Deploy frontend only
-deploy-frontend: build-cdk
+deploy-frontend:
 	cd backend && npx cdk deploy FrontendStack --require-approval never
 
+# Create placeholder frontend/dist so CDK synth works before frontend is built
+ensure-frontend-dist:
+	mkdir -p frontend/dist && touch frontend/dist/.gitkeep
+
 # Deploy the entire application (backend first, then frontend with API URL)
-deploy: build-cdk deploy-backend build-frontend deploy-frontend
+deploy: ensure-frontend-dist build-cdk bootstrap deploy-backend build-frontend-with-api deploy-frontend
 
 # Deploy with approval prompt
 deploy-interactive: build build-cdk bootstrap
