@@ -18,8 +18,10 @@ import {
   getChain,
 } from '../../shared/dynamo-client';
 import type { UserChainEntity } from '../../shared/types';
+import { requireEnvVar } from '../../utils/envVars';
 
-const WEBSOCKET_ENDPOINT = process.env.WEBSOCKET_ENDPOINT!;
+// Environment variables - validated at module load time
+const WEBSOCKET_ENDPOINT = requireEnvVar('WEBSOCKET_ENDPOINT');
 
 /**
  * Truncate wallet address for display (0x1234...5678)

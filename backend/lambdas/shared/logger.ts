@@ -4,6 +4,8 @@
  * Outputs structured JSON for CloudWatch Logs Insights
  */
 
+import { optionalEnvVar } from '../utils/envVars';
+
 type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 interface LogContext {
@@ -32,7 +34,7 @@ class Logger {
 
   constructor(service: string, minLevel?: LogLevel) {
     this.service = service;
-    this.minLevel = minLevel ?? (process.env.LOG_LEVEL as LogLevel) ?? 'info';
+    this.minLevel = minLevel ?? (optionalEnvVar('LOG_LEVEL') as LogLevel) ?? 'info';
     this.defaultContext = {};
   }
 
