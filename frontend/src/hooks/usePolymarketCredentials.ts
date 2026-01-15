@@ -40,12 +40,25 @@ export function usePolymarketCredentials() {
       let creds;
       try {
         creds = await client.deriveApiKey();
-      } catch (err) {
+      } catch (err: unknown) {
+        // Handle axios error structure from CLOB client
+        const axiosError = err as { status?: number; response?: { status?: number; data?: { error?: string } }; data?: { error?: string } };
+        const status = axiosError?.status || axiosError?.response?.status;
+        const dataError = axiosError?.data?.error || axiosError?.response?.data?.error;
         const message = err instanceof Error ? err.message : String(err);
-        if (message.includes('Could not derive api key') || message.includes('400')) {
+        const fullError = JSON.stringify(err);
+
+        console.log('[usePolymarketCredentials] Caught error:', { status, dataError, message, fullError });
+
+        if (status === 400 || dataError?.includes('Could not derive api key') || message.includes('Could not derive api key') || fullError.includes('Could not derive api key')) {
           throw new Error('Wallet not registered with Polymarket. Please enable trading at polymarket.com first.');
         }
         throw err;
+      }
+
+      // Verify we got valid credentials
+      if (!creds?.key || !creds?.secret || !creds?.passphrase) {
+        throw new Error('Wallet not registered with Polymarket. Please enable trading at polymarket.com first.');
       }
 
       // Send to backend for validation and storage

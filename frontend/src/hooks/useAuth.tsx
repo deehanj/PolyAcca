@@ -1,5 +1,6 @@
 import { useAccount, useSignMessage, useDisconnect } from 'wagmi';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, createContext, useContext } from 'react';
+import type { ReactNode } from 'react';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
@@ -16,7 +17,21 @@ interface AuthState {
   error: string | null;
 }
 
-export function useAuth() {
+interface AuthContextValue {
+  address: `0x${string}` | undefined;
+  isConnected: boolean;
+  isAuthenticated: boolean;
+  isAuthenticating: boolean;
+  token: string | null;
+  error: string | null;
+  authenticate: () => Promise<void>;
+  logout: () => void;
+  getAuthHeaders: () => Record<string, string>;
+}
+
+const AuthContext = createContext<AuthContextValue | null>(null);
+
+export function AuthProvider({ children }: { children: ReactNode }) {
   const { address, isConnected } = useAccount();
   const { signMessageAsync } = useSignMessage();
   const { disconnect } = useDisconnect();
@@ -132,20 +147,25 @@ export function useAuth() {
     return { Authorization: `Bearer ${authState.token}` };
   }, [authState.token]);
 
-  return {
-    // Wallet state
+  const value: AuthContextValue = {
     address,
     isConnected,
-
-    // Auth state
     isAuthenticated: !!authState.token,
     isAuthenticating: authState.isAuthenticating,
     token: authState.token,
     error: authState.error,
-
-    // Actions
     authenticate,
     logout,
     getAuthHeaders,
   };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+export function useAuth(): AuthContextValue {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
 }

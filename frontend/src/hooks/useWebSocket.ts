@@ -67,6 +67,13 @@ export function useWebSocket(options: WebSocketHookOptions): WebSocketHookReturn
       console.log('WebSocket connected');
       setIsConnected(true);
       reconnectAttempts.current = 0;
+
+      // Clear any pending reconnection timeout (prevents race condition with Strict Mode)
+      if (reconnectTimeout.current) {
+        window.clearTimeout(reconnectTimeout.current);
+        reconnectTimeout.current = null;
+      }
+
       schedulePing();
     };
 

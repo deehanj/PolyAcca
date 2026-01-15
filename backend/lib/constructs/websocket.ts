@@ -29,6 +29,7 @@ export class WebSocketConstruct extends Construct {
   public readonly webSocketStage: apigwv2.WebSocketStage;
   public readonly connectHandler: nodejs.NodejsFunction;
   public readonly disconnectHandler: nodejs.NodejsFunction;
+  public readonly defaultHandler: nodejs.NodejsFunction;
   public readonly webSocketEndpoint: string;
 
   constructor(scope: Construct, id: string, props: WebSocketConstructProps) {
@@ -69,6 +70,14 @@ export class WebSocketConstruct extends Construct {
       description: 'WebSocket $disconnect handler - removes connection ID',
     });
 
+    // $default handler - handles ping/pong and other messages
+    this.defaultHandler = new nodejs.NodejsFunction(this, 'DefaultHandler', {
+      ...lambdaConfig,
+      entry: path.join(__dirname, '../../lambdas/websocket/default/index.ts'),
+      handler: 'handler',
+      description: 'WebSocket $default handler - handles ping/pong',
+    });
+
     // Grant DynamoDB permissions
     table.grantReadWriteData(this.connectHandler);
     table.grantReadWriteData(this.disconnectHandler);
@@ -83,6 +92,9 @@ export class WebSocketConstruct extends Construct {
       disconnectRouteOptions: {
         integration: new WebSocketLambdaIntegration('DisconnectIntegration', this.disconnectHandler),
       },
+      defaultRouteOptions: {
+        integration: new WebSocketLambdaIntegration('DefaultIntegration', this.defaultHandler),
+      },
     });
 
     // WebSocket Stage
@@ -95,6 +107,9 @@ export class WebSocketConstruct extends Construct {
     // Build the WebSocket endpoint URL for API Gateway Management API
     // Format: https://{api-id}.execute-api.{region}.amazonaws.com/{stage}
     this.webSocketEndpoint = `https://${this.webSocketApi.apiId}.execute-api.${cdk.Stack.of(this).region}.amazonaws.com/${this.webSocketStage.stageName}`;
+
+    // Grant default handler permission to send pong responses
+    this.grantManageConnections(this.defaultHandler);
 
     // Outputs
     new cdk.CfnOutput(this, 'WebSocketUrl', {

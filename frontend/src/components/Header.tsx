@@ -7,9 +7,7 @@ import { useAuth } from "../hooks/useAuth";
 
 export function Header() {
   const { isAdmin, profile, refetch } = useUserProfile();
-  const { isAuthenticated, token } = useAuth();
-
-  console.log('[Header] isAuthenticated:', isAuthenticated, 'hasCredentials:', profile?.hasCredentials, 'token:', !!token);
+  const { isAuthenticated } = useAuth();
 
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur-sm">

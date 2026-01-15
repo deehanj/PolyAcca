@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Toaster } from "sonner";
 import { Web3Provider } from "./providers/Web3Provider";
+import { AuthProvider } from "./hooks/useAuth";
 import { AccumulatorProvider } from "./context/AccumulatorContext";
 import { useBetNotifications } from "./hooks/useBetNotifications";
 import { HomePage } from "./pages/Home";
@@ -23,12 +24,14 @@ function AppContent() {
 function App() {
   return (
     <Web3Provider>
-      <BrowserRouter>
-        <AccumulatorProvider>
-          <AppContent />
-          <Toaster position="bottom-right" theme="dark" richColors />
-        </AccumulatorProvider>
-      </BrowserRouter>
+      <AuthProvider>
+        <BrowserRouter>
+          <AccumulatorProvider>
+            <AppContent />
+            <Toaster position="bottom-right" theme="dark" richColors />
+          </AccumulatorProvider>
+        </BrowserRouter>
+      </AuthProvider>
     </Web3Provider>
   );
 }
