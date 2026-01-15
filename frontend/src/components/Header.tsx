@@ -1,10 +1,16 @@
 import { Link } from "react-router-dom";
 import { Shield } from "lucide-react";
 import { AuthButton } from "./AuthButton";
+import { EnableTradingButton } from "./EnableTradingButton";
 import { useUserProfile } from "../hooks/useUserProfile";
+import { useAuth } from "../hooks/useAuth";
 
 export function Header() {
-  const { isAdmin } = useUserProfile();
+  const { isAdmin, profile, refetch } = useUserProfile();
+  const { isAuthenticated, token } = useAuth();
+
+  console.log('[Header] isAuthenticated:', isAuthenticated, 'hasCredentials:', profile?.hasCredentials, 'token:', !!token);
+
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur-sm">
       <div className="mx-auto max-w-6xl px-6">
@@ -35,6 +41,12 @@ export function Header() {
                 <Shield className="h-4 w-4" />
                 Admin
               </Link>
+            )}
+            {isAuthenticated && (
+              <EnableTradingButton
+                hasCredentials={profile?.hasCredentials}
+                onSuccess={refetch}
+              />
             )}
             <AuthButton />
           </div>

@@ -66,13 +66,26 @@ export function EnableTradingButton({
 
   // Error state
   if (error) {
+    const isNotRegistered = error.includes('polymarket.com');
     return (
       <div className="flex flex-col gap-2">
-        <Button variant="destructive" className={className} onClick={handleClick} disabled={!canDerive}>
-          <AlertCircle className="h-4 w-4" />
-          Retry Enable Trading
-        </Button>
-        <span className="text-xs text-destructive">{error}</span>
+        {isNotRegistered ? (
+          <a
+            href="https://polymarket.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center justify-center gap-2 rounded-md border border-primary bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+          >
+            <Layers className="h-4 w-4" />
+            Register on Polymarket
+          </a>
+        ) : (
+          <Button variant="destructive" className={className} onClick={handleClick} disabled={!canDerive}>
+            <AlertCircle className="h-4 w-4" />
+            Retry
+          </Button>
+        )}
+        <span className="text-xs text-muted-foreground">{error}</span>
       </div>
     );
   }

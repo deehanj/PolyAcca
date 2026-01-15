@@ -119,13 +119,6 @@ export function useAuth() {
     }
   }, [address, isConnected, authState.token, signMessageAsync, disconnect]);
 
-  // Auto-authenticate when wallet connects (if API_URL is configured)
-  useEffect(() => {
-    if (isConnected && address && !authState.token && !authState.isAuthenticating && API_URL) {
-      authenticate();
-    }
-  }, [isConnected, address, authState.token, authState.isAuthenticating, authenticate]);
-
   const logout = useCallback(() => {
     disconnect();
     setAuthState({ token: null, isAuthenticating: false, error: null });

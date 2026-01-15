@@ -36,7 +36,17 @@ export function usePolymarketCredentials() {
       // Derive credentials from wallet signature
       const signer = walletClientToSigner(walletClient);
       const client = new ClobClient(POLYMARKET_HOST, POLYGON_CHAIN_ID, signer);
-      const creds = await client.deriveApiKey();
+
+      let creds;
+      try {
+        creds = await client.deriveApiKey();
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        if (message.includes('Could not derive api key') || message.includes('400')) {
+          throw new Error('Wallet not registered with Polymarket. Please enable trading at polymarket.com first.');
+        }
+        throw err;
+      }
 
       // Send to backend for validation and storage
       const response = await fetch(`${API_URL}/users/me/credentials`, {
