@@ -431,7 +431,8 @@ export async function handler(
     }
 
     // Verify webhook signature
-    const signature = event.headers['x-alchemy-signature'];
+    // API Gateway REST API preserves header case - check both
+    const signature = event.headers['x-alchemy-signature'] || event.headers['X-Alchemy-Signature'];
     if (!signature) {
       console.warn('Missing Alchemy signature header');
       return {
