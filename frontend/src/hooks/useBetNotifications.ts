@@ -8,7 +8,7 @@ interface BetNotification {
     wallet: string;
     stake: string;
     legs: string[];
-    accumulatorId: string;
+    chainId: string;
     timestamp: string;
   };
 }

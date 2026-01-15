@@ -14,7 +14,7 @@ import type { AttributeValue } from '@aws-sdk/client-dynamodb';
 import {
   getChain,
   getUserCreds,
-  getPositionBets,
+  getChainBets,
   updateBetStatus,
   decrementChainTotalValue,
 } from '../../shared/dynamo-client';
@@ -110,7 +110,7 @@ async function processPositionTermination(record: DynamoDBRecord): Promise<void>
   });
 
   // Get all bets for this position
-  const bets = await getPositionBets(chainId, walletAddress);
+  const bets = await getChainBets(chainId, walletAddress);
 
   // Void all QUEUED bets
   const queuedBets = bets.filter((bet) => bet.status === 'QUEUED');

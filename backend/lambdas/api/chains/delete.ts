@@ -8,7 +8,7 @@ import type { APIGatewayProxyResult } from 'aws-lambda';
 import {
   getUserChain,
   updateUserChainStatus,
-  getPositionBets,
+  getChainBets,
   updateBetStatus,
 } from '../../shared/dynamo-client';
 import { errorResponse, successResponse } from './utils';
@@ -35,7 +35,7 @@ export async function cancelUserChain(
   await updateUserChainStatus(chainId, walletAddress, 'CANCELLED');
 
   // Cancel all pending/queued bets
-  const bets = await getPositionBets(chainId, walletAddress);
+  const bets = await getChainBets(chainId, walletAddress);
   for (const bet of bets) {
     if (['QUEUED', 'READY'].includes(bet.status)) {
       await updateBetStatus(chainId, walletAddress, bet.sequence, 'CANCELLED');

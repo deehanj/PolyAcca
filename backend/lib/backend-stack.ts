@@ -9,6 +9,7 @@ import { DatabaseConstruct } from './constructs/database';
 import { AuthConstruct } from './constructs/auth';
 import { ApiConstruct } from './constructs/api';
 import { BetManagementConstruct } from './constructs/bet-management';
+import { WebSocketConstruct } from './constructs/websocket';
 import { AlchemyConstruct } from './constructs/alchemy';
 import { AlertsConstruct } from './constructs/alerts';
 
@@ -30,6 +31,7 @@ export class BackendStack extends cdk.Stack {
   public readonly database: DatabaseConstruct;
   public readonly auth: AuthConstruct;
   public readonly api: ApiConstruct;
+  public readonly websocket: WebSocketConstruct;
   public readonly betManagement: BetManagementConstruct;
   public readonly alchemy: AlchemyConstruct;
   public readonly alerts: AlertsConstruct;
@@ -80,11 +82,19 @@ export class BackendStack extends cdk.Stack {
     });
 
     // ==========================================================================
+    // WebSocket (real-time bet notifications)
+    // ==========================================================================
+    this.websocket = new WebSocketConstruct(this, 'WebSocket', {
+      table: this.database.table,
+    });
+
+    // ==========================================================================
     // Bet Management (stream handlers and bet executor)
     // ==========================================================================
     this.betManagement = new BetManagementConstruct(this, 'BetManagement', {
       table: this.database.table,
       encryptionKey: this.database.encryptionKey,
+      websocket: this.websocket,
     });
 
     // ==========================================================================
@@ -128,6 +138,11 @@ export class BackendStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'ApiEndpoint', {
       value: this.api.api.url,
       description: 'API Gateway Endpoint',
+    });
+
+    new cdk.CfnOutput(this, 'WebSocketEndpoint', {
+      value: this.websocket.webSocketStage.url,
+      description: 'WebSocket Endpoint',
     });
 
     new cdk.CfnOutput(this, 'Environment', {

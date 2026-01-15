@@ -115,7 +115,7 @@ export async function createUserChain(
   }
 
   // Create user chain
-  const userChainKeys = keys.position(chainId, walletAddress);
+  const userChainKeys = keys.userChain(chainId, walletAddress);
   const userChainGsi = gsiKeys.userChainByUser(walletAddress, chainId);
 
   const userChain: UserChainEntity = {

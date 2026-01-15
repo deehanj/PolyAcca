@@ -25,6 +25,7 @@ import type {
   UserChainEntity,
   BetEntity,
   MarketEntity,
+  ConnectionEntity,
   UserChainStatus,
   BetStatus,
   MarketStatus,
@@ -69,7 +70,7 @@ export const keys = {
   }),
 
   // User's position on a chain
-  position: (chainId: string, walletAddress: string) => ({
+  userChain: (chainId: string, walletAddress: string) => ({
     PK: `CHAIN#${chainId}`,
     SK: `USER#${walletAddress.toLowerCase()}`,
   }),
@@ -83,6 +84,12 @@ export const keys = {
   market: (conditionId: string) => ({
     PK: `MARKET#${conditionId}`,
     SK: 'MARKET',
+  }),
+
+  // WebSocket connection
+  connection: (connectionId: string) => ({
+    PK: `CONN#${connectionId}`,
+    SK: 'CONN',
   }),
 };
 
@@ -403,7 +410,7 @@ export async function getUserChain(
   chainId: string,
   walletAddress: string
 ): Promise<UserChainEntity | null> {
-  const { PK, SK } = keys.position(chainId, walletAddress);
+  const { PK, SK } = keys.userChain(chainId, walletAddress);
   return getItem<UserChainEntity>(PK, SK);
 }
 
@@ -411,7 +418,7 @@ export async function getUserChains(walletAddress: string): Promise<UserChainEnt
   return queryByGSI<UserChainEntity>('GSI1', 'GSI1PK', `USER#${walletAddress.toLowerCase()}`, 'CHAIN#');
 }
 
-export async function getChainUserChains(chainId: string): Promise<UserChainEntity[]> {
+export async function getChainUsers(chainId: string): Promise<UserChainEntity[]> {
   const pk = `CHAIN#${chainId}`;
   return queryItems<UserChainEntity>(pk, 'USER#');
 }
@@ -426,7 +433,7 @@ export async function updateUserChainStatus(
   status: UserChainStatus,
   updates?: Partial<UserChainEntity>
 ): Promise<void> {
-  const { PK, SK } = keys.position(chainId, walletAddress);
+  const { PK, SK } = keys.userChain(chainId, walletAddress);
   const now = new Date().toISOString();
 
   const expressionValues: Record<string, unknown> = { ':status': status, ':now': now };
@@ -461,7 +468,7 @@ export async function getBet(
   return getItem<BetEntity>(PK, SK);
 }
 
-export async function getPositionBets(
+export async function getChainBets(
   chainId: string,
   walletAddress: string
 ): Promise<BetEntity[]> {
@@ -585,4 +592,50 @@ export async function updateMarketStatus(
       ExpressionAttributeNames: { '#status': 'status' },
     })
   );
+}
+
+// =============================================================================
+// Connection Operations (WebSocket connections)
+// =============================================================================
+
+export async function saveConnection(connectionId: string, walletAddress?: string): Promise<void> {
+  const now = new Date().toISOString();
+  const { PK, SK } = keys.connection(connectionId);
+
+  // TTL: 24 hours from now
+  const ttl = Math.floor(Date.now() / 1000) + 24 * 60 * 60;
+
+  const connection: ConnectionEntity = {
+    PK,
+    SK,
+    entityType: 'CONNECTION',
+    connectionId,
+    walletAddress: walletAddress?.toLowerCase(),
+    connectedAt: now,
+    TTL: ttl,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  await putItem(connection);
+}
+
+export async function deleteConnection(connectionId: string): Promise<void> {
+  const { PK, SK } = keys.connection(connectionId);
+  await deleteItem(PK, SK);
+}
+
+export async function getAllConnections(): Promise<ConnectionEntity[]> {
+  // Scan for all connections (for broadcast notifications)
+  // This works for moderate scale; for high scale, consider using a GSI
+  const { ScanCommand } = await import('@aws-sdk/lib-dynamodb');
+  const result = await docClient.send(
+    new ScanCommand({
+      TableName: TABLE_NAME,
+      FilterExpression: 'begins_with(PK, :pk)',
+      ExpressionAttributeValues: { ':pk': 'CONN#' },
+    })
+  );
+
+  return (result.Items as ConnectionEntity[]) || [];
 }

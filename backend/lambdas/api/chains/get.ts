@@ -11,7 +11,7 @@ import {
   getUserChains,
   getUserChain,
   getChain,
-  getChainUserChains,
+  getChainUsers as getChainUsersFromDb,
 } from '../../shared/dynamo-client';
 import type { UserChainSummary, UserChainDetail } from '../../shared/types';
 import {
@@ -78,7 +78,7 @@ export async function getChainUsers(
     return errorResponse(404, 'Chain not found');
   }
 
-  const userChains = await getChainUserChains(chainId);
+  const userChains = await getChainUsersFromDb(chainId);
 
   const summaries: UserChainSummary[] = userChains.map((userChain) =>
     toUserChainSummary(userChain, chain.legs.length)

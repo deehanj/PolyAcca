@@ -4,7 +4,6 @@ import * as nodejs from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as apigateway from 'aws-cdk-lib/aws-apigateway';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as kms from 'aws-cdk-lib/aws-kms';
-import * as iam from 'aws-cdk-lib/aws-iam';
 import * as cdk from 'aws-cdk-lib/core';
 import * as path from 'path';
 import { AuthConstruct } from './auth';
@@ -117,11 +116,13 @@ export class ApiConstruct extends Construct {
     // Chains endpoints
     const chainsResource = this.api.root.addResource('chains');
     const chainIdResource = chainsResource.addResource('{chainId}');
+    const chainUsersResource = chainIdResource.addResource('users');
 
     chainsResource.addMethod('GET', new apigateway.LambdaIntegration(this.chainsFunction), protectedMethodOptions);
     chainsResource.addMethod('POST', new apigateway.LambdaIntegration(this.chainsFunction), protectedMethodOptions);
     chainIdResource.addMethod('GET', new apigateway.LambdaIntegration(this.chainsFunction), protectedMethodOptions);
     chainIdResource.addMethod('DELETE', new apigateway.LambdaIntegration(this.chainsFunction), protectedMethodOptions);
+    chainUsersResource.addMethod('GET', new apigateway.LambdaIntegration(this.chainsFunction), protectedMethodOptions);
 
     // Outputs
     new cdk.CfnOutput(this, 'ApiUrl', {

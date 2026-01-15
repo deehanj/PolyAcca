@@ -11,7 +11,7 @@ import type {
   UserChainEntity,
   BetEntity,
 } from '../../shared/types';
-import { getChain, getPositionBets } from '../../shared/dynamo-client';
+import { getChain, getChainBets } from '../../shared/dynamo-client';
 
 // Re-export common utilities from shared
 export { HEADERS, getWalletAddress, errorResponse, successResponse } from '../../shared/api-utils';
@@ -69,7 +69,7 @@ export function toBetSummary(entity: BetEntity, marketQuestion: string): BetSumm
 }
 
 /**
- * Get user chain with full details (including chain and bets)
+ * Get user chain with full details (including chain definition and bets)
  */
 export async function getUserChainDetail(
   userChain: UserChainEntity
@@ -80,7 +80,7 @@ export async function getUserChainDetail(
     return null;
   }
 
-  const bets = await getPositionBets(userChain.chainId, userChain.walletAddress);
+  const bets = await getChainBets(userChain.chainId, userChain.walletAddress);
 
   // Get market questions from bets (stored when bet was created)
   const betSummaries = bets
@@ -89,7 +89,7 @@ export async function getUserChainDetail(
 
   return {
     ...toUserChainSummary(userChain, chain.chain.length),
-    chain: toChainSummary(chain),
+    chainDefinition: toChainSummary(chain),
     bets: betSummaries,
   };
 }

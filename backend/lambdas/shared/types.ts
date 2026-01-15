@@ -69,7 +69,7 @@ export interface NonceEntity extends BaseEntity {
 }
 
 /**
- * Chain leg definition (part of chain)
+ * Chain leg definition
  */
 export interface ChainLeg {
   sequence: number;
@@ -315,8 +315,21 @@ export interface UserChainSummary {
 }
 
 export interface UserChainDetail extends UserChainSummary {
-  chain: ChainSummary;
+  chainDefinition: ChainSummary;
   bets: BetSummary[];
+}
+
+/**
+ * WebSocket connection entity
+ * PK: CONN#<connectionId>
+ * SK: CONN
+ */
+export interface ConnectionEntity extends BaseEntity {
+  entityType: 'CONNECTION';
+  connectionId: string;
+  walletAddress?: string; // Optional - may not be authenticated
+  connectedAt: string;
+  TTL: number; // 24 hour expiry
 }
 
 export interface BetSummary {

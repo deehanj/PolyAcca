@@ -6,6 +6,7 @@ import * as kms from 'aws-cdk-lib/aws-kms';
 import * as eventsources from 'aws-cdk-lib/aws-lambda-event-sources';
 import * as cdk from 'aws-cdk-lib/core';
 import * as path from 'path';
+import type { WebSocketConstruct } from './websocket';
 
 export interface BetManagementConstructProps {
   /**
@@ -16,6 +17,10 @@ export interface BetManagementConstructProps {
    * KMS key for decrypting user credentials
    */
   encryptionKey: kms.IKey;
+  /**
+   * WebSocket construct for granting notification permissions
+   */
+  websocket?: WebSocketConstruct;
 }
 
 /**
@@ -31,15 +36,20 @@ export interface BetManagementConstructProps {
  *   Webhook updates market → MarketResolutionHandler → Settle bets →
  *   Mark next bet READY → DDB Stream MODIFY → BetExecutor
  *   Or: Payout (last bet won) / Mark chain LOST
+ *
+ * Flow 3: Bet Notifications
+ *   User creates chain position → DDB Stream INSERT (USER_CHAIN) →
+ *   BetNotificationHandler → Broadcast to WebSocket clients
  */
 export class BetManagementConstruct extends Construct {
   public readonly marketResolutionHandler: nodejs.NodejsFunction;
   public readonly betExecutor: nodejs.NodejsFunction;
+  public readonly betNotificationHandler: nodejs.NodejsFunction;
 
   constructor(scope: Construct, id: string, props: BetManagementConstructProps) {
     super(scope, id);
 
-    const { table, encryptionKey } = props;
+    const { table, encryptionKey, websocket } = props;
 
     // Shared Lambda config
     const lambdaConfig = {
@@ -83,20 +93,43 @@ export class BetManagementConstruct extends Construct {
     });
 
     // =========================================================================
+    // Bet Notification Handler - Broadcasts new bets to WebSocket clients
+    // Triggered by: Stream (USER_CHAIN INSERT)
+    // =========================================================================
+    this.betNotificationHandler = new nodejs.NodejsFunction(this, 'BetNotificationHandler', {
+      ...lambdaConfig,
+      entry: path.join(__dirname, '../../lambdas/streams/bet-notification-handler/index.ts'),
+      handler: 'handler',
+      timeout: cdk.Duration.seconds(30),
+      description: 'Broadcasts new bet notifications to WebSocket clients',
+      environment: {
+        ...lambdaConfig.environment,
+        WEBSOCKET_ENDPOINT: websocket?.webSocketEndpoint || '',
+      },
+    });
+
+    // =========================================================================
     // Permissions
     // =========================================================================
 
     // DynamoDB read/write for all handlers
     table.grantReadWriteData(this.marketResolutionHandler);
     table.grantReadWriteData(this.betExecutor);
+    table.grantReadWriteData(this.betNotificationHandler);
 
     // Stream read access for stream handlers
     table.grantStreamRead(this.marketResolutionHandler);
     table.grantStreamRead(this.betExecutor);
+    table.grantStreamRead(this.betNotificationHandler);
 
     // KMS decrypt for reading user credentials
     encryptionKey.grantDecrypt(this.marketResolutionHandler);
     encryptionKey.grantDecrypt(this.betExecutor);
+
+    // WebSocket permission for notification handler
+    if (websocket) {
+      websocket.grantManageConnections(this.betNotificationHandler);
+    }
 
     // =========================================================================
     // Stream Event Sources
@@ -148,6 +181,26 @@ export class BetManagementConstruct extends Construct {
               NewImage: {
                 entityType: { S: lambda.FilterRule.isEqual('BET') },
                 status: { S: lambda.FilterRule.isEqual('READY') },
+              },
+            },
+          }),
+        ],
+      })
+    );
+
+    // Bet Notification Handler: USER_CHAIN INSERT (new user joins a chain)
+    this.betNotificationHandler.addEventSource(
+      new eventsources.DynamoEventSource(table, {
+        startingPosition: lambda.StartingPosition.TRIM_HORIZON,
+        batchSize: 10,
+        bisectBatchOnError: true,
+        retryAttempts: 2,
+        filters: [
+          lambda.FilterCriteria.filter({
+            eventName: lambda.FilterRule.isEqual('INSERT'),
+            dynamodb: {
+              NewImage: {
+                entityType: { S: lambda.FilterRule.isEqual('USER_CHAIN') },
               },
             },
           }),
