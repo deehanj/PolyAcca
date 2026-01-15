@@ -58,10 +58,18 @@ export class SecretsConstruct extends Construct {
     this.jwtSecretArn = this.jwtSecret.secretArn;
 
     // Polymarket Builder API credentials for order attribution
-    // Must be manually populated after deployment with actual credentials
+    // Seeded with placeholder structure - replace values after deployment
     this.builderSecret = new secretsmanager.Secret(this, 'BuilderSecret', {
       secretName: `${prefix}/builder`,
-      description: 'Polymarket Builder API credentials for order attribution (apiKey, apiSecret, passphrase)',
+      description: 'Polymarket Builder API credentials for order attribution',
+      generateSecretString: {
+        secretStringTemplate: JSON.stringify({
+          apiKey: 'REPLACE_ME',
+          apiSecret: 'REPLACE_ME',
+        }),
+        generateStringKey: 'passphrase',
+        excludePunctuation: true,
+      },
     });
 
     this.builderSecretArn = this.builderSecret.secretArn;
@@ -74,7 +82,7 @@ export class SecretsConstruct extends Construct {
 
     new cdk.CfnOutput(this, 'BuilderSecretArn', {
       value: this.builderSecretArn,
-      description: 'Builder Secret ARN (populate manually with apiKey, apiSecret, passphrase)',
+      description: 'Builder Secret ARN (replace REPLACE_ME values with actual credentials)',
     });
   }
 
