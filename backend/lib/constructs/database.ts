@@ -18,16 +18,19 @@ export interface DatabaseConstructProps {
  * | Entity      | PK                  | SK                    |
  * |-------------|---------------------|-----------------------|
  * | User        | USER#<address>      | PROFILE               |
- * | UserCreds   | USER#<address>      | CREDS#polymarket      |
  * | Nonce       | NONCE#<address>     | NONCE                 |
  * | Chain       | CHAIN#<chainId>     | DEFINITION            |
  * | UserChain   | CHAIN#<chainId>     | USER#<address>        |
  * | Bet         | CHAIN#<chainId>     | BET#<address>#<seq>   |
+ * | Market      | MARKET#<conditionId>| MARKET                |
+ * | Connection  | CONN#<connectionId> | CONN                  |
+ *
+ * Note: UserCreds are stored in a separate credentials table for security.
  *
  * GSI1 (by status):
  * | Entity      | GSI1PK              | GSI1SK                |
  * |-------------|---------------------|-----------------------|
- * | UserChain   | STATUS#<status>     | <createdAt>           |
+ * | UserChain   | USER#<address>      | CHAIN#<chainId>       |
  * | Bet         | BETSTATUS#<status>  | <createdAt>           |
  */
 export class DatabaseConstruct extends Construct {

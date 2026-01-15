@@ -6,10 +6,12 @@ import * as path from 'path';
 // Constructs
 import { SecretsConstruct } from './constructs/secrets';
 import { DatabaseConstruct } from './constructs/database';
+import { CredentialsTableConstruct } from './constructs/credentials-table';
 import { AuthConstruct } from './constructs/auth';
 import { ApiConstruct } from './constructs/api';
 import { BetManagementConstruct } from './constructs/bet-management';
 import { WebSocketConstruct } from './constructs/websocket';
+import { AdminWebSocketConstruct } from './constructs/admin-websocket';
 import { AlchemyConstruct } from './constructs/alchemy';
 import { AlertsConstruct } from './constructs/alerts';
 
@@ -29,9 +31,11 @@ export interface BackendStackProps extends cdk.StackProps {
 export class BackendStack extends cdk.Stack {
   public readonly secrets: SecretsConstruct;
   public readonly database: DatabaseConstruct;
+  public readonly credentialsTable: CredentialsTableConstruct;
   public readonly auth: AuthConstruct;
   public readonly api: ApiConstruct;
   public readonly websocket: WebSocketConstruct;
+  public readonly adminWebsocket: AdminWebSocketConstruct;
   public readonly betManagement: BetManagementConstruct;
   public readonly alchemy: AlchemyConstruct;
   public readonly alerts: AlertsConstruct;
@@ -64,6 +68,14 @@ export class BackendStack extends cdk.Stack {
     });
 
     // ==========================================================================
+    // Credentials Table (isolated table for Polymarket API keys)
+    // Only specific lambdas have access to this table
+    // ==========================================================================
+    this.credentialsTable = new CredentialsTableConstruct(this, 'CredentialsTable', {
+      removalPolicy: isProd ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY,
+    });
+
+    // ==========================================================================
     // Auth (wallet-based authentication)
     // ==========================================================================
     this.auth = new AuthConstruct(this, 'Auth', {
@@ -77,8 +89,8 @@ export class BackendStack extends cdk.Stack {
     // ==========================================================================
     this.api = new ApiConstruct(this, 'Api', {
       table: this.database.table,
-      encryptionKey: this.database.encryptionKey,
       auth: this.auth,
+      credentialsTable: this.credentialsTable,
     });
 
     // ==========================================================================
@@ -89,12 +101,24 @@ export class BackendStack extends cdk.Stack {
     });
 
     // ==========================================================================
+    // Admin WebSocket (real-time dashboard updates)
+    // ==========================================================================
+    this.adminWebsocket = new AdminWebSocketConstruct(this, 'AdminWebSocket', {
+      table: this.database.table,
+      jwtSecretArn: this.secrets.jwtSecretArn,
+    });
+
+    // Grant JWT secret access to admin authorizer handler
+    this.secrets.grantJwtSecretRead(this.adminWebsocket.authorizerHandler);
+
+    // ==========================================================================
     // Bet Management (stream handlers and bet executor)
     // ==========================================================================
     this.betManagement = new BetManagementConstruct(this, 'BetManagement', {
       table: this.database.table,
-      encryptionKey: this.database.encryptionKey,
+      credentialsTable: this.credentialsTable,
       websocket: this.websocket,
+      adminWebsocket: this.adminWebsocket,
     });
 
     // ==========================================================================
@@ -143,6 +167,11 @@ export class BackendStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'WebSocketEndpoint', {
       value: this.websocket.webSocketStage.url,
       description: 'WebSocket Endpoint',
+    });
+
+    new cdk.CfnOutput(this, 'AdminWebSocketEndpoint', {
+      value: this.adminWebsocket.webSocketStage.url,
+      description: 'Admin WebSocket Endpoint',
     });
 
     new cdk.CfnOutput(this, 'Environment', {

@@ -7,6 +7,7 @@ import * as kms from 'aws-cdk-lib/aws-kms';
 import * as cdk from 'aws-cdk-lib/core';
 import * as path from 'path';
 import { AuthConstruct } from './auth';
+import type { CredentialsTableConstruct } from './credentials-table';
 
 export interface ApiConstructProps {
   /**
@@ -14,13 +15,13 @@ export interface ApiConstructProps {
    */
   table: dynamodb.ITable;
   /**
-   * KMS key for encrypting/decrypting user credentials
-   */
-  encryptionKey: kms.IKey;
-  /**
    * Auth construct with authorizer
    */
   auth: AuthConstruct;
+  /**
+   * Credentials table construct (for user API key storage)
+   */
+  credentialsTable: CredentialsTableConstruct;
 }
 
 export class ApiConstruct extends Construct {
@@ -31,7 +32,7 @@ export class ApiConstruct extends Construct {
   constructor(scope: Construct, id: string, props: ApiConstructProps) {
     super(scope, id);
 
-    const { table, encryptionKey, auth } = props;
+    const { table, auth, credentialsTable } = props;
 
     // Shared Lambda config
     const lambdaConfig = {
@@ -41,7 +42,6 @@ export class ApiConstruct extends Construct {
       timeout: cdk.Duration.seconds(30),
       environment: {
         TABLE_NAME: table.tableName,
-        KMS_KEY_ARN: encryptionKey.keyArn,
         NODE_OPTIONS: '--enable-source-maps',
       },
       bundling: {
@@ -53,10 +53,16 @@ export class ApiConstruct extends Construct {
     };
 
     // Users Lambda - profile and credentials management
+    // Has access to both main table and credentials table
     this.usersFunction = new nodejs.NodejsFunction(this, 'UsersFunction', {
       ...lambdaConfig,
       entry: path.join(__dirname, '../../lambdas/api/users/index.ts'),
       handler: 'handler',
+      environment: {
+        ...lambdaConfig.environment,
+        CREDENTIALS_TABLE_NAME: credentialsTable.table.tableName,
+        KMS_KEY_ARN: credentialsTable.encryptionKey.keyArn,
+      },
     });
 
     // Chains Lambda - chain management
@@ -70,8 +76,8 @@ export class ApiConstruct extends Construct {
     table.grantReadWriteData(this.usersFunction);
     table.grantReadWriteData(this.chainsFunction);
 
-    // Grant KMS permissions for credential encryption/decryption
-    encryptionKey.grantEncryptDecrypt(this.usersFunction);
+    // Grant credentials table access to Users Lambda only
+    credentialsTable.grantReadWrite(this.usersFunction);
 
     // REST API
     this.api = new apigateway.RestApi(this, 'PolyAccaApi', {

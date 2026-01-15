@@ -1,61 +1,22 @@
 /**
- * Polymarket CLOB client wrapper for PolyAcca
+ * Polymarket CLOB client wrapper
  *
- * Handles order placement using user's L2 credentials
+ * Handles credential management and order execution
  */
 
-import {
-  KMSClient,
-  DecryptCommand,
-  EncryptCommand,
-} from '@aws-sdk/client-kms';
+import { ClobClient, Side, OrderType, type TickSize } from '@polymarket/clob-client';
 import type { PolymarketCredentials, UserCredsEntity } from './types';
-import { requireEnvVar } from '../utils/envVars';
+import { encryptValue, decryptValue } from './kms-client';
+import { createLogger } from './logger';
 
-// Environment variables - validated at module load time
-const KMS_KEY_ARN = requireEnvVar('KMS_KEY_ARN');
+const logger = createLogger('polymarket-client');
 
-const kmsClient = new KMSClient({});
+const POLYMARKET_HOST = 'https://clob.polymarket.com';
+const POLYGON_CHAIN_ID = 137;
 
 // =============================================================================
 // Credential Encryption/Decryption
 // =============================================================================
-
-/**
- * Encrypt a string using KMS
- */
-export async function encryptValue(plaintext: string): Promise<string> {
-  const response = await kmsClient.send(
-    new EncryptCommand({
-      KeyId: KMS_KEY_ARN,
-      Plaintext: Buffer.from(plaintext),
-    })
-  );
-
-  if (!response.CiphertextBlob) {
-    throw new Error('Encryption failed');
-  }
-
-  return Buffer.from(response.CiphertextBlob).toString('base64');
-}
-
-/**
- * Decrypt a string using KMS
- */
-export async function decryptValue(ciphertext: string): Promise<string> {
-  const response = await kmsClient.send(
-    new DecryptCommand({
-      KeyId: KMS_KEY_ARN,
-      CiphertextBlob: Buffer.from(ciphertext, 'base64'),
-    })
-  );
-
-  if (!response.Plaintext) {
-    throw new Error('Decryption failed');
-  }
-
-  return Buffer.from(response.Plaintext).toString();
-}
 
 /**
  * Encrypt Polymarket credentials for storage
@@ -69,11 +30,7 @@ export async function encryptCredentials(
     encryptValue(creds.passphrase),
   ]);
 
-  return {
-    encryptedApiKey,
-    encryptedApiSecret,
-    encryptedPassphrase,
-  };
+  return { encryptedApiKey, encryptedApiSecret, encryptedPassphrase };
 }
 
 /**
@@ -88,30 +45,71 @@ export async function decryptCredentials(
     decryptValue(encrypted.encryptedPassphrase),
   ]);
 
-  return {
-    apiKey,
-    apiSecret,
-    passphrase,
-    signatureType: encrypted.signatureType,
-  };
+  return { apiKey, apiSecret, passphrase, signatureType: encrypted.signatureType };
 }
 
 // =============================================================================
-// Polymarket Order Execution
+// Client Factory
 // =============================================================================
 
 /**
- * Note: The actual Polymarket CLOB client integration will be implemented here.
- * This requires the @polymarket/clob-client package and proper order signing.
- *
- * For now, this is a placeholder that outlines the interface.
+ * Create an authenticated ClobClient instance
  */
+function createClient(credentials?: PolymarketCredentials): ClobClient {
+  if (!credentials) {
+    return new ClobClient(POLYMARKET_HOST, POLYGON_CHAIN_ID);
+  }
+
+  return new ClobClient(
+    POLYMARKET_HOST,
+    POLYGON_CHAIN_ID,
+    undefined,
+    { key: credentials.apiKey, secret: credentials.apiSecret, passphrase: credentials.passphrase }
+  );
+}
+
+// =============================================================================
+// Credential Validation
+// =============================================================================
+
+/**
+ * Validate Polymarket credentials by calling an authenticated endpoint
+ */
+export async function validateCredentials(
+  creds: Pick<PolymarketCredentials, 'apiKey' | 'apiSecret' | 'passphrase'>
+): Promise<{ valid: boolean; error?: string }> {
+  try {
+    const client = createClient(creds as PolymarketCredentials);
+    await client.getApiKeys();
+    return { valid: true };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+
+    if (
+      message.includes('401') ||
+      message.includes('Unauthorized') ||
+      message.includes('UNAUTHORIZED') ||
+      message.includes('Invalid API key') ||
+      message.includes('invalid signature')
+    ) {
+      return { valid: false, error: 'Invalid Polymarket credentials' };
+    }
+
+    logger.errorWithStack('Unexpected error validating credentials', error);
+    return { valid: false, error: `Validation failed: ${message}` };
+  }
+}
+
+// =============================================================================
+// Order Execution
+// =============================================================================
 
 export interface OrderParams {
   tokenId: string;
   side: 'BUY' | 'SELL';
   price: number;
   size: number;
+  tickSize?: TickSize;
 }
 
 export interface OrderResult {
@@ -123,48 +121,39 @@ export interface OrderResult {
 
 /**
  * Place an order on Polymarket CLOB
- *
- * TODO: Implement using @polymarket/clob-client
- *
- * Example implementation:
- * ```typescript
- * import { ClobClient, Side, OrderType } from '@polymarket/clob-client';
- *
- * const client = new ClobClient(
- *   'https://clob.polymarket.com',
- *   137, // Polygon chain ID
- *   undefined, // No signer needed for L2 auth
- *   {
- *     key: credentials.apiKey,
- *     secret: credentials.apiSecret,
- *     passphrase: credentials.passphrase,
- *   }
- * );
- *
- * const order = await client.createAndPostOrder({
- *   tokenID: params.tokenId,
- *   price: params.price,
- *   side: params.side === 'BUY' ? Side.BUY : Side.SELL,
- *   size: params.size,
- * }, { tickSize: '0.01' }, OrderType.GTC);
- * ```
  */
 export async function placeOrder(
   credentials: PolymarketCredentials,
   params: OrderParams
 ): Promise<string> {
-  // TODO: Implement actual Polymarket order placement
-  console.log('Placing order:', {
+  const client = createClient(credentials);
+
+  logger.info('Placing order', {
     tokenId: params.tokenId,
     side: params.side,
     price: params.price,
     size: params.size,
-    signatureType: credentials.signatureType,
   });
 
-  // Placeholder - return mock order ID
-  const orderId = `order_${Date.now()}`;
-  return orderId;
+  try {
+    const order = await client.createAndPostOrder(
+      {
+        tokenID: params.tokenId,
+        price: params.price,
+        side: params.side === 'BUY' ? Side.BUY : Side.SELL,
+        size: params.size,
+      },
+      { tickSize: params.tickSize ?? '0.01' },
+      OrderType.GTC
+    );
+
+    const orderId = order.id ?? order.orderID ?? order.order_id;
+    logger.info('Order placed', { orderId, tokenId: params.tokenId });
+    return orderId;
+  } catch (error) {
+    logger.errorWithStack('Failed to place order', error, { tokenId: params.tokenId, side: params.side });
+    throw error;
+  }
 }
 
 /**
@@ -174,13 +163,20 @@ export async function getOrderStatus(
   credentials: PolymarketCredentials,
   orderId: string
 ): Promise<OrderResult> {
-  // TODO: Implement actual order status check
-  console.log('Checking order status:', orderId);
+  const client = createClient(credentials);
 
-  return {
-    orderId,
-    status: 'PLACED',
-  };
+  try {
+    const order = await client.getOrder(orderId);
+    return {
+      orderId: order.id,
+      status: order.status === 'MATCHED' ? 'FILLED' : 'PLACED',
+      filledSize: parseFloat(order.size_matched ?? '0'),
+      avgPrice: parseFloat(order.price ?? '0'),
+    };
+  } catch (error) {
+    logger.errorWithStack('Failed to get order status', error, { orderId });
+    throw error;
+  }
 }
 
 /**
@@ -190,23 +186,35 @@ export async function cancelOrder(
   credentials: PolymarketCredentials,
   orderId: string
 ): Promise<boolean> {
-  // TODO: Implement actual order cancellation
-  console.log('Cancelling order:', orderId);
+  const client = createClient(credentials);
 
-  return true;
+  logger.info('Cancelling order', { orderId });
+
+  try {
+    await client.cancelOrder({ orderID: orderId });
+    logger.info('Order cancelled', { orderId });
+    return true;
+  } catch (error) {
+    logger.errorWithStack('Failed to cancel order', error, { orderId });
+    throw error;
+  }
 }
 
 /**
- * Get market price for a token
+ * Get market price for a token (no authentication required)
  */
-export async function getMarketPrice(tokenId: string): Promise<{ bid: number; ask: number; mid: number }> {
-  // TODO: Implement actual market price fetch
-  // This can be done without authentication
-  console.log('Getting market price for:', tokenId);
+export async function getMarketPrice(
+  tokenId: string
+): Promise<{ bid: number; ask: number; mid: number }> {
+  const client = createClient();
 
-  return {
-    bid: 0.5,
-    ask: 0.51,
-    mid: 0.505,
-  };
+  try {
+    const book = await client.getOrderBook(tokenId);
+    const bestBid = book.bids?.[0]?.price ? parseFloat(book.bids[0].price) : 0;
+    const bestAsk = book.asks?.[0]?.price ? parseFloat(book.asks[0].price) : 1;
+    return { bid: bestBid, ask: bestAsk, mid: (bestBid + bestAsk) / 2 };
+  } catch (error) {
+    logger.errorWithStack('Failed to get market price', error, { tokenId });
+    throw error;
+  }
 }

@@ -1,5 +1,6 @@
 import { Construct } from 'constructs';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
+import * as iam from 'aws-cdk-lib/aws-iam';
 import * as cdk from 'aws-cdk-lib/core';
 
 export interface SecretsConstructProps {
@@ -49,5 +50,12 @@ export class SecretsConstruct extends Construct {
       value: this.jwtSecretArn,
       description: 'JWT Secret ARN',
     });
+  }
+
+  /**
+   * Grant read access to the JWT secret
+   */
+  public grantJwtSecretRead(grantee: iam.IGrantable): void {
+    this.jwtSecret.grantRead(grantee);
   }
 }

@@ -13,11 +13,11 @@ import { unmarshall } from '@aws-sdk/util-dynamodb';
 import type { AttributeValue } from '@aws-sdk/client-dynamodb';
 import {
   getChain,
-  getUserCreds,
   getChainBets,
   updateBetStatus,
   decrementChainTotalValue,
 } from '../../shared/dynamo-client';
+import { getUserCreds } from '../../shared/credentials-client';
 import { decryptCredentials, cancelOrder } from '../../shared/polymarket-client';
 import { createLogger } from '../../shared/logger';
 import type { UserChainEntity, BetEntity, UserChainStatus } from '../../shared/types';

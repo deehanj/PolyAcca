@@ -91,6 +91,12 @@ export const keys = {
     PK: `CONN#${connectionId}`,
     SK: 'CONN',
   }),
+
+  // Admin WebSocket connection
+  adminConnection: (connectionId: string) => ({
+    PK: `ADMINCONN#${connectionId}`,
+    SK: 'CONN',
+  }),
 };
 
 // =============================================================================
@@ -252,48 +258,8 @@ export async function getOrCreateUser(walletAddress: string): Promise<UserEntity
   return createUser(walletAddress);
 }
 
-// User credentials operations
-export async function getUserCreds(walletAddress: string): Promise<UserCredsEntity | null> {
-  const { PK, SK } = keys.userCreds(walletAddress);
-  return getItem<UserCredsEntity>(PK, SK);
-}
-
-export async function saveUserCreds(creds: UserCredsEntity): Promise<void> {
-  await putItem(creds);
-
-  // Update user's hasCredentials flag
-  const { PK, SK } = keys.user(creds.walletAddress);
-  await docClient.send(
-    new UpdateCommand({
-      TableName: TABLE_NAME,
-      Key: { PK, SK },
-      UpdateExpression: 'SET hasCredentials = :val, updatedAt = :now',
-      ExpressionAttributeValues: {
-        ':val': true,
-        ':now': new Date().toISOString(),
-      },
-    })
-  );
-}
-
-export async function deleteUserCreds(walletAddress: string): Promise<void> {
-  const { PK, SK } = keys.userCreds(walletAddress);
-  await deleteItem(PK, SK);
-
-  // Update user's hasCredentials flag
-  const userKeys = keys.user(walletAddress);
-  await docClient.send(
-    new UpdateCommand({
-      TableName: TABLE_NAME,
-      Key: { PK: userKeys.PK, SK: userKeys.SK },
-      UpdateExpression: 'SET hasCredentials = :val, updatedAt = :now',
-      ExpressionAttributeValues: {
-        ':val': false,
-        ':now': new Date().toISOString(),
-      },
-    })
-  );
-}
+// NOTE: User credentials operations have been moved to credentials-client.ts
+// for security isolation. Only specific lambdas have access to that table.
 
 // Nonce operations
 export async function getNonce(walletAddress: string): Promise<NonceEntity | null> {
@@ -354,6 +320,9 @@ export async function upsertChain(
       UpdateExpression: `
         SET chainId = if_not_exists(chainId, :chainId),
             entityType = if_not_exists(entityType, :entityType),
+            #name = if_not_exists(#name, :name),
+            description = if_not_exists(description, :description),
+            imageUrl = if_not_exists(imageUrl, :imageUrl),
             chain = if_not_exists(chain, :chain),
             legs = if_not_exists(legs, :legs),
             #status = if_not_exists(#status, :status),
@@ -364,6 +333,9 @@ export async function upsertChain(
       ExpressionAttributeValues: {
         ':chainId': chain.chainId,
         ':entityType': 'CHAIN',
+        ':name': chain.name,
+        ':description': chain.description ?? null,
+        ':imageUrl': chain.imageUrl ?? null,
         ':chain': chain.chain,
         ':legs': chain.legs,
         ':status': chain.status,
@@ -374,6 +346,7 @@ export async function upsertChain(
       },
       ExpressionAttributeNames: {
         '#status': 'status',
+        '#name': 'name',
       },
     })
   );
@@ -638,4 +611,84 @@ export async function getAllConnections(): Promise<ConnectionEntity[]> {
   );
 
   return (result.Items as ConnectionEntity[]) || [];
+}
+
+// =============================================================================
+// Admin Operations (for dashboard)
+// =============================================================================
+
+/**
+ * Get all chains (admin only)
+ */
+export async function getAllChains(): Promise<ChainEntity[]> {
+  const { ScanCommand } = await import('@aws-sdk/lib-dynamodb');
+  const result = await docClient.send(
+    new ScanCommand({
+      TableName: TABLE_NAME,
+      FilterExpression: 'begins_with(PK, :pk) AND SK = :sk',
+      ExpressionAttributeValues: { ':pk': 'CHAIN#', ':sk': 'DEFINITION' },
+    })
+  );
+
+  return (result.Items as ChainEntity[]) || [];
+}
+
+/**
+ * Get all bets for a chain across all users (admin only)
+ */
+export async function getAllChainBets(chainId: string): Promise<BetEntity[]> {
+  const pk = `CHAIN#${chainId}`;
+  return queryItems<BetEntity>(pk, 'BET#');
+}
+
+// =============================================================================
+// Admin Connection Operations
+// =============================================================================
+
+interface AdminConnectionEntity extends BaseEntity {
+  entityType: 'ADMIN_CONNECTION';
+  connectionId: string;
+  walletAddress: string;
+  connectedAt: string;
+  TTL: number;
+}
+
+export async function saveAdminConnection(connectionId: string, walletAddress: string): Promise<void> {
+  const now = new Date().toISOString();
+  const { PK, SK } = keys.adminConnection(connectionId);
+
+  // TTL: 24 hours from now
+  const ttl = Math.floor(Date.now() / 1000) + 24 * 60 * 60;
+
+  const connection: AdminConnectionEntity = {
+    PK,
+    SK,
+    entityType: 'ADMIN_CONNECTION',
+    connectionId,
+    walletAddress: walletAddress.toLowerCase(),
+    connectedAt: now,
+    TTL: ttl,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  await putItem(connection);
+}
+
+export async function deleteAdminConnection(connectionId: string): Promise<void> {
+  const { PK, SK } = keys.adminConnection(connectionId);
+  await deleteItem(PK, SK);
+}
+
+export async function getAllAdminConnections(): Promise<AdminConnectionEntity[]> {
+  const { ScanCommand } = await import('@aws-sdk/lib-dynamodb');
+  const result = await docClient.send(
+    new ScanCommand({
+      TableName: TABLE_NAME,
+      FilterExpression: 'begins_with(PK, :pk)',
+      ExpressionAttributeValues: { ':pk': 'ADMINCONN#' },
+    })
+  );
+
+  return (result.Items as AdminConnectionEntity[]) || [];
 }

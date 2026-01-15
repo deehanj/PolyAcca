@@ -1,7 +1,10 @@
 import { Link } from "react-router-dom";
+import { Shield } from "lucide-react";
 import { AuthButton } from "./AuthButton";
+import { useUserProfile } from "../hooks/useUserProfile";
 
 export function Header() {
+  const { isAdmin } = useUserProfile();
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur-sm">
       <div className="mx-auto max-w-6xl px-6">
@@ -24,6 +27,15 @@ export function Header() {
             >
               Design
             </Link>
+            {isAdmin && (
+              <Link
+                to="/admin"
+                className="flex items-center gap-1 text-sm text-primary hover:text-primary/80 transition-colors"
+              >
+                <Shield className="h-4 w-4" />
+                Admin
+              </Link>
+            )}
             <AuthButton />
           </div>
         </div>

@@ -89,6 +89,9 @@ export interface ChainLeg {
 export interface ChainEntity extends BaseEntity {
   entityType: 'CHAIN';
   chainId: string; // Hash of chain: sha256(cond1:side1|cond2:side2|...)
+  name: string; // Human-readable chain name
+  description?: string; // Optional description
+  imageUrl?: string; // Optional image URL for chain display
   chain: string[]; // Simple format for debugging: ["conditionId:YES", "conditionId:NO"]
   legs: ChainLeg[]; // Full leg details
   totalValue: number; // Aggregate of all user stakes (USDC)
@@ -268,6 +271,7 @@ export interface UserProfile {
   displayName?: string;
   hasCredentials: boolean;
   createdAt: string;
+  admin?: boolean;
 }
 
 export interface UpdateProfileRequest {
@@ -293,10 +297,17 @@ export interface CreateLegInput {
 export interface CreatePositionRequest {
   legs: CreateLegInput[];
   initialStake: string;
+  // Chain metadata (used when creating a new chain)
+  name?: string; // Required if chain doesn't exist
+  description?: string;
+  imageUrl?: string;
 }
 
 export interface ChainSummary {
   chainId: string;
+  name: string;
+  description?: string;
+  imageUrl?: string;
   chain: string[]; // Array of "conditionId:side" pairs
   totalValue: number; // Aggregate of all user stakes (USDC)
   status: ChainStatus;

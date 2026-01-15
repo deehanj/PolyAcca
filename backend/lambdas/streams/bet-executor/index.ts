@@ -16,8 +16,8 @@ import type { AttributeValue } from '@aws-sdk/client-dynamodb';
 import {
   updateBetStatus,
   updateUserChainStatus,
-  getUserCreds,
 } from '../../shared/dynamo-client';
+import { getUserCreds } from '../../shared/credentials-client';
 import { decryptCredentials, placeOrder } from '../../shared/polymarket-client';
 import { createLogger } from '../../shared/logger';
 import type { BetEntity, BetStatus } from '../../shared/types';

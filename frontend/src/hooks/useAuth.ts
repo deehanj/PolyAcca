@@ -134,11 +134,9 @@ export function useAuth() {
   }, [disconnect]);
 
   // Helper to get auth headers for API calls
-  const getAuthHeaders = useCallback(() => {
+  const getAuthHeaders = useCallback((): Record<string, string> => {
     if (!authState.token) return {};
-    return {
-      Authorization: `Bearer ${authState.token}`,
-    };
+    return { Authorization: `Bearer ${authState.token}` };
   }, [authState.token]);
 
   return {

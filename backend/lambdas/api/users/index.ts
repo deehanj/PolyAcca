@@ -12,13 +12,15 @@ import type { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import {
   getUser,
   createUser,
-  getUserCreds,
-  saveUserCreds,
-  deleteUserCreds,
   keys,
   docClient,
 } from '../../shared/dynamo-client';
-import { encryptCredentials } from '../../shared/polymarket-client';
+import {
+  saveUserCreds,
+  deleteUserCreds,
+} from '../../shared/credentials-client';
+import { encryptCredentials, validateCredentials } from '../../shared/polymarket-client';
+import { isAdminWallet } from '../../shared/admin-config';
 import type {
   ApiResponse,
   UserProfile,
@@ -55,6 +57,7 @@ async function getProfile(walletAddress: string): Promise<APIGatewayProxyResult>
     displayName: user.displayName,
     hasCredentials: user.hasCredentials,
     createdAt: user.createdAt,
+    admin: isAdminWallet(walletAddress) || undefined,
   };
 
   return {
@@ -122,6 +125,24 @@ async function setCredentials(
       body: JSON.stringify({
         success: false,
         error: 'apiKey, apiSecret, and passphrase are required',
+      } as ApiResponse),
+    };
+  }
+
+  // Validate credentials with Polymarket before storing
+  const validation = await validateCredentials({
+    apiKey: request.apiKey,
+    apiSecret: request.apiSecret,
+    passphrase: request.passphrase,
+  });
+
+  if (!validation.valid) {
+    return {
+      statusCode: 400,
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+      body: JSON.stringify({
+        success: false,
+        error: validation.error || 'Invalid Polymarket credentials',
       } as ApiResponse),
     };
   }

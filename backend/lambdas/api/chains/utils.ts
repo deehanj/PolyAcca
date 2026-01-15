@@ -22,6 +22,9 @@ export { HEADERS, getWalletAddress, errorResponse, successResponse } from '../..
 export function toChainSummary(entity: ChainEntity): ChainSummary {
   return {
     chainId: entity.chainId,
+    name: entity.name,
+    description: entity.description,
+    imageUrl: entity.imageUrl,
     chain: entity.chain,
     totalValue: entity.totalValue,
     status: entity.status,

@@ -6,6 +6,7 @@ interface WebSocketHookOptions {
   reconnectInterval?: number; // Base reconnect delay (default: 1000ms)
   maxReconnectInterval?: number; // Max backoff (default: 30000ms)
   pingInterval?: number; // Keepalive ping interval (default: 5min)
+  enabled?: boolean; // Whether to connect (default: true)
 }
 
 interface WebSocketHookReturn {
@@ -21,6 +22,7 @@ export function useWebSocket(options: WebSocketHookOptions): WebSocketHookReturn
     reconnectInterval = 1000,
     maxReconnectInterval = 30000,
     pingInterval = 5 * 60 * 1000, // 5 minutes
+    enabled = true,
   } = options;
 
   const [isConnected, setIsConnected] = useState(false);
@@ -50,6 +52,9 @@ export function useWebSocket(options: WebSocketHookOptions): WebSocketHookReturn
   }, [pingInterval]);
 
   const connect = useCallback(() => {
+    // Don't connect if no URL
+    if (!url) return;
+
     // Clean up existing connection
     if (wsRef.current) {
       wsRef.current.close();
@@ -84,6 +89,9 @@ export function useWebSocket(options: WebSocketHookOptions): WebSocketHookReturn
         window.clearTimeout(pingTimeout.current);
       }
 
+      // Only reconnect if enabled
+      if (!enabled) return;
+
       // Exponential backoff reconnect
       const delay = Math.min(
         reconnectInterval * Math.pow(2, reconnectAttempts.current),
@@ -101,7 +109,7 @@ export function useWebSocket(options: WebSocketHookOptions): WebSocketHookReturn
     ws.onerror = (error) => {
       console.error('WebSocket error:', error);
     };
-  }, [url, reconnectInterval, maxReconnectInterval, schedulePing]);
+  }, [url, reconnectInterval, maxReconnectInterval, schedulePing, enabled]);
 
   const send = useCallback((data: unknown) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -111,7 +119,9 @@ export function useWebSocket(options: WebSocketHookOptions): WebSocketHookReturn
 
   // Connect on mount, cleanup on unmount
   useEffect(() => {
-    connect();
+    if (enabled && url) {
+      connect();
+    }
 
     return () => {
       if (reconnectTimeout.current) {
@@ -122,7 +132,7 @@ export function useWebSocket(options: WebSocketHookOptions): WebSocketHookReturn
       }
       wsRef.current?.close();
     };
-  }, [connect]);
+  }, [connect, enabled, url]);
 
   return { isConnected, lastMessage, send };
 }
