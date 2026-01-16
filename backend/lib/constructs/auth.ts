@@ -127,11 +127,12 @@ export class AuthConstruct extends Construct {
     // Nonce function: write nonces
     table.grant(this.nonceFunction, 'dynamodb:PutItem');
 
-    // Verify function: read and delete nonces, create users
+    // Verify function: read and delete nonces, create users, update embedded wallet
     table.grant(this.verifyFunction,
       'dynamodb:GetItem',
       'dynamodb:DeleteItem',
-      'dynamodb:PutItem'
+      'dynamodb:PutItem',
+      'dynamodb:UpdateItem'
     );
 
     // Grant Secrets Manager read access for JWT secret
