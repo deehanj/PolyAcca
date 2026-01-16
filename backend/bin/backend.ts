@@ -7,7 +7,7 @@ import { FrontendStack } from '../lib/frontend-stack';
 // Required Environment Variables
 // Set these before deploying, or hard-code values here for local development
 // =============================================================================
-process.env.TURNKEY_ORGANIZATION_ID ??= ''; // Your Turnkey organization ID
+process.env.TURNKEY_ORGANIZATION_ID ??= 'af05ad7f-6d97-4bd6-9161-2cca55e2cb45';
 
 const app = new cdk.App();
 
