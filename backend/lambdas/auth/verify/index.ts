@@ -4,16 +4,22 @@
  * POST /auth/verify
  * Body: { walletAddress: string, signature: string }
  * Response: { token: string, walletAddress: string, expiresAt: string }
+ *
+ * On first authentication, creates an embedded wallet via Turnkey for trading.
  */
 
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { ethers } from 'ethers';
-import { getNonce, deleteNonce, getOrCreateUser } from '../../shared/dynamo-client';
+import { getNonce, deleteNonce, getOrCreateUser, getUser, updateUserEmbeddedWallet } from '../../shared/dynamo-client';
 import { createToken } from '../../shared/jwt';
+import { createWallet } from '../../shared/turnkey-client';
 import type { VerifyRequest, VerifyResponse } from '../../shared/types';
 import { NONCE_MESSAGE_PREFIX, isValidAddress } from '../../shared/auth-utils';
 import { errorResponse, successResponse } from '../../shared/api-utils';
 import { optionalEnvVar } from '../../utils/envVars';
+import { createLogger } from '../../shared/logger';
+
+const logger = createLogger('auth-verify');
 
 export async function handler(
   event: APIGatewayProxyEvent
@@ -62,7 +68,32 @@ export async function handler(
     await deleteNonce(request.walletAddress);
 
     // Create or get user record
-    await getOrCreateUser(request.walletAddress);
+    const user = await getOrCreateUser(request.walletAddress);
+
+    // Create embedded wallet if user doesn't have one
+    if (!user.embeddedWalletAddress) {
+      logger.info('Creating embedded wallet for new user', {
+        walletAddress: request.walletAddress,
+      });
+
+      try {
+        const embeddedWallet = await createWallet(request.walletAddress);
+        await updateUserEmbeddedWallet(request.walletAddress, {
+          turnkeyWalletId: embeddedWallet.walletId,
+          embeddedWalletAddress: embeddedWallet.walletAddress,
+        });
+
+        logger.info('Embedded wallet created', {
+          walletAddress: request.walletAddress,
+          embeddedWalletAddress: embeddedWallet.walletAddress,
+        });
+      } catch (error) {
+        // Log but don't fail authentication - wallet can be created later
+        logger.errorWithStack('Failed to create embedded wallet', error, {
+          walletAddress: request.walletAddress,
+        });
+      }
+    }
 
     // Generate JWT token
     const token = await createToken(request.walletAddress);

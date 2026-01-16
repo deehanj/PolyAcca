@@ -19,7 +19,6 @@ import {
 import type {
   BaseEntity,
   UserEntity,
-  UserCredsEntity,
   NonceEntity,
   ChainEntity,
   UserChainEntity,
@@ -33,7 +32,7 @@ import type {
 import { requireEnvVar } from '../utils/envVars';
 
 // Environment variables - validated at module load time
-const TABLE_NAME = requireEnvVar('TABLE_NAME');
+const MONOTABLE_NAME = requireEnvVar('MONOTABLE_NAME');
 
 // Initialize DynamoDB client
 const client = new DynamoDBClient({});
@@ -53,10 +52,7 @@ export const keys = {
     SK: 'PROFILE',
   }),
 
-  userCreds: (walletAddress: string) => ({
-    PK: `USER#${walletAddress.toLowerCase()}`,
-    SK: 'CREDS#polymarket',
-  }),
+  // NOTE: embedded wallet credentials are in embedded-wallet-credentials.ts (separate CREDENTIALS_TABLE_NAME)
 
   nonce: (walletAddress: string) => ({
     PK: `NONCE#${walletAddress.toLowerCase()}`,
@@ -155,7 +151,7 @@ export async function getItem<T extends BaseEntity>(
   sk: string
 ): Promise<T | null> {
   const params: GetCommandInput = {
-    TableName: TABLE_NAME,
+    TableName: MONOTABLE_NAME,
     Key: { PK: pk, SK: sk },
   };
 
@@ -165,7 +161,7 @@ export async function getItem<T extends BaseEntity>(
 
 export async function putItem<T extends BaseEntity>(item: T): Promise<void> {
   const params: PutCommandInput = {
-    TableName: TABLE_NAME,
+    TableName: MONOTABLE_NAME,
     Item: item,
   };
 
@@ -175,7 +171,7 @@ export async function putItem<T extends BaseEntity>(item: T): Promise<void> {
 export async function deleteItem(pk: string, sk: string): Promise<void> {
   await docClient.send(
     new DeleteCommand({
-      TableName: TABLE_NAME,
+      TableName: MONOTABLE_NAME,
       Key: { PK: pk, SK: sk },
     })
   );
@@ -186,7 +182,7 @@ export async function queryItems<T extends BaseEntity>(
   skPrefix?: string
 ): Promise<T[]> {
   const params: QueryCommandInput = {
-    TableName: TABLE_NAME,
+    TableName: MONOTABLE_NAME,
     KeyConditionExpression: skPrefix
       ? 'PK = :pk AND begins_with(SK, :sk)'
       : 'PK = :pk',
@@ -208,7 +204,7 @@ export async function queryByGSI<T extends BaseEntity>(
   const skName = pkName === 'GSI1PK' ? 'GSI1SK' : 'GSI2SK';
 
   const params: QueryCommandInput = {
-    TableName: TABLE_NAME,
+    TableName: MONOTABLE_NAME,
     IndexName: indexName,
     KeyConditionExpression: skPrefix
       ? `${pkName} = :pk AND begins_with(${skName}, :sk)`
@@ -258,7 +254,66 @@ export async function getOrCreateUser(walletAddress: string): Promise<UserEntity
   return createUser(walletAddress);
 }
 
-// NOTE: User credentials operations have been moved to credentials-client.ts
+/**
+ * Update user with embedded wallet information
+ */
+export async function updateUserEmbeddedWallet(
+  walletAddress: string,
+  embeddedWallet: {
+    turnkeyWalletId: string;
+    embeddedWalletAddress: string;
+  }
+): Promise<void> {
+  const { PK, SK } = keys.user(walletAddress);
+  const now = new Date().toISOString();
+
+  await docClient.send(
+    new UpdateCommand({
+      TableName: MONOTABLE_NAME,
+      Key: { PK, SK },
+      UpdateExpression: `
+        SET turnkeyWalletId = :turnkeyWalletId,
+            embeddedWalletAddress = :embeddedWalletAddress,
+            updatedAt = :now
+      `,
+      ExpressionAttributeValues: {
+        ':turnkeyWalletId': embeddedWallet.turnkeyWalletId,
+        ':embeddedWalletAddress': embeddedWallet.embeddedWalletAddress.toLowerCase(),
+        ':now': now,
+      },
+    })
+  );
+}
+
+/**
+ * Update user with Polymarket Safe address and mark credentials as ready
+ */
+export async function updateUserPolymarketSafe(
+  walletAddress: string,
+  polymarketSafeAddress: string
+): Promise<void> {
+  const { PK, SK } = keys.user(walletAddress);
+  const now = new Date().toISOString();
+
+  await docClient.send(
+    new UpdateCommand({
+      TableName: MONOTABLE_NAME,
+      Key: { PK, SK },
+      UpdateExpression: `
+        SET polymarketSafeAddress = :safeAddress,
+            hasCredentials = :hasCredentials,
+            updatedAt = :now
+      `,
+      ExpressionAttributeValues: {
+        ':safeAddress': polymarketSafeAddress.toLowerCase(),
+        ':hasCredentials': true,
+        ':now': now,
+      },
+    })
+  );
+}
+
+// NOTE: Embedded wallet credentials are in embedded-wallet-credentials.ts
 // for security isolation. Only specific lambdas have access to that table.
 
 // Nonce operations
@@ -315,7 +370,7 @@ export async function upsertChain(
 
   await docClient.send(
     new UpdateCommand({
-      TableName: TABLE_NAME,
+      TableName: MONOTABLE_NAME,
       Key: { PK, SK },
       UpdateExpression: `
         SET chainId = if_not_exists(chainId, :chainId),
@@ -364,7 +419,7 @@ export async function decrementChainTotalValue(
 
   await docClient.send(
     new UpdateCommand({
-      TableName: TABLE_NAME,
+      TableName: MONOTABLE_NAME,
       Key: { PK, SK },
       UpdateExpression: 'SET totalValue = totalValue - :amount, updatedAt = :now',
       ExpressionAttributeValues: {
@@ -419,7 +474,7 @@ export async function updateUserChainStatus(
 
   await docClient.send(
     new UpdateCommand({
-      TableName: TABLE_NAME,
+      TableName: MONOTABLE_NAME,
       Key: { PK, SK },
       UpdateExpression: updateExpression,
       ExpressionAttributeValues: expressionValues,
@@ -479,7 +534,7 @@ export async function updateBetStatus(
 
   await docClient.send(
     new UpdateCommand({
-      TableName: TABLE_NAME,
+      TableName: MONOTABLE_NAME,
       Key: { PK, SK },
       UpdateExpression: updateExpression,
       ExpressionAttributeValues: expressionValues,
@@ -558,7 +613,7 @@ export async function updateMarketStatus(
 
   await docClient.send(
     new UpdateCommand({
-      TableName: TABLE_NAME,
+      TableName: MONOTABLE_NAME,
       Key: { PK, SK },
       UpdateExpression: updateExpression,
       ExpressionAttributeValues: expressionValues,
@@ -604,7 +659,7 @@ export async function getAllConnections(): Promise<ConnectionEntity[]> {
   const { ScanCommand } = await import('@aws-sdk/lib-dynamodb');
   const result = await docClient.send(
     new ScanCommand({
-      TableName: TABLE_NAME,
+      TableName: MONOTABLE_NAME,
       FilterExpression: 'begins_with(PK, :pk)',
       ExpressionAttributeValues: { ':pk': 'CONN#' },
     })
@@ -624,7 +679,7 @@ export async function getAllChains(): Promise<ChainEntity[]> {
   const { ScanCommand } = await import('@aws-sdk/lib-dynamodb');
   const result = await docClient.send(
     new ScanCommand({
-      TableName: TABLE_NAME,
+      TableName: MONOTABLE_NAME,
       FilterExpression: 'begins_with(PK, :pk) AND SK = :sk',
       ExpressionAttributeValues: { ':pk': 'CHAIN#', ':sk': 'DEFINITION' },
     })
@@ -648,7 +703,7 @@ export async function getAllMarkets(): Promise<MarketEntity[]> {
   const { ScanCommand } = await import('@aws-sdk/lib-dynamodb');
   const result = await docClient.send(
     new ScanCommand({
-      TableName: TABLE_NAME,
+      TableName: MONOTABLE_NAME,
       FilterExpression: 'begins_with(PK, :pk) AND SK = :sk',
       ExpressionAttributeValues: { ':pk': 'MARKET#', ':sk': 'MARKET' },
     })
@@ -700,7 +755,7 @@ export async function getAllAdminConnections(): Promise<AdminConnectionEntity[]>
   const { ScanCommand } = await import('@aws-sdk/lib-dynamodb');
   const result = await docClient.send(
     new ScanCommand({
-      TableName: TABLE_NAME,
+      TableName: MONOTABLE_NAME,
       FilterExpression: 'begins_with(PK, :pk)',
       ExpressionAttributeValues: { ':pk': 'ADMINCONN#' },
     })

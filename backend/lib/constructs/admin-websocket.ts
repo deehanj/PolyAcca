@@ -49,7 +49,7 @@ export class AdminWebSocketConstruct extends Construct {
       memorySize: 256,
       timeout: cdk.Duration.seconds(30),
       environment: {
-        TABLE_NAME: table.tableName,
+        MONOTABLE_NAME: table.tableName,
         NODE_OPTIONS: '--enable-source-maps',
       },
       bundling: {

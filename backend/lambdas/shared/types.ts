@@ -29,12 +29,20 @@ export interface BaseEntity {
  * User profile entity
  * PK: USER#<walletAddress>
  * SK: PROFILE
+ *
+ * walletAddress: User's MetaMask wallet (used for authentication)
+ * embeddedWalletAddress: Turnkey-managed wallet for trading
+ * polymarketSafeAddress: Gnosis Safe deployed on Polymarket for the embedded wallet
  */
 export interface UserEntity extends BaseEntity {
   entityType: 'USER';
-  walletAddress: string;
+  walletAddress: string; // MetaMask wallet (identity)
   displayName?: string;
-  hasCredentials: boolean;
+  hasCredentials: boolean; // True when Safe is deployed and credentials derived
+  // Embedded wallet fields (created on first auth)
+  turnkeyWalletId?: string; // Turnkey wallet ID
+  embeddedWalletAddress?: string; // Turnkey-managed EOA address
+  polymarketSafeAddress?: string; // Gnosis Safe for trading on Polymarket
 }
 
 /**
@@ -43,14 +51,15 @@ export interface UserEntity extends BaseEntity {
 export type SignatureType = 'EOA' | 'POLY_PROXY' | 'GNOSIS_SAFE';
 
 /**
- * User Polymarket credentials (encrypted)
+ * Embedded wallet Polymarket credentials (encrypted)
  * PK: USER#<walletAddress>
  * SK: CREDS#polymarket
  *
+ * Derived from Turnkey embedded wallet and cached for reuse.
  * Stored in separate credentials table for security isolation.
  */
-export interface UserCredsEntity extends BaseEntity {
-  entityType: 'USER_CREDS';
+export interface EmbeddedWalletCredentialsEntity extends BaseEntity {
+  entityType: 'EMBEDDED_WALLET_CREDS';
   walletAddress: string;
   encryptedApiKey: string;
   encryptedApiSecret: string;
@@ -269,23 +278,21 @@ export interface VerifyResponse {
 
 // Users
 export interface UserProfile {
-  walletAddress: string;
+  walletAddress: string; // MetaMask wallet (identity)
   displayName?: string;
-  hasCredentials: boolean;
+  hasCredentials: boolean; // True when Safe is deployed and credentials derived
   createdAt: string;
   admin?: boolean;
+  // Embedded wallet info (for funding)
+  embeddedWalletAddress?: string; // User funds this address with USDC
+  polymarketSafeAddress?: string; // Polymarket Safe address
 }
 
 export interface UpdateProfileRequest {
   displayName?: string;
 }
 
-export interface SetCredentialsRequest {
-  apiKey: string;
-  apiSecret: string;
-  passphrase: string;
-  signatureType?: SignatureType;
-}
+// Note: SetCredentialsRequest removed - credentials now derived automatically via embedded wallets
 
 // Chains
 export interface CreateLegInput {

@@ -3,11 +3,16 @@
  *
  * Handles credential management and order execution.
  * Supports builder attribution for RevShare (when verified).
+ *
+ * Uses embedded wallets (Turnkey) for signing. Credentials are derived
+ * from Polymarket on first use and cached in the credentials table.
  */
 
 import { ClobClient, Side, OrderType, type TickSize } from '@polymarket/clob-client';
+import { SignatureType as PolymarketSignatureType } from '@polymarket/order-utils';
 import { BuilderConfig } from '@polymarket/builder-signing-sdk';
-import type { PolymarketCredentials, UserCredsEntity, BuilderCredentials } from './types';
+import type { Signer } from 'ethers';
+import type { PolymarketCredentials, EmbeddedWalletCredentialsEntity, BuilderCredentials } from './types';
 import { encryptValue, decryptValue } from './kms-client';
 import { createLogger } from './logger';
 
@@ -44,15 +49,15 @@ export function hasBuilderCredentials(): boolean {
 }
 
 // =============================================================================
-// Credential Encryption/Decryption
+// Embedded Wallet Credential Encryption/Decryption
 // =============================================================================
 
 /**
- * Encrypt Polymarket credentials for storage
+ * Encrypt embedded wallet credentials for storage
  */
-export async function encryptCredentials(
+export async function encryptEmbeddedWalletCredentials(
   creds: PolymarketCredentials
-): Promise<Pick<UserCredsEntity, 'encryptedApiKey' | 'encryptedApiSecret' | 'encryptedPassphrase'>> {
+): Promise<Pick<EmbeddedWalletCredentialsEntity, 'encryptedApiKey' | 'encryptedApiSecret' | 'encryptedPassphrase'>> {
   const [encryptedApiKey, encryptedApiSecret, encryptedPassphrase] = await Promise.all([
     encryptValue(creds.apiKey),
     encryptValue(creds.apiSecret),
@@ -63,10 +68,10 @@ export async function encryptCredentials(
 }
 
 /**
- * Decrypt Polymarket credentials from storage
+ * Decrypt embedded wallet credentials from storage
  */
-export async function decryptCredentials(
-  encrypted: Pick<UserCredsEntity, 'encryptedApiKey' | 'encryptedApiSecret' | 'encryptedPassphrase' | 'signatureType'>
+export async function decryptEmbeddedWalletCredentials(
+  encrypted: Pick<EmbeddedWalletCredentialsEntity, 'encryptedApiKey' | 'encryptedApiSecret' | 'encryptedPassphrase' | 'signatureType'>
 ): Promise<PolymarketCredentials> {
   const [apiKey, apiSecret, passphrase] = await Promise.all([
     decryptValue(encrypted.encryptedApiKey),
@@ -104,42 +109,6 @@ function createClient(credentials?: PolymarketCredentials): ClobClient {
 }
 
 // =============================================================================
-// Credential Validation
-// =============================================================================
-
-/**
- * Validate Polymarket credentials by calling an authenticated endpoint
- */
-export async function validateCredentials(
-  creds: Pick<PolymarketCredentials, 'apiKey' | 'apiSecret' | 'passphrase'>
-): Promise<{ valid: boolean; error?: string }> {
-  try {
-    const client = createClient(creds as PolymarketCredentials);
-    // Use getOpenOrders - it's authenticated with API creds and doesn't require a signer
-    await client.getOpenOrders();
-    return { valid: true };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    const fullError = JSON.stringify(error);
-
-    if (
-      message.includes('401') ||
-      message.includes('Unauthorized') ||
-      message.includes('UNAUTHORIZED') ||
-      message.includes('Invalid API key') ||
-      message.includes('invalid signature') ||
-      fullError.includes('401') ||
-      fullError.includes('Unauthorized')
-    ) {
-      return { valid: false, error: 'Invalid Polymarket credentials' };
-    }
-
-    logger.errorWithStack('Unexpected error validating credentials', error);
-    return { valid: false, error: `Validation failed: ${message}` };
-  }
-}
-
-// =============================================================================
 // Order Execution
 // =============================================================================
 
@@ -152,13 +121,104 @@ export interface OrderParams {
 }
 
 /**
- * Place an order on Polymarket CLOB
+ * Cancel an order on Polymarket (uses API credentials only, no signer needed)
+ */
+export async function cancelOrder(
+  credentials: PolymarketCredentials,
+  orderId: string
+): Promise<boolean> {
+  const client = createClient(credentials);
+
+  logger.info('Cancelling order', { orderId });
+
+  try {
+    await client.cancelOrder({ orderID: orderId });
+    logger.info('Order cancelled', { orderId });
+    return true;
+  } catch (error) {
+    logger.errorWithStack('Failed to cancel order', error, { orderId });
+    throw error;
+  }
+}
+
+// =============================================================================
+// Embedded Wallet Support (Turnkey)
+// =============================================================================
+
+/**
+ * Create a ClobClient with an ethers Signer for embedded wallet operations
+ *
+ * @param signer - ethers Signer from Turnkey
+ * @param credentials - Optional pre-derived API credentials
+ * @param signatureType - Signature type (default: EOA)
+ */
+function createClientWithSigner(
+  signer: Signer,
+  credentials?: Pick<PolymarketCredentials, 'apiKey' | 'apiSecret' | 'passphrase'>,
+  signatureType: PolymarketSignatureType = PolymarketSignatureType.EOA
+): ClobClient {
+  return new ClobClient(
+    POLYMARKET_HOST,
+    POLYGON_CHAIN_ID,
+    signer as any, // ClobClient expects Wallet | JsonRpcSigner but Signer is compatible
+    credentials ? { key: credentials.apiKey, secret: credentials.apiSecret, passphrase: credentials.passphrase } : undefined,
+    signatureType,
+    undefined, // funderAddress
+    undefined, // geoBlockToken
+    undefined, // useServerTime
+    cachedBuilderConfig // builderConfig - for order attribution
+  );
+}
+
+/**
+ * Derive API credentials for an embedded wallet
+ *
+ * This creates or retrieves API credentials from Polymarket for the given signer.
+ * The credentials are used for authenticated API calls.
+ *
+ * @param signer - ethers Signer from Turnkey
+ * @returns API credentials for the wallet
+ */
+export async function deriveApiCredentials(
+  signer: Signer
+): Promise<Pick<PolymarketCredentials, 'apiKey' | 'apiSecret' | 'passphrase'>> {
+  const walletAddress = await signer.getAddress();
+  logger.info('Deriving API credentials for embedded wallet', { walletAddress });
+
+  try {
+    // Create client with signer only (no credentials yet)
+    const client = createClientWithSigner(signer);
+
+    // Derive or create API credentials
+    const creds = await client.createOrDeriveApiKey();
+
+    logger.info('API credentials derived for embedded wallet', { walletAddress });
+
+    return {
+      apiKey: creds.key,
+      apiSecret: creds.secret,
+      passphrase: creds.passphrase,
+    };
+  } catch (error) {
+    logger.errorWithStack('Failed to derive API credentials', error, { walletAddress });
+    throw error;
+  }
+}
+
+/**
+ * Place an order on Polymarket CLOB using embedded wallet
+ *
+ * @param signer - ethers Signer from Turnkey
+ * @param credentials - Pre-derived API credentials
+ * @param params - Order parameters
+ * @returns Order ID
  */
 export async function placeOrder(
-  credentials: PolymarketCredentials,
+  signer: Signer,
+  credentials: Pick<PolymarketCredentials, 'apiKey' | 'apiSecret' | 'passphrase'>,
   params: OrderParams
 ): Promise<string> {
-  const client = createClient(credentials);
+  const client = createClientWithSigner(signer, credentials, PolymarketSignatureType.EOA);
 
   logger.info('Placing order', {
     tokenId: params.tokenId,
@@ -183,28 +243,10 @@ export async function placeOrder(
     logger.info('Order placed', { orderId, tokenId: params.tokenId });
     return orderId;
   } catch (error) {
-    logger.errorWithStack('Failed to place order', error, { tokenId: params.tokenId, side: params.side });
-    throw error;
-  }
-}
-
-/**
- * Cancel an order on Polymarket
- */
-export async function cancelOrder(
-  credentials: PolymarketCredentials,
-  orderId: string
-): Promise<boolean> {
-  const client = createClient(credentials);
-
-  logger.info('Cancelling order', { orderId });
-
-  try {
-    await client.cancelOrder({ orderID: orderId });
-    logger.info('Order cancelled', { orderId });
-    return true;
-  } catch (error) {
-    logger.errorWithStack('Failed to cancel order', error, { orderId });
+    logger.errorWithStack('Failed to place order', error, {
+      tokenId: params.tokenId,
+      side: params.side,
+    });
     throw error;
   }
 }

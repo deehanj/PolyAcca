@@ -40,6 +40,17 @@ export class SecretsConstruct extends Construct {
    */
   public readonly builderSecretArn: string;
 
+  /**
+   * Turnkey API credentials for embedded wallet management
+   * Structure: { apiPublicKey, apiPrivateKey }
+   */
+  public readonly turnkeySecret: secretsmanager.Secret;
+
+  /**
+   * ARN of the Turnkey secret
+   */
+  public readonly turnkeySecretArn: string;
+
   constructor(scope: Construct, id: string, props?: SecretsConstructProps) {
     super(scope, id);
 
@@ -74,6 +85,23 @@ export class SecretsConstruct extends Construct {
 
     this.builderSecretArn = this.builderSecret.secretArn;
 
+    // Turnkey API credentials for embedded wallet management
+    // Seeded with placeholder structure - replace values after deployment
+    this.turnkeySecret = new secretsmanager.Secret(this, 'TurnkeySecret', {
+      secretName: `${prefix}/turnkey`,
+      description: 'Turnkey API credentials for embedded wallet management',
+      generateSecretString: {
+        secretStringTemplate: JSON.stringify({
+          apiPublicKey: 'REPLACE_ME',
+          apiPrivateKey: 'REPLACE_ME',
+        }),
+        generateStringKey: '_placeholder', // Required but unused
+        excludePunctuation: true,
+      },
+    });
+
+    this.turnkeySecretArn = this.turnkeySecret.secretArn;
+
     // Outputs for reference
     new cdk.CfnOutput(this, 'JwtSecretArn', {
       value: this.jwtSecretArn,
@@ -83,6 +111,11 @@ export class SecretsConstruct extends Construct {
     new cdk.CfnOutput(this, 'BuilderSecretArn', {
       value: this.builderSecretArn,
       description: 'Builder Secret ARN (replace REPLACE_ME values with actual credentials)',
+    });
+
+    new cdk.CfnOutput(this, 'TurnkeySecretArn', {
+      value: this.turnkeySecretArn,
+      description: 'Turnkey Secret ARN (replace REPLACE_ME values with actual credentials)',
     });
   }
 
@@ -98,5 +131,12 @@ export class SecretsConstruct extends Construct {
    */
   public grantBuilderSecretRead(grantee: iam.IGrantable): void {
     this.builderSecret.grantRead(grantee);
+  }
+
+  /**
+   * Grant read access to Turnkey credentials (for embedded wallet management)
+   */
+  public grantTurnkeySecretRead(grantee: iam.IGrantable): void {
+    this.turnkeySecret.grantRead(grantee);
   }
 }

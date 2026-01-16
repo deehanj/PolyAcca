@@ -46,6 +46,12 @@ export class BackendStack extends cdk.Stack {
     const environment = props?.environment ?? 'dev';
     const isProd = environment === 'prod';
 
+    // Required environment variables for CDK synth
+    const turnkeyOrganizationId = process.env.TURNKEY_ORGANIZATION_ID;
+    if (!turnkeyOrganizationId) {
+      throw new Error('TURNKEY_ORG_ID_NOT_SET: TURNKEY_ORGANIZATION_ID environment variable is required');
+    }
+
     // ==========================================================================
     // Alerts (must be created first so aspects can reference the topic)
     // ==========================================================================
@@ -76,12 +82,15 @@ export class BackendStack extends cdk.Stack {
     });
 
     // ==========================================================================
-    // Auth (wallet-based authentication)
+    // Auth (wallet-based authentication with embedded wallet creation)
     // ==========================================================================
     this.auth = new AuthConstruct(this, 'Auth', {
       table: this.database.table,
       jwtSecretArn: this.secrets.jwtSecretArn,
       tokenExpiryHours: 24,
+      turnkeySecretArn: this.secrets.turnkeySecretArn,
+      turnkeyOrganizationId,
+      kmsKeyArn: this.credentialsTable.encryptionKey.keyArn,
     });
 
     // ==========================================================================
@@ -90,7 +99,6 @@ export class BackendStack extends cdk.Stack {
     this.api = new ApiConstruct(this, 'Api', {
       table: this.database.table,
       auth: this.auth,
-      credentialsTable: this.credentialsTable,
     });
 
     // ==========================================================================
@@ -118,6 +126,7 @@ export class BackendStack extends cdk.Stack {
       table: this.database.table,
       credentialsTable: this.credentialsTable,
       secrets: this.secrets,
+      turnkeyOrganizationId,
       websocket: this.websocket,
       adminWebsocket: this.adminWebsocket,
     });

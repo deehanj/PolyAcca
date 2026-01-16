@@ -8,6 +8,9 @@
   "dependencies": {
     "@polymarket/builder-signing-sdk": "^0.0.8",
     "@polymarket/clob-client": "^4.0.0",
+    "@turnkey/api-key-stamper": "^0.4.0",
+    "@turnkey/ethers": "^0.19.9",
+    "@turnkey/http": "^2.7.1",
     "ethers": "^5.7.2"
   },
   "devDependencies": {

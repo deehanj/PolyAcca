@@ -21,6 +21,18 @@ export interface AuthConstructProps {
    * @default 24
    */
   tokenExpiryHours?: number;
+  /**
+   * ARN of the Turnkey credentials secret
+   */
+  turnkeySecretArn: string;
+  /**
+   * Turnkey organization ID
+   */
+  turnkeyOrganizationId: string;
+  /**
+   * ARN of the KMS key for encrypting user data
+   */
+  kmsKeyArn: string;
 }
 
 export class AuthConstruct extends Construct {
@@ -32,14 +44,29 @@ export class AuthConstruct extends Construct {
   constructor(scope: Construct, id: string, props: AuthConstructProps) {
     super(scope, id);
 
-    const { table, jwtSecretArn, tokenExpiryHours = 24 } = props;
+    const {
+      table,
+      jwtSecretArn,
+      tokenExpiryHours = 24,
+      turnkeySecretArn,
+      turnkeyOrganizationId,
+      kmsKeyArn,
+    } = props;
 
     // Shared Lambda environment
     const commonEnv = {
-      TABLE_NAME: table.tableName,
+      MONOTABLE_NAME: table.tableName,
       JWT_SECRET_ARN: jwtSecretArn,
       TOKEN_EXPIRY_HOURS: tokenExpiryHours.toString(),
       NODE_OPTIONS: '--enable-source-maps',
+    };
+
+    // Environment for verify function (includes Turnkey for wallet creation)
+    const verifyEnv = {
+      ...commonEnv,
+      TURNKEY_SECRET_ARN: turnkeySecretArn,
+      TURNKEY_ORGANIZATION_ID: turnkeyOrganizationId,
+      KMS_KEY_ARN: kmsKeyArn,
     };
 
     // Nonce Lambda - generates nonce for wallet signing
@@ -59,15 +86,15 @@ export class AuthConstruct extends Construct {
       },
     });
 
-    // Verify Lambda - verifies wallet signature, issues JWT
+    // Verify Lambda - verifies wallet signature, issues JWT, creates embedded wallet
     this.verifyFunction = new nodejs.NodejsFunction(this, 'VerifyFunction', {
       entry: path.join(__dirname, '../../lambdas/auth/verify/index.ts'),
       handler: 'handler',
       runtime: lambda.Runtime.NODEJS_20_X,
       architecture: lambda.Architecture.ARM_64,
-      memorySize: 256,
-      timeout: cdk.Duration.seconds(10),
-      environment: commonEnv,
+      memorySize: 512, // Increased for Turnkey SDK
+      timeout: cdk.Duration.seconds(30), // Increased for wallet creation
+      environment: verifyEnv,
       bundling: {
         minify: true,
         sourceMap: true,
@@ -108,13 +135,27 @@ export class AuthConstruct extends Construct {
     );
 
     // Grant Secrets Manager read access for JWT secret
-    const secretsPolicy = new iam.PolicyStatement({
+    const jwtSecretPolicy = new iam.PolicyStatement({
       actions: ['secretsmanager:GetSecretValue'],
       resources: [jwtSecretArn],
     });
-    this.nonceFunction.addToRolePolicy(secretsPolicy);
-    this.verifyFunction.addToRolePolicy(secretsPolicy);
-    this.authorizerFunction.addToRolePolicy(secretsPolicy);
+    this.nonceFunction.addToRolePolicy(jwtSecretPolicy);
+    this.verifyFunction.addToRolePolicy(jwtSecretPolicy);
+    this.authorizerFunction.addToRolePolicy(jwtSecretPolicy);
+
+    // Grant verify function access to Turnkey secret (for embedded wallet creation)
+    const turnkeySecretPolicy = new iam.PolicyStatement({
+      actions: ['secretsmanager:GetSecretValue'],
+      resources: [turnkeySecretArn],
+    });
+    this.verifyFunction.addToRolePolicy(turnkeySecretPolicy);
+
+    // Grant verify function access to KMS key (for credential encryption)
+    const kmsPolicy = new iam.PolicyStatement({
+      actions: ['kms:Encrypt', 'kms:Decrypt', 'kms:GenerateDataKey'],
+      resources: [kmsKeyArn],
+    });
+    this.verifyFunction.addToRolePolicy(kmsPolicy);
 
     // API Gateway Lambda Authorizer (no caching - each request invokes authorizer)
     this.authorizer = new apigateway.RequestAuthorizer(this, 'WalletAuthorizer', {

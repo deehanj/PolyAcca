@@ -17,8 +17,8 @@ import {
   updateBetStatus,
   decrementChainTotalValue,
 } from '../../shared/dynamo-client';
-import { getUserCreds } from '../../shared/credentials-client';
-import { decryptCredentials, cancelOrder } from '../../shared/polymarket-client';
+import { getEmbeddedWalletCredentials } from '../../shared/embedded-wallet-credentials';
+import { decryptEmbeddedWalletCredentials, cancelOrder } from '../../shared/polymarket-client';
 import { createLogger } from '../../shared/logger';
 import type { UserChainEntity, BetEntity, UserChainStatus } from '../../shared/types';
 
@@ -45,14 +45,14 @@ async function cancelPolymarketOrder(bet: BetEntity, walletAddress: string): Pro
   }
 
   try {
-    const creds = await getUserCreds(walletAddress);
+    const creds = await getEmbeddedWalletCredentials(walletAddress);
 
     if (!creds) {
-      log.error('User credentials not found for order cancellation', { walletAddress });
+      log.error('Embedded wallet credentials not found for order cancellation', { walletAddress });
       return;
     }
 
-    const decrypted = await decryptCredentials(creds);
+    const decrypted = await decryptEmbeddedWalletCredentials(creds);
     const cancelled = await cancelOrder(decrypted, bet.orderId);
 
     log.info('Polymarket order cancelled', {

@@ -1,11 +1,11 @@
 /**
- * Credentials Client
+ * Embedded Wallet Credentials
  *
- * Separate DynamoDB client for accessing the credentials table.
- * This table stores Polymarket API credentials and is only accessible
- * by specific lambdas that need to read or write credentials.
+ * Manages cached Polymarket API credentials derived from Turnkey embedded wallets.
+ * Credentials are derived once on first bet execution and cached for reuse.
  *
  * Security: Only lambdas with CREDENTIALS_TABLE_NAME env var can access this.
+ * The table uses KMS encryption (KMS_KEY_ARN) for field-level encryption.
  */
 
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
@@ -13,10 +13,9 @@ import {
   DynamoDBDocumentClient,
   GetCommand,
   PutCommand,
-  DeleteCommand,
   UpdateCommand,
 } from '@aws-sdk/lib-dynamodb';
-import type { UserCredsEntity } from './types';
+import type { EmbeddedWalletCredentialsEntity } from './types';
 import { requireEnvVar } from '../utils/envVars';
 
 // Environment variables - validated at module load time
@@ -24,7 +23,7 @@ import { requireEnvVar } from '../utils/envVars';
 const CREDENTIALS_TABLE_NAME = requireEnvVar('CREDENTIALS_TABLE_NAME');
 
 // Also need the main table for updating hasCredentials flag
-const TABLE_NAME = requireEnvVar('TABLE_NAME');
+const MONOTABLE_NAME = requireEnvVar('MONOTABLE_NAME');
 
 // Initialize DynamoDB client for credentials table
 const client = new DynamoDBClient({});
@@ -39,21 +38,23 @@ const credentialsDocClient = DynamoDBDocumentClient.from(client, {
 // =============================================================================
 
 const credentialsKeys = {
-  userCreds: (walletAddress: string) => ({
+  embeddedWalletCreds: (walletAddress: string) => ({
     PK: `USER#${walletAddress.toLowerCase()}`,
     SK: 'CREDS#polymarket',
   }),
 };
 
 // =============================================================================
-// User Credentials Operations
+// Embedded Wallet Credentials Operations
 // =============================================================================
 
 /**
- * Get user's Polymarket credentials from the credentials table
+ * Get cached Polymarket credentials for a user's embedded wallet
  */
-export async function getUserCreds(walletAddress: string): Promise<UserCredsEntity | null> {
-  const { PK, SK } = credentialsKeys.userCreds(walletAddress);
+export async function getEmbeddedWalletCredentials(
+  walletAddress: string
+): Promise<EmbeddedWalletCredentialsEntity | null> {
+  const { PK, SK } = credentialsKeys.embeddedWalletCreds(walletAddress);
 
   const result = await credentialsDocClient.send(
     new GetCommand({
@@ -62,15 +63,22 @@ export async function getUserCreds(walletAddress: string): Promise<UserCredsEnti
     })
   );
 
-  return (result.Item as UserCredsEntity) || null;
+  return (result.Item as EmbeddedWalletCredentialsEntity) || null;
 }
 
 /**
- * Save user's Polymarket credentials to the credentials table
+ * Input type for caching credentials (PK/SK are built internally)
+ */
+export type EmbeddedWalletCredentialsInput = Omit<EmbeddedWalletCredentialsEntity, 'PK' | 'SK'>;
+
+/**
+ * Cache derived Polymarket credentials for a user's embedded wallet
  * Also updates hasCredentials flag in the main table
  */
-export async function saveUserCreds(creds: UserCredsEntity): Promise<void> {
-  const { PK, SK } = credentialsKeys.userCreds(creds.walletAddress);
+export async function cacheEmbeddedWalletCredentials(
+  creds: EmbeddedWalletCredentialsInput
+): Promise<void> {
+  const { PK, SK } = credentialsKeys.embeddedWalletCreds(creds.walletAddress);
 
   // Save to credentials table
   await credentialsDocClient.send(
@@ -88,41 +96,11 @@ export async function saveUserCreds(creds: UserCredsEntity): Promise<void> {
   const userPK = `USER#${creds.walletAddress.toLowerCase()}`;
   await credentialsDocClient.send(
     new UpdateCommand({
-      TableName: TABLE_NAME,
+      TableName: MONOTABLE_NAME,
       Key: { PK: userPK, SK: 'PROFILE' },
       UpdateExpression: 'SET hasCredentials = :val, updatedAt = :now',
       ExpressionAttributeValues: {
         ':val': true,
-        ':now': new Date().toISOString(),
-      },
-    })
-  );
-}
-
-/**
- * Delete user's Polymarket credentials from the credentials table
- * Also updates hasCredentials flag in the main table
- */
-export async function deleteUserCreds(walletAddress: string): Promise<void> {
-  const { PK, SK } = credentialsKeys.userCreds(walletAddress);
-
-  // Delete from credentials table
-  await credentialsDocClient.send(
-    new DeleteCommand({
-      TableName: CREDENTIALS_TABLE_NAME,
-      Key: { PK, SK },
-    })
-  );
-
-  // Update user's hasCredentials flag in main table
-  const userPK = `USER#${walletAddress.toLowerCase()}`;
-  await credentialsDocClient.send(
-    new UpdateCommand({
-      TableName: TABLE_NAME,
-      Key: { PK: userPK, SK: 'PROFILE' },
-      UpdateExpression: 'SET hasCredentials = :val, updatedAt = :now',
-      ExpressionAttributeValues: {
-        ':val': false,
         ':now': new Date().toISOString(),
       },
     })

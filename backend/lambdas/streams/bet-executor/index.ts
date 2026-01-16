@@ -6,6 +6,7 @@
  * - MODIFY: Subsequent bets (status changed to READY after previous bet won)
  *
  * Places orders on Polymarket CLOB with builder attribution.
+ * Uses embedded wallets (Turnkey) for signing - all users get an embedded wallet on first auth.
  * On failure, marks bet with specific status and UserChain as FAILED.
  * The position-termination-handler will void remaining bets via stream.
  */
@@ -17,14 +18,22 @@ import { GetSecretValueCommand, SecretsManagerClient } from '@aws-sdk/client-sec
 import {
   updateBetStatus,
   updateUserChainStatus,
+  getUser,
 } from '../../shared/dynamo-client';
-import { getUserCreds } from '../../shared/credentials-client';
 import {
-  decryptCredentials,
+  getEmbeddedWalletCredentials,
+  cacheEmbeddedWalletCredentials,
+  type EmbeddedWalletCredentialsInput,
+} from '../../shared/embedded-wallet-credentials';
+import {
+  decryptEmbeddedWalletCredentials,
   placeOrder,
+  deriveApiCredentials,
+  encryptEmbeddedWalletCredentials,
   setBuilderCredentials,
   hasBuilderCredentials,
 } from '../../shared/polymarket-client';
+import { createSigner } from '../../shared/turnkey-client';
 import { createLogger } from '../../shared/logger';
 import type { BetEntity, BetStatus, BuilderCredentials } from '../../shared/types';
 
@@ -91,6 +100,11 @@ function classifyError(error: unknown): BetStatus {
     return 'NO_CREDENTIALS';
   }
 
+  // Missing embedded wallet
+  if (message.includes('embedded wallet') || message.includes('no wallet')) {
+    return 'NO_CREDENTIALS';
+  }
+
   // Liquidity issues
   if (message.includes('liquidity') || message.includes('insufficient') ||
       message.includes('not enough')) {
@@ -145,7 +159,72 @@ async function handleExecutionFailure(
 }
 
 /**
- * Execute a bet - place order on Polymarket
+ * Execute a bet using embedded wallet (Turnkey signer)
+ *
+ * Credentials are stored in CREDENTIALS_TABLE_NAME (the dedicated credentials table).
+ * On first execution, we derive API credentials from Polymarket and cache them.
+ */
+async function executeBetWithEmbeddedWallet(
+  bet: BetEntity,
+  embeddedWalletAddress: string
+): Promise<string> {
+  log.info('Executing bet with embedded wallet', {
+    betId: bet.betId,
+    embeddedWalletAddress,
+  });
+
+  // Create Turnkey signer for the embedded wallet
+  const signer = await createSigner(embeddedWalletAddress);
+
+  // Check for cached credentials (derived on first bet execution)
+  const cachedCreds = await getEmbeddedWalletCredentials(bet.walletAddress);
+  let credentials: { apiKey: string; apiSecret: string; passphrase: string };
+
+  if (cachedCreds) {
+    // Use existing cached credentials
+    const decrypted = await decryptEmbeddedWalletCredentials(cachedCreds);
+    credentials = {
+      apiKey: decrypted.apiKey,
+      apiSecret: decrypted.apiSecret,
+      passphrase: decrypted.passphrase,
+    };
+    log.debug('Using cached embedded wallet credentials');
+  } else {
+    // Derive credentials for the first time from Polymarket
+    log.info('Deriving API credentials for embedded wallet', { embeddedWalletAddress });
+    credentials = await deriveApiCredentials(signer);
+
+    // Cache encrypted credentials for future use
+    const encrypted = await encryptEmbeddedWalletCredentials({
+      ...credentials,
+      signatureType: 'EOA',
+    });
+    const now = new Date().toISOString();
+    const credsInput: EmbeddedWalletCredentialsInput = {
+      entityType: 'EMBEDDED_WALLET_CREDS',
+      walletAddress: bet.walletAddress.toLowerCase(),
+      ...encrypted,
+      signatureType: 'EOA',
+      createdAt: now,
+      updatedAt: now,
+    };
+    await cacheEmbeddedWalletCredentials(credsInput);
+    log.info('Cached derived embedded wallet credentials');
+  }
+
+  // Place order using Turnkey signer
+  const orderId = await placeOrder(signer, credentials, {
+    tokenId: bet.tokenId,
+    side: 'BUY',
+    price: parseFloat(bet.targetPrice),
+    size: parseFloat(bet.stake) / parseFloat(bet.targetPrice),
+  });
+
+  return orderId;
+}
+
+/**
+ * Execute a bet - place order on Polymarket using embedded wallet
  */
 async function executeBet(bet: BetEntity): Promise<void> {
   log.info('Executing bet', {
@@ -162,25 +241,15 @@ async function executeBet(bet: BetEntity): Promise<void> {
     // Mark bet as EXECUTING
     await updateBetStatus(bet.chainId, bet.walletAddress, bet.sequence, 'EXECUTING');
 
-    // Get user's Polymarket credentials
-    const creds = await getUserCreds(bet.walletAddress);
+    // Get user profile to get embedded wallet address
+    const user = await getUser(bet.walletAddress);
 
-    if (!creds) {
-      log.error('User credentials not found', { walletAddress: bet.walletAddress });
-      await handleExecutionFailure(bet, new Error('User credentials not found'));
-      return;
+    if (!user?.embeddedWalletAddress) {
+      throw new Error('User does not have an embedded wallet - please re-authenticate');
     }
 
-    // Decrypt credentials
-    const decrypted = await decryptCredentials(creds);
-
-    // Place order on Polymarket
-    const orderId = await placeOrder(decrypted, {
-      tokenId: bet.tokenId,
-      side: 'BUY', // Always buying the outcome token
-      price: parseFloat(bet.targetPrice),
-      size: parseFloat(bet.stake) / parseFloat(bet.targetPrice), // Shares = stake / price
-    });
+    // Execute using embedded wallet
+    const orderId = await executeBetWithEmbeddedWallet(bet, user.embeddedWalletAddress);
 
     log.info('Order placed', { betId: bet.betId, orderId });
 

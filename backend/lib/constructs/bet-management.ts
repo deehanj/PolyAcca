@@ -16,13 +16,17 @@ export interface BetManagementConstructProps {
    */
   table: dynamodb.ITable;
   /**
-   * Credentials table construct (for reading Polymarket API keys)
+   * Credentials table construct (for reading/writing Polymarket API keys)
    */
   credentialsTable: CredentialsTableConstruct;
   /**
-   * Secrets construct (for builder credentials)
+   * Secrets construct (for builder and Turnkey credentials)
    */
   secrets: SecretsConstruct;
+  /**
+   * Turnkey organization ID for embedded wallet signing
+   */
+  turnkeyOrganizationId: string;
   /**
    * WebSocket construct for granting notification permissions
    */
@@ -61,7 +65,7 @@ export class BetManagementConstruct extends Construct {
   constructor(scope: Construct, id: string, props: BetManagementConstructProps) {
     super(scope, id);
 
-    const { table, credentialsTable, secrets, websocket, adminWebsocket } = props;
+    const { table, credentialsTable, secrets, turnkeyOrganizationId, websocket, adminWebsocket } = props;
 
     // Shared Lambda config
     const lambdaConfig = {
@@ -70,7 +74,7 @@ export class BetManagementConstruct extends Construct {
       memorySize: 512,
       timeout: cdk.Duration.seconds(60),
       environment: {
-        TABLE_NAME: table.tableName,
+        MONOTABLE_NAME: table.tableName,
         NODE_OPTIONS: '--enable-source-maps',
       },
       bundling: {
@@ -90,6 +94,7 @@ export class BetManagementConstruct extends Construct {
     // =========================================================================
     // Bet Executor - Places orders on Polymarket CLOB
     // Triggered by: Stream (bet status → READY) or direct invocation
+    // Supports embedded wallets (Turnkey) and legacy credentials
     // =========================================================================
     this.betExecutor = new nodejs.NodejsFunction(this, 'BetExecutor', {
       ...lambdaConfig,
@@ -101,6 +106,9 @@ export class BetManagementConstruct extends Construct {
         ...lambdaConfig.environment,
         ...credentialsLambdaEnv,
         BUILDER_SECRET_ARN: secrets.builderSecretArn,
+        // Turnkey for embedded wallet signing
+        TURNKEY_SECRET_ARN: secrets.turnkeySecretArn,
+        TURNKEY_ORGANIZATION_ID: turnkeyOrganizationId,
       },
     });
 
@@ -179,13 +187,17 @@ export class BetManagementConstruct extends Construct {
     table.grantStreamRead(this.betNotificationHandler);
     table.grantStreamRead(this.adminNotificationHandler);
 
-    // Credentials table read access (for Polymarket API keys)
-    // Only betExecutor and positionTerminationHandler need this
-    credentialsTable.grantRead(this.betExecutor);
+    // Credentials table access (for Polymarket API keys)
+    // betExecutor needs read/write (for deriving and saving embedded wallet credentials)
+    // positionTerminationHandler only needs read
+    credentialsTable.grantReadWrite(this.betExecutor);
     credentialsTable.grantRead(this.positionTerminationHandler);
 
     // Builder secret access (for order attribution)
     secrets.grantBuilderSecretRead(this.betExecutor);
+
+    // Turnkey secret access (for embedded wallet signing)
+    secrets.grantTurnkeySecretRead(this.betExecutor);
 
     // WebSocket permission for notification handler
     if (websocket) {

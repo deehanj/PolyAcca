@@ -3,11 +3,9 @@ import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as nodejs from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as apigateway from 'aws-cdk-lib/aws-apigateway';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
-import * as kms from 'aws-cdk-lib/aws-kms';
 import * as cdk from 'aws-cdk-lib/core';
 import * as path from 'path';
 import { AuthConstruct } from './auth';
-import type { CredentialsTableConstruct } from './credentials-table';
 
 export interface ApiConstructProps {
   /**
@@ -18,10 +16,6 @@ export interface ApiConstructProps {
    * Auth construct with authorizer
    */
   auth: AuthConstruct;
-  /**
-   * Credentials table construct (for user API key storage)
-   */
-  credentialsTable: CredentialsTableConstruct;
 }
 
 export class ApiConstruct extends Construct {
@@ -33,7 +27,7 @@ export class ApiConstruct extends Construct {
   constructor(scope: Construct, id: string, props: ApiConstructProps) {
     super(scope, id);
 
-    const { table, auth, credentialsTable } = props;
+    const { table, auth } = props;
 
     // Shared Lambda config
     const lambdaConfig = {
@@ -42,7 +36,7 @@ export class ApiConstruct extends Construct {
       memorySize: 512,
       timeout: cdk.Duration.seconds(30),
       environment: {
-        TABLE_NAME: table.tableName,
+        MONOTABLE_NAME: table.tableName,
         NODE_OPTIONS: '--enable-source-maps',
       },
       bundling: {
@@ -53,17 +47,12 @@ export class ApiConstruct extends Construct {
       },
     };
 
-    // Users Lambda - profile and credentials management
-    // Has access to both main table and credentials table
+    // Users Lambda - profile management
+    // Note: Credentials are now handled automatically via embedded wallets in bet-executor
     this.usersFunction = new nodejs.NodejsFunction(this, 'UsersFunction', {
       ...lambdaConfig,
       entry: path.join(__dirname, '../../lambdas/api/users/index.ts'),
       handler: 'handler',
-      environment: {
-        ...lambdaConfig.environment,
-        CREDENTIALS_TABLE_NAME: credentialsTable.table.tableName,
-        KMS_KEY_ARN: credentialsTable.encryptionKey.keyArn,
-      },
     });
 
     // Chains Lambda - chain management
@@ -81,12 +70,9 @@ export class ApiConstruct extends Construct {
       timeout: cdk.Duration.seconds(15), // Shorter timeout for external API calls
     });
 
-    // Grant DynamoDB permissions (scoped by Lambda function needs)
+    // Grant DynamoDB permissions
     table.grantReadWriteData(this.usersFunction);
     table.grantReadWriteData(this.chainsFunction);
-
-    // Grant credentials table access to Users Lambda only
-    credentialsTable.grantReadWrite(this.usersFunction);
 
     // REST API
     this.api = new apigateway.RestApi(this, 'PolyAccaApi', {
@@ -148,12 +134,9 @@ export class ApiConstruct extends Construct {
     // Users endpoints
     const usersResource = this.api.root.addResource('users');
     const meResource = usersResource.addResource('me');
-    const credentialsResource = meResource.addResource('credentials');
 
     meResource.addMethod('GET', new apigateway.LambdaIntegration(this.usersFunction), protectedMethodOptions);
     meResource.addMethod('PUT', new apigateway.LambdaIntegration(this.usersFunction), protectedMethodOptions);
-    credentialsResource.addMethod('PUT', new apigateway.LambdaIntegration(this.usersFunction), protectedMethodOptions);
-    credentialsResource.addMethod('DELETE', new apigateway.LambdaIntegration(this.usersFunction), protectedMethodOptions);
 
     // Chains endpoints
     const chainsResource = this.api.root.addResource('chains');

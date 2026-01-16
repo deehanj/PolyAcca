@@ -3,6 +3,12 @@ import * as cdk from 'aws-cdk-lib/core';
 import { BackendStack } from '../lib/backend-stack';
 import { FrontendStack } from '../lib/frontend-stack';
 
+// =============================================================================
+// Required Environment Variables
+// Set these before deploying, or hard-code values here for local development
+// =============================================================================
+process.env.TURNKEY_ORGANIZATION_ID ??= ''; // Your Turnkey organization ID
+
 const app = new cdk.App();
 
 // Backend stack (API, Database, Auth, Processing)
