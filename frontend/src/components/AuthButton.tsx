@@ -1,8 +1,9 @@
 import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { Loader2 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 
 export function AuthButton() {
-  const { isAuthenticated, isAuthenticating, error, authenticate } = useAuth();
+  const { isAuthenticated, isAuthenticating } = useAuth();
 
   return (
     <ConnectButton.Custom>
@@ -71,27 +72,14 @@ export function AuthButton() {
                     onClick={openAccountModal}
                     className="inline-flex items-center justify-center gap-2 rounded-md border border-border bg-background px-4 py-2 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-muted"
                   >
+                    {isAuthenticating && (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    )}
                     {account.displayName}
                     {isAuthenticated && (
                       <span className="h-2 w-2 rounded-full bg-primary" title="Verified" />
                     )}
                   </button>
-
-                  {!isAuthenticated && (
-                    <button
-                      onClick={authenticate}
-                      disabled={isAuthenticating}
-                      className={`inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium shadow-sm transition-colors ${
-                        error
-                          ? 'border border-destructive bg-destructive/10 text-destructive hover:bg-destructive/20'
-                          : isAuthenticating
-                          ? 'border border-border bg-muted text-muted-foreground cursor-not-allowed'
-                          : 'border border-primary bg-primary text-primary-foreground hover:bg-primary/90'
-                      }`}
-                    >
-                      {isAuthenticating ? 'Verifying...' : error ? 'Retry' : 'Verify'}
-                    </button>
-                  )}
                 </div>
               );
             })()}

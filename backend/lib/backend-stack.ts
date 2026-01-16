@@ -90,7 +90,7 @@ export class BackendStack extends cdk.Stack {
       tokenExpiryHours: 24,
       turnkeySecretArn: this.secrets.turnkeySecretArn,
       turnkeyOrganizationId,
-      kmsKeyArn: this.credentialsTable.encryptionKey.keyArn,
+      credentialsTable: this.credentialsTable,
     });
 
     // ==========================================================================

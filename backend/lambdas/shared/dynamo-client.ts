@@ -313,6 +313,26 @@ export async function updateUserPolymarketSafe(
   );
 }
 
+/**
+ * Mark user as having Polymarket credentials (EOA flow, no Safe address)
+ */
+export async function updateUserHasCredentials(walletAddress: string): Promise<void> {
+  const { PK, SK } = keys.user(walletAddress);
+  const now = new Date().toISOString();
+
+  await docClient.send(
+    new UpdateCommand({
+      TableName: MONOTABLE_NAME,
+      Key: { PK, SK },
+      UpdateExpression: 'SET hasCredentials = :hasCredentials, updatedAt = :now',
+      ExpressionAttributeValues: {
+        ':hasCredentials': true,
+        ':now': now,
+      },
+    })
+  );
+}
+
 // NOTE: Embedded wallet credentials are in embedded-wallet-credentials.ts
 // for security isolation. Only specific lambdas have access to that table.
 

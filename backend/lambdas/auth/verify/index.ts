@@ -5,14 +5,25 @@
  * Body: { walletAddress: string, signature: string }
  * Response: { token: string, walletAddress: string, expiresAt: string }
  *
- * On first authentication, creates an embedded wallet via Turnkey for trading.
+ * On first authentication:
+ * 1. Creates an embedded wallet via Turnkey for trading
+ * 2. Registers with Polymarket by deriving API credentials
+ * 3. Caches credentials for future bet execution
  */
 
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { ethers } from 'ethers';
-import { getNonce, deleteNonce, getOrCreateUser, getUser, updateUserEmbeddedWallet } from '../../shared/dynamo-client';
+import { getNonce, deleteNonce, getOrCreateUser, updateUserEmbeddedWallet, updateUserHasCredentials } from '../../shared/dynamo-client';
 import { createToken } from '../../shared/jwt';
-import { createWallet } from '../../shared/turnkey-client';
+import { createWallet, createSigner } from '../../shared/turnkey-client';
+import {
+  deriveApiCredentials,
+  encryptEmbeddedWalletCredentials,
+} from '../../shared/polymarket-client';
+import {
+  cacheEmbeddedWalletCredentials,
+  type EmbeddedWalletCredentialsInput,
+} from '../../shared/embedded-wallet-credentials';
 import type { VerifyRequest, VerifyResponse } from '../../shared/types';
 import { NONCE_MESSAGE_PREFIX, isValidAddress } from '../../shared/auth-utils';
 import { errorResponse, successResponse } from '../../shared/api-utils';
@@ -69,9 +80,10 @@ export async function handler(
 
     // Create or get user record
     const user = await getOrCreateUser(request.walletAddress);
+    let embeddedWalletAddress = user.embeddedWalletAddress;
 
-    // Create embedded wallet if user doesn't have one
-    if (!user.embeddedWalletAddress) {
+    // Step 1: Create embedded wallet if user doesn't have one
+    if (!embeddedWalletAddress) {
       logger.info('Creating embedded wallet for new user', {
         walletAddress: request.walletAddress,
       });
@@ -82,14 +94,54 @@ export async function handler(
           turnkeyWalletId: embeddedWallet.walletId,
           embeddedWalletAddress: embeddedWallet.walletAddress,
         });
+        embeddedWalletAddress = embeddedWallet.walletAddress;
 
         logger.info('Embedded wallet created', {
           walletAddress: request.walletAddress,
-          embeddedWalletAddress: embeddedWallet.walletAddress,
+          embeddedWalletAddress,
         });
       } catch (error) {
-        // Log but don't fail authentication - wallet can be created later
         logger.errorWithStack('Failed to create embedded wallet', error, {
+          walletAddress: request.walletAddress,
+        });
+      }
+    }
+
+    // Step 2: Register with Polymarket if user doesn't have credentials yet
+    if (embeddedWalletAddress && !user.hasCredentials) {
+      logger.info('Registering with Polymarket', {
+        walletAddress: request.walletAddress,
+        embeddedWalletAddress,
+      });
+
+      try {
+        const signer = await createSigner(embeddedWalletAddress);
+        const credentials = await deriveApiCredentials(signer);
+
+        const encrypted = await encryptEmbeddedWalletCredentials({
+          ...credentials,
+          signatureType: 'EOA',
+        });
+        const now = new Date().toISOString();
+        const credsInput: EmbeddedWalletCredentialsInput = {
+          entityType: 'EMBEDDED_WALLET_CREDS',
+          walletAddress: request.walletAddress.toLowerCase(),
+          ...encrypted,
+          signatureType: 'EOA',
+          createdAt: now,
+          updatedAt: now,
+        };
+        await cacheEmbeddedWalletCredentials(credsInput);
+
+        // Mark user as having credentials
+        await updateUserHasCredentials(request.walletAddress);
+
+        logger.info('Polymarket registration complete', {
+          walletAddress: request.walletAddress,
+          embeddedWalletAddress,
+        });
+      } catch (error) {
+        logger.errorWithStack('Failed to register with Polymarket', error, {
           walletAddress: request.walletAddress,
         });
       }

@@ -159,6 +159,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [address, isConnected, authState.token, signMessageAsync, disconnect]);
 
+  // Auto-authenticate when wallet connects (if no token)
+  useEffect(() => {
+    if (isConnected && address && !authState.token && !authState.isAuthenticating) {
+      authenticate();
+    }
+  }, [isConnected, address, authState.token, authState.isAuthenticating, authenticate]);
+
   const logout = useCallback(() => {
     disconnect();
     setAuthState({ token: null, isAuthenticating: false, error: null });

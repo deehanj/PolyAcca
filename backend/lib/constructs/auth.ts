@@ -6,6 +6,7 @@ import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as cdk from 'aws-cdk-lib/core';
 import * as path from 'path';
+import type { CredentialsTableConstruct } from './credentials-table';
 
 export interface AuthConstructProps {
   /**
@@ -30,9 +31,9 @@ export interface AuthConstructProps {
    */
   turnkeyOrganizationId: string;
   /**
-   * ARN of the KMS key for encrypting user data
+   * Credentials table construct (for caching Polymarket API credentials)
    */
-  kmsKeyArn: string;
+  credentialsTable: CredentialsTableConstruct;
 }
 
 export class AuthConstruct extends Construct {
@@ -50,7 +51,7 @@ export class AuthConstruct extends Construct {
       tokenExpiryHours = 24,
       turnkeySecretArn,
       turnkeyOrganizationId,
-      kmsKeyArn,
+      credentialsTable,
     } = props;
 
     // Shared Lambda environment
@@ -61,12 +62,13 @@ export class AuthConstruct extends Construct {
       NODE_OPTIONS: '--enable-source-maps',
     };
 
-    // Environment for verify function (includes Turnkey for wallet creation)
+    // Environment for verify function (includes Turnkey and credentials table for Polymarket registration)
     const verifyEnv = {
       ...commonEnv,
       TURNKEY_SECRET_ARN: turnkeySecretArn,
       TURNKEY_ORGANIZATION_ID: turnkeyOrganizationId,
-      KMS_KEY_ARN: kmsKeyArn,
+      CREDENTIALS_TABLE_NAME: credentialsTable.table.tableName,
+      KMS_KEY_ARN: credentialsTable.encryptionKey.keyArn,
     };
 
     // Nonce Lambda - generates nonce for wallet signing
@@ -151,12 +153,8 @@ export class AuthConstruct extends Construct {
     });
     this.verifyFunction.addToRolePolicy(turnkeySecretPolicy);
 
-    // Grant verify function access to KMS key (for credential encryption)
-    const kmsPolicy = new iam.PolicyStatement({
-      actions: ['kms:Encrypt', 'kms:Decrypt', 'kms:GenerateDataKey'],
-      resources: [kmsKeyArn],
-    });
-    this.verifyFunction.addToRolePolicy(kmsPolicy);
+    // Grant verify function access to credentials table (for caching Polymarket credentials)
+    credentialsTable.grantReadWrite(this.verifyFunction);
 
     // API Gateway Lambda Authorizer (no caching - each request invokes authorizer)
     this.authorizer = new apigateway.RequestAuthorizer(this, 'WalletAuthorizer', {

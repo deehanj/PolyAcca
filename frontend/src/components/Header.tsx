@@ -1,14 +1,11 @@
 import { Link } from "react-router-dom";
 import { Shield } from "lucide-react";
 import { AuthButton } from "./AuthButton";
-import { EnableTradingButton } from "./EnableTradingButton";
 import { RingCounter } from "./RingCounter";
 import { useUserProfile } from "../hooks/useUserProfile";
-import { useAuth } from "../hooks/useAuth";
 
 export function Header() {
-  const { isAdmin, profile, refetch } = useUserProfile();
-  const { isAuthenticated } = useAuth();
+  const { isAdmin } = useUserProfile();
 
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur-sm">
@@ -41,12 +38,6 @@ export function Header() {
                 <Shield className="h-4 w-4" />
                 Admin
               </Link>
-            )}
-            {isAuthenticated && (
-              <EnableTradingButton
-                hasCredentials={profile?.hasCredentials}
-                onSuccess={refetch}
-              />
             )}
             <AuthButton />
           </div>
