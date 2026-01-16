@@ -1,11 +1,13 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Header } from "@/components/Header";
 import { MarketCard, type Market } from "@/components/MarketCard";
 import { AccumulatorSidebar } from "@/components/AccumulatorSidebar";
 import { Button } from "@/components/ui/Button";
 // import { FallingDots } from "@/components/FallingDots";
 import { DotSphere } from "@/components/DotSphere";
+import { RingCollectionEffect } from "@/components/RingCollectionEffect";
 import { useMarkets } from "@/hooks/useMarkets";
+import { useRingAnimation } from "@/hooks/useRingAnimation";
 import type { Market as ApiMarket } from "@/types/market";
 
 const categories = [
@@ -53,6 +55,8 @@ export function HomePage() {
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [offset, setOffset] = useState(0);
   const limit = 12;
+  const sidebarRef = useRef<HTMLDivElement>(null);
+  const { animations, triggerAnimation } = useRingAnimation();
 
   const { markets, isLoading, error, isFetching } = useMarkets({
     limit,
@@ -69,6 +73,13 @@ export function HomePage() {
 
   const handleLoadMore = () => {
     setOffset((prev) => prev + limit);
+  };
+
+  const handleBetClick = (buttonElement: HTMLElement) => {
+    // Find the sidebar element as the target
+    if (sidebarRef.current) {
+      triggerAnimation(buttonElement, sidebarRef.current);
+    }
   };
 
   return (
@@ -173,6 +184,7 @@ export function HomePage() {
                 <MarketCard
                   key={market.id}
                   market={transformMarketForCard(market)}
+                  onBetClick={handleBetClick}
                 />
               ))}
             </div>
@@ -232,7 +244,10 @@ export function HomePage() {
       </footer>
 
       {/* Accumulator Sidebar */}
-      <AccumulatorSidebar />
+      <AccumulatorSidebar ref={sidebarRef} />
+
+      {/* Ring Collection Animation Effect */}
+      <RingCollectionEffect animations={animations} />
     </div>
   );
 }

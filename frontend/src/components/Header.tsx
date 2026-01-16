@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { Shield } from "lucide-react";
 import { AuthButton } from "./AuthButton";
 import { EnableTradingButton } from "./EnableTradingButton";
+import { RingCounter } from "./RingCounter";
 import { useUserProfile } from "../hooks/useUserProfile";
 import { useAuth } from "../hooks/useAuth";
 
@@ -25,6 +26,7 @@ export function Header() {
 
           {/* Actions */}
           <div className="flex items-center gap-4">
+            <RingCounter />
             <Link
               to="/design"
               className="text-sm text-muted-foreground hover:text-foreground transition-colors"

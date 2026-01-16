@@ -1,4 +1,10 @@
-import { createContext, useContext, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useState,
+  useRef,
+  type ReactNode,
+} from "react";
 import type { Market } from "../components/MarketCard";
 
 export interface AccumulatorBet {
@@ -16,14 +22,31 @@ interface AccumulatorContextType {
   potentialPayout: (stake: number) => number;
   isInAccumulator: (marketId: string) => boolean;
   getSelection: (marketId: string) => "yes" | "no" | null;
+  setOnBetAdded: (
+    callback: ((market: Market, selection: "yes" | "no") => void) | null
+  ) => void;
 }
 
 const AccumulatorContext = createContext<AccumulatorContextType | null>(null);
 
 export function AccumulatorProvider({ children }: { children: ReactNode }) {
   const [bets, setBets] = useState<AccumulatorBet[]>([]);
+  const onBetAddedRef = useRef<
+    ((market: Market, selection: "yes" | "no") => void) | null
+  >(null);
+
+  const setOnBetAdded = (
+    callback: ((market: Market, selection: "yes" | "no") => void) | null
+  ) => {
+    onBetAddedRef.current = callback;
+  };
 
   const addBet = (market: Market, selection: "yes" | "no") => {
+    // Trigger animation callback before state update
+    if (onBetAddedRef.current) {
+      onBetAddedRef.current(market, selection);
+    }
+
     // Remove existing bet on same market if exists
     setBets((prev) => {
       const filtered = prev.filter((b) => b.market.id !== market.id);
@@ -68,6 +91,7 @@ export function AccumulatorProvider({ children }: { children: ReactNode }) {
         potentialPayout,
         isInAccumulator,
         getSelection,
+        setOnBetAdded,
       }}
     >
       {children}

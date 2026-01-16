@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { useAccumulator } from "../context/AccumulatorContext";
 import { Badge } from "./ui/Badge";
 
@@ -18,10 +19,13 @@ export interface Market {
 
 interface MarketCardProps {
   market: Market;
+  onBetClick?: (buttonElement: HTMLElement, selection: "yes" | "no") => void;
 }
 
-export function MarketCard({ market }: MarketCardProps) {
+export function MarketCard({ market, onBetClick }: MarketCardProps) {
   const { addBet, isInAccumulator, getSelection } = useAccumulator();
+  const yesButtonRef = useRef<HTMLButtonElement>(null);
+  const noButtonRef = useRef<HTMLButtonElement>(null);
   const yesPercentage = Math.round(market.yesPrice * 100);
   const noPercentage = Math.round(market.noPrice * 100);
   const inAccumulator = isInAccumulator(market.id);
@@ -36,10 +40,16 @@ export function MarketCard({ market }: MarketCardProps) {
   };
 
   const handleYesClick = () => {
+    if (onBetClick && yesButtonRef.current) {
+      onBetClick(yesButtonRef.current, "yes");
+    }
     addBet(market, "yes");
   };
 
   const handleNoClick = () => {
+    if (onBetClick && noButtonRef.current) {
+      onBetClick(noButtonRef.current, "no");
+    }
     addBet(market, "no");
   };
 
@@ -99,11 +109,12 @@ export function MarketCard({ market }: MarketCardProps) {
         {/* Yes/No Buttons */}
         <div className="flex gap-3">
           <button
+            ref={yesButtonRef}
             draggable
             onDragStart={(e) => handleDragStart(e, "yes")}
             onClick={handleYesClick}
             className={`
-              flex-1 py-2 px-3 rounded-md border transition-all duration-150
+              flex-1 py-2 px-3 rounded-md border transition-all duration-150 speed-effect
               ${
                 currentSelection === "yes"
                   ? "border-[var(--color-success)] bg-[var(--color-success)]/20 shadow-[0_0_12px_rgba(34,197,94,0.3)]"
@@ -122,11 +133,12 @@ export function MarketCard({ market }: MarketCardProps) {
           </button>
 
           <button
+            ref={noButtonRef}
             draggable
             onDragStart={(e) => handleDragStart(e, "no")}
             onClick={handleNoClick}
             className={`
-              flex-1 py-2 px-3 rounded-md border transition-all duration-150
+              flex-1 py-2 px-3 rounded-md border transition-all duration-150 speed-effect
               ${
                 currentSelection === "no"
                   ? "border-destructive bg-destructive/20 shadow-[0_0_12px_rgba(239,68,68,0.3)]"

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, forwardRef, useEffect, useRef } from "react";
 import {
   useAccumulator,
   type AccumulatorBet,
@@ -8,14 +8,42 @@ import { Button } from "./ui/Button";
 import { Input } from "./ui/Input";
 import { Badge } from "./ui/Badge";
 
-export function AccumulatorSidebar() {
-  const { bets, addBet, removeBet, clearBets, totalOdds, potentialPayout } =
-    useAccumulator();
-  const [stake, setStake] = useState<string>("10");
-  const [isDragOver, setIsDragOver] = useState(false);
+export const AccumulatorSidebar = forwardRef<HTMLDivElement>(
+  function AccumulatorSidebar(props, ref) {
+    const { bets, addBet, removeBet, clearBets, totalOdds, potentialPayout } =
+      useAccumulator();
+    const [stake, setStake] = useState<string>("10");
+    const [isDragOver, setIsDragOver] = useState(false);
+    const [showSpeedLines, setShowSpeedLines] = useState(false);
+    const [multiplierPop, setMultiplierPop] = useState(false);
+    const prevOddsRef = useRef<number>(1);
 
   const stakeNum = parseFloat(stake) || 0;
   const payout = potentialPayout(stakeNum);
+
+  // Trigger speed boost effects when bets are added
+  useEffect(() => {
+    if (bets.length > 0) {
+      // Show speed lines when bet is added
+      setShowSpeedLines(true);
+      const speedTimeout = setTimeout(() => setShowSpeedLines(false), 400);
+
+      // Trigger multiplier pop if odds changed significantly
+      const oddsDifference = Math.abs(totalOdds - prevOddsRef.current);
+      if (oddsDifference > 0.5) {
+        setMultiplierPop(true);
+        const popTimeout = setTimeout(() => setMultiplierPop(false), 300);
+        return () => {
+          clearTimeout(speedTimeout);
+          clearTimeout(popTimeout);
+        };
+      }
+
+      prevOddsRef.current = totalOdds;
+      return () => clearTimeout(speedTimeout);
+    }
+    prevOddsRef.current = 1;
+  }, [bets.length, totalOdds]);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -45,15 +73,20 @@ export function AccumulatorSidebar() {
 
   return (
     <aside
+      ref={ref}
       className={`
         fixed right-0 top-0 h-full w-80 bg-background border-l border-border
-        flex flex-col z-40 transition-all duration-200
+        flex flex-col z-40 transition-all duration-200 overflow-hidden
         ${isDragOver ? "border-l-2 border-l-primary shadow-[var(--glow)]" : ""}
       `}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
+      {/* Speed Lines Overlay */}
+      {showSpeedLines && (
+        <div className="absolute inset-0 z-50 speed-lines-overlay pointer-events-none" />
+      )}
       {/* Header - matches navbar height (h-16 + 1px gradient + 1px border) */}
       <div className="h-[66px] px-4 flex items-center justify-between border-b border-border">
         <div>
@@ -121,7 +154,11 @@ export function AccumulatorSidebar() {
           {/* Combined Odds */}
           <div className="flex items-center justify-between mb-4">
             <span className="text-sm text-muted-foreground">Combined Odds</span>
-            <span className="text-xl font-bold text-primary">
+            <span
+              className={`text-xl font-bold text-primary ${
+                multiplierPop ? "multiplier-pop" : ""
+              }`}
+            >
               {totalOdds.toFixed(2)}x
             </span>
           </div>
@@ -184,7 +221,8 @@ export function AccumulatorSidebar() {
       )}
     </aside>
   );
-}
+  }
+);
 
 function BetItem({
   bet,
