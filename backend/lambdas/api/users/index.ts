@@ -50,6 +50,7 @@ async function getProfile(walletAddress: string): Promise<APIGatewayProxyResult>
     hasCredentials: user.hasCredentials,
     createdAt: user.createdAt,
     admin: isAdminWallet(walletAddress) || undefined,
+    embeddedWalletAddress: user.embeddedWalletAddress,
   };
 
   return {

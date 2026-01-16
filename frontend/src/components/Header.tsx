@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { Shield } from "lucide-react";
 import { AuthButton } from "./AuthButton";
 import { RingCounter } from "./RingCounter";
+import { TradingBalance } from "./TradingBalance";
 import { useUserProfile } from "../hooks/useUserProfile";
 
 export function Header() {
@@ -39,6 +40,7 @@ export function Header() {
                 Admin
               </Link>
             )}
+            <TradingBalance />
             <AuthButton />
           </div>
         </div>
