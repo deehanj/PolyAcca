@@ -617,7 +617,7 @@ export async function upsertMarket(market: MarketEntity): Promise<void> {
   try {
     await docClient.send(
       new PutCommand({
-        TableName: TABLE_NAME,
+        TableName: MONOTABLE_NAME,
         Item: { ...market, PK, SK },
         ConditionExpression: 'attribute_not_exists(PK)',
       })

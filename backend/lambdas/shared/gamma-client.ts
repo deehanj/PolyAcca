@@ -126,6 +126,10 @@ export async function fetchMarkets(
     // Transform and optionally filter
     let markets = rawMarkets.map(transformMarket);
 
+    // Filter out markets that have already ended
+    const now = new Date();
+    markets = markets.filter((m) => new Date(m.endDate) > now);
+
     // Client-side category filter if needed
     if (params.category && params.category.toLowerCase() !== 'all') {
       markets = markets.filter(
