@@ -59,6 +59,16 @@ export function usePolymarketCredentials() {
         throw new Error('Wallet not registered with Polymarket. Please enable trading at polymarket.com first.');
       }
 
+      // Debug logging - remove after testing
+      console.log('[usePolymarketCredentials] Derived credentials:', {
+        apiKey: creds.key,
+        apiKeyLength: creds.key?.length,
+        apiSecret: creds.secret ? `${creds.secret.substring(0, 8)}...` : null,
+        apiSecretLength: creds.secret?.length,
+        passphrase: creds.passphrase ? `${creds.passphrase.substring(0, 4)}...` : null,
+        passphraseLength: creds.passphrase?.length,
+      });
+
       // Send to backend for validation and storage
       const response = await fetch(`${API_URL}/users/me/credentials`, {
         method: 'PUT',

@@ -105,6 +105,32 @@ export class ApiConstruct extends Construct {
       },
     });
 
+    // Add CORS headers to Gateway error responses (authorizer failures, etc.)
+    const corsHeaders = {
+      'Access-Control-Allow-Origin': "'*'",
+      'Access-Control-Allow-Headers': "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'",
+    };
+
+    this.api.addGatewayResponse('UnauthorizedResponse', {
+      type: apigateway.ResponseType.UNAUTHORIZED,
+      responseHeaders: corsHeaders,
+    });
+
+    this.api.addGatewayResponse('AccessDeniedResponse', {
+      type: apigateway.ResponseType.ACCESS_DENIED,
+      responseHeaders: corsHeaders,
+    });
+
+    this.api.addGatewayResponse('Default4xxResponse', {
+      type: apigateway.ResponseType.DEFAULT_4XX,
+      responseHeaders: corsHeaders,
+    });
+
+    this.api.addGatewayResponse('Default5xxResponse', {
+      type: apigateway.ResponseType.DEFAULT_5XX,
+      responseHeaders: corsHeaders,
+    });
+
     // Auth endpoints (public - no authorizer)
     const authResource = this.api.root.addResource('auth');
     const nonceResource = authResource.addResource('nonce');
