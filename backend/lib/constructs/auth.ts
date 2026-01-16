@@ -116,11 +116,11 @@ export class AuthConstruct extends Construct {
     this.verifyFunction.addToRolePolicy(secretsPolicy);
     this.authorizerFunction.addToRolePolicy(secretsPolicy);
 
-    // API Gateway Lambda Authorizer
+    // API Gateway Lambda Authorizer (no caching - each request invokes authorizer)
     this.authorizer = new apigateway.RequestAuthorizer(this, 'WalletAuthorizer', {
       handler: this.authorizerFunction,
       identitySources: [apigateway.IdentitySource.header('Authorization')],
-      resultsCacheTtl: cdk.Duration.minutes(5),
+      resultsCacheTtl: cdk.Duration.seconds(0),
     });
   }
 }

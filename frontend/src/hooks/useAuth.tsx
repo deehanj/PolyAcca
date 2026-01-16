@@ -11,6 +11,25 @@ if (!API_URL) {
   );
 }
 
+/**
+ * Check if a JWT token is expired (with 60-second buffer)
+ */
+function isTokenExpired(token: string): boolean {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return true;
+
+    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+    if (!payload.exp) return true;
+
+    // Consider expired if within 60 seconds of expiry
+    const now = Math.floor(Date.now() / 1000);
+    return payload.exp < now + 60;
+  } catch {
+    return true;
+  }
+}
+
 interface AuthState {
   token: string | null;
   isAuthenticating: boolean;
@@ -47,9 +66,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const savedToken = localStorage.getItem('polyacca_token');
     const savedAddress = localStorage.getItem('polyacca_address');
 
-    // Only restore if address matches
+    // Only restore if address matches and token is not expired
     if (savedToken && savedAddress && address?.toLowerCase() === savedAddress.toLowerCase()) {
-      setAuthState(prev => ({ ...prev, token: savedToken }));
+      if (isTokenExpired(savedToken)) {
+        console.log('[Auth] Stored token expired, clearing');
+        localStorage.removeItem('polyacca_token');
+        localStorage.removeItem('polyacca_address');
+      } else {
+        setAuthState(prev => ({ ...prev, token: savedToken }));
+      }
     }
   }, [address]);
 
@@ -144,6 +169,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Helper to get auth headers for API calls
   const getAuthHeaders = useCallback((): Record<string, string> => {
     if (!authState.token) return {};
+
+    // Safety check: don't send expired tokens
+    if (isTokenExpired(authState.token)) {
+      console.log('[Auth] Token expired, clearing and requiring re-authentication');
+      setAuthState(prev => ({ ...prev, token: null }));
+      localStorage.removeItem('polyacca_token');
+      localStorage.removeItem('polyacca_address');
+      return {};
+    }
+
     return { Authorization: `Bearer ${authState.token}` };
   }, [authState.token]);
 

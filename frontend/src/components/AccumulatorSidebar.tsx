@@ -9,7 +9,7 @@ import { Input } from "./ui/Input";
 import { Badge } from "./ui/Badge";
 
 export const AccumulatorSidebar = forwardRef<HTMLDivElement>(
-  function AccumulatorSidebar(props, ref) {
+  function AccumulatorSidebar(_props, ref) {
     const { bets, addBet, removeBet, clearBets, totalOdds, potentialPayout } =
       useAccumulator();
     const [stake, setStake] = useState<string>("10");
