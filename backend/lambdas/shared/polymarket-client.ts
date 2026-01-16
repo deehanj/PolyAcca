@@ -115,17 +115,21 @@ export async function validateCredentials(
 ): Promise<{ valid: boolean; error?: string }> {
   try {
     const client = createClient(creds as PolymarketCredentials);
-    await client.getApiKeys();
+    // Use getOpenOrders - it's authenticated with API creds and doesn't require a signer
+    await client.getOpenOrders();
     return { valid: true };
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
+    const fullError = JSON.stringify(error);
 
     if (
       message.includes('401') ||
       message.includes('Unauthorized') ||
       message.includes('UNAUTHORIZED') ||
       message.includes('Invalid API key') ||
-      message.includes('invalid signature')
+      message.includes('invalid signature') ||
+      fullError.includes('401') ||
+      fullError.includes('Unauthorized')
     ) {
       return { valid: false, error: 'Invalid Polymarket credentials' };
     }
