@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 interface DialogProps {
@@ -32,14 +33,14 @@ export function Dialog({ open, onClose, children }: DialogProps) {
 
   if (!open) return null;
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
       onClick={handleBackdropClick}
     >
       <div
         ref={dialogRef}
-        className="relative w-full max-w-md rounded-lg border border-border bg-background p-6 shadow-lg"
+        className="relative mx-auto w-full max-w-md rounded-lg border border-border bg-background p-6 shadow-lg"
         role="dialog"
         aria-modal="true"
       >
@@ -52,7 +53,8 @@ export function Dialog({ open, onClose, children }: DialogProps) {
         </button>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

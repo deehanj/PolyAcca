@@ -48,8 +48,6 @@ export function usePolymarketCredentials() {
         const message = err instanceof Error ? err.message : String(err);
         const fullError = JSON.stringify(err);
 
-        console.log('[usePolymarketCredentials] Caught error:', { status, dataError, message, fullError });
-
         if (status === 400 || dataError?.includes('Could not derive api key') || message.includes('Could not derive api key') || fullError.includes('Could not derive api key')) {
           throw new Error('Wallet not registered with Polymarket. Please enable trading at polymarket.com first.');
         }
