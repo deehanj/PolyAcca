@@ -3,19 +3,25 @@ import {
   useAccumulator,
   type AccumulatorBet,
 } from "../context/AccumulatorContext";
+import { useAuth } from "../hooks/useAuth";
 import type { Market } from "./MarketCard";
 import { Button } from "./ui/Button";
 import { Input } from "./ui/Input";
 import { Badge } from "./ui/Badge";
 
+const API_URL = import.meta.env.VITE_API_URL || "";
+
 export const AccumulatorSidebar = forwardRef<HTMLDivElement>(
   function AccumulatorSidebar(_props, ref) {
-    const { bets, addBet, removeBet, clearBets, totalOdds, potentialPayout } =
+    const { bets, addBet, removeBet, clearBets, totalOdds, potentialPayout, getLegsForApi } =
       useAccumulator();
+    const { isAuthenticated, isConnected, authenticate, getAuthHeaders } = useAuth();
     const [stake, setStake] = useState<string>("10");
     const [isDragOver, setIsDragOver] = useState(false);
     const [showSpeedLines, setShowSpeedLines] = useState(false);
     const [multiplierPop, setMultiplierPop] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [submitError, setSubmitError] = useState<string | null>(null);
     const prevOddsRef = useRef<number>(1);
 
   const stakeNum = parseFloat(stake) || 0;
@@ -68,6 +74,72 @@ export const AccumulatorSidebar = forwardRef<HTMLDivElement>(
       addBet(market, selection);
     } catch (err) {
       console.error("Failed to parse drop data", err);
+    }
+  };
+
+  const handlePlaceBet = async () => {
+    setSubmitError(null);
+
+    // Check if connected
+    if (!isConnected) {
+      setSubmitError("Please connect your wallet first");
+      return;
+    }
+
+    // Authenticate if needed
+    if (!isAuthenticated) {
+      try {
+        await authenticate();
+      } catch {
+        setSubmitError("Authentication failed");
+        return;
+      }
+    }
+
+    // Validate stake
+    const stakeAmount = parseFloat(stake);
+    if (isNaN(stakeAmount) || stakeAmount <= 0) {
+      setSubmitError("Please enter a valid stake amount");
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      // Generate chain name from first market question
+      const chainName = bets.length === 1
+        ? bets[0].market.question.slice(0, 100)
+        : `${bets.length}-leg accumulator`;
+
+      const response = await fetch(`${API_URL}/chains`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({
+          legs: getLegsForApi(),
+          initialStake: stakeAmount.toFixed(2),
+          name: chainName,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Failed to place bet");
+      }
+
+      // Success - clear bets and show success
+      clearBets();
+      setStake("10");
+      // TODO: Show success toast/notification
+      console.log("Chain created successfully:", data.data);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to place bet";
+      setSubmitError(errorMessage);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -213,9 +285,21 @@ export const AccumulatorSidebar = forwardRef<HTMLDivElement>(
             </div>
           </div>
 
+          {/* Error Message */}
+          {submitError && (
+            <div className="text-sm text-destructive mb-4 p-2 bg-destructive/10 rounded">
+              {submitError}
+            </div>
+          )}
+
           {/* Place Bet Button */}
-          <Button className="w-full" size="lg">
-            Place Accumulator Bet
+          <Button
+            className="w-full"
+            size="lg"
+            onClick={handlePlaceBet}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? "Placing Bet..." : "Place Accumulator Bet"}
           </Button>
         </div>
       )}

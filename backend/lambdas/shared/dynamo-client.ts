@@ -115,6 +115,11 @@ export const gsiKeys = {
     GSI2PK: `CONDITION#${conditionId}`,
     GSI2SK: `BET#${betId}`,
   }),
+
+  marketByStatus: (status: MarketStatus, endDate: string) => ({
+    GSI1PK: `MARKETSTATUS#${status}`,
+    GSI1SK: endDate,
+  }),
 };
 
 // =============================================================================
@@ -599,6 +604,51 @@ export async function saveMarket(market: MarketEntity): Promise<void> {
   };
 
   await Promise.all([putItem(yesTokenLookup), putItem(noTokenLookup)]);
+}
+
+/**
+ * Upsert market - creates if not exists (idempotent)
+ * Used during chain creation to ensure markets exist for resolution handling
+ */
+export async function upsertMarket(market: MarketEntity): Promise<void> {
+  const { PK, SK } = keys.market(market.conditionId);
+
+  // Use conditional write - only create if doesn't exist
+  try {
+    await docClient.send(
+      new PutCommand({
+        TableName: TABLE_NAME,
+        Item: { ...market, PK, SK },
+        ConditionExpression: 'attribute_not_exists(PK)',
+      })
+    );
+
+    // Market was created - also create token lookups
+    const yesTokenLookup: BaseEntity = {
+      PK: `TOKEN#${market.yesTokenId}`,
+      SK: 'MARKET',
+      GSI2PK: `TOKEN#${market.yesTokenId}`,
+      GSI2SK: `MARKET#${market.conditionId}`,
+      createdAt: market.createdAt,
+      updatedAt: market.updatedAt,
+    };
+    const noTokenLookup: BaseEntity = {
+      PK: `TOKEN#${market.noTokenId}`,
+      SK: 'MARKET',
+      GSI2PK: `TOKEN#${market.noTokenId}`,
+      GSI2SK: `MARKET#${market.conditionId}`,
+      createdAt: market.createdAt,
+      updatedAt: market.updatedAt,
+    };
+
+    await Promise.all([putItem(yesTokenLookup), putItem(noTokenLookup)]);
+  } catch (err) {
+    if ((err as Error).name === 'ConditionalCheckFailedException') {
+      // Market already exists - that's fine, skip
+      return;
+    }
+    throw err;
+  }
 }
 
 export async function updateMarketStatus(

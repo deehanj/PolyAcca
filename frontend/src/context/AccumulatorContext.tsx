@@ -13,6 +13,23 @@ export interface AccumulatorBet {
   odds: number;
 }
 
+/**
+ * Leg input format for chain creation API
+ */
+export interface CreateLegInput {
+  conditionId: string;
+  tokenId: string;
+  marketQuestion: string;
+  side: "YES" | "NO";
+  targetPrice: string;
+  questionId: string;
+  yesTokenId: string;
+  noTokenId: string;
+  endDate: string;
+  description?: string;
+  category?: string;
+}
+
 interface AccumulatorContextType {
   bets: AccumulatorBet[];
   addBet: (market: Market, selection: "yes" | "no") => void;
@@ -25,6 +42,8 @@ interface AccumulatorContextType {
   setOnBetAdded: (
     callback: ((market: Market, selection: "yes" | "no") => void) | null
   ) => void;
+  /** Convert bets to API format for chain creation */
+  getLegsForApi: () => CreateLegInput[];
 }
 
 const AccumulatorContext = createContext<AccumulatorContextType | null>(null);
@@ -80,6 +99,31 @@ export function AccumulatorProvider({ children }: { children: ReactNode }) {
     return bet ? bet.selection : null;
   };
 
+  /**
+   * Convert bets to the API format required for chain creation
+   */
+  const getLegsForApi = (): CreateLegInput[] => {
+    return bets.map((bet) => {
+      const isYes = bet.selection === "yes";
+      const price = isYes ? bet.market.yesPrice : bet.market.noPrice;
+
+      return {
+        conditionId: bet.market.conditionId,
+        tokenId: isYes ? bet.market.yesTokenId : bet.market.noTokenId,
+        marketQuestion: bet.market.question,
+        side: isYes ? "YES" : "NO",
+        targetPrice: price.toFixed(2),
+        // Market storage fields
+        questionId: bet.market.id, // market.id is the questionId
+        yesTokenId: bet.market.yesTokenId,
+        noTokenId: bet.market.noTokenId,
+        endDate: bet.market.endDateISO,
+        description: bet.market.description,
+        category: bet.market.category,
+      };
+    });
+  };
+
   return (
     <AccumulatorContext.Provider
       value={{
@@ -92,6 +136,7 @@ export function AccumulatorProvider({ children }: { children: ReactNode }) {
         isInAccumulator,
         getSelection,
         setOnBetAdded,
+        getLegsForApi,
       }}
     >
       {children}

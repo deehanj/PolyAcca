@@ -4,14 +4,16 @@
 @import "@fontsource/geist-sans/700.css";
 @import "@fontsource/geist-mono/400.css";
 @import "@fontsource/geist-mono/500.css";
+@import "@fontsource/silkscreen/400.css";
+@import "@fontsource/silkscreen/700.css";
 @import "tailwindcss";
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
 
 /* ============================================
-   DESIGN SYSTEM TOKENS - Sonic Speed Style
-   Inspired by classic Sonic the Hedgehog games
+   DESIGN SYSTEM TOKENS - Retro-DeFi Fusion
+   Sonic arcade vibes meets modern DeFi sleekness
    ============================================ */
 
 @theme inline {
@@ -72,10 +74,21 @@
   --color-gold-bright: #FFEA00;
   --color-gold-dark: #DAA520;
 
+  /* DeFi Accent Colors - For Tailwind utilities */
+  --color-purple: #A855F7;
+  --color-purple-light: #C084FC;
+  --color-purple-dark: #9333EA;
+  --color-pink: #EC4899;
+  --color-pink-light: #F472B6;
+  --color-pink-dark: #DB2777;
+  --color-cyan: #22D3EE;
+  --color-cyan-light: #67E8F9;
+  --color-cyan-dark: #06B6D4;
+
   /* Fonts */
   --font-sans: "Geist Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --font-pixel: "Silkscreen", monospace;
 }
 
 :root {
@@ -93,6 +106,25 @@
   --checkered-brown: #C46210;         /* Checkered ground dark */
   --sky-blue: #87CEEB;                /* Background sky */
   --classic-red: #FF4444;             /* Enemies/danger */
+
+  /* ========== DEFI ACCENT PALETTE ========== */
+  /* Electric Purple - DeFi special features */
+  --electric-purple: #A855F7;
+  --electric-purple-light: #C084FC;
+  --electric-purple-dark: #9333EA;
+  --electric-purple-muted: rgba(168, 85, 247, 0.2);
+
+  /* Hot Pink - Highlights, notifications */
+  --hot-pink: #EC4899;
+  --hot-pink-light: #F472B6;
+  --hot-pink-dark: #DB2777;
+  --hot-pink-muted: rgba(236, 72, 153, 0.2);
+
+  /* Cyber Cyan - Secondary accent */
+  --cyber-cyan: #22D3EE;
+  --cyber-cyan-light: #67E8F9;
+  --cyber-cyan-dark: #06B6D4;
+  --cyber-cyan-muted: rgba(34, 211, 238, 0.2);
 
   /* ========== BACKGROUNDS ========== */
   --background: #0D1520;              /* Deep blue-black like night zone */
@@ -162,6 +194,17 @@
   --glow-gold-sm: 0 0 10px rgb(255 215 0 / 0.3);
   --glow-gold: 0 0 20px rgb(255 215 0 / 0.4);
   --glow-gold-lg: 0 0 40px rgb(255 215 0 / 0.5);
+
+  /* ========== GLOW EFFECTS (DeFi Accents) ========== */
+  --glow-purple-sm: 0 0 10px rgb(168 85 247 / 0.3);
+  --glow-purple: 0 0 20px rgb(168 85 247 / 0.4);
+  --glow-purple-lg: 0 0 40px rgb(168 85 247 / 0.5);
+  --glow-pink-sm: 0 0 10px rgb(236 72 153 / 0.3);
+  --glow-pink: 0 0 20px rgb(236 72 153 / 0.4);
+  --glow-pink-lg: 0 0 40px rgb(236 72 153 / 0.5);
+  --glow-cyan-sm: 0 0 10px rgb(34 211 238 / 0.3);
+  --glow-cyan: 0 0 20px rgb(34 211 238 / 0.4);
+  --glow-cyan-lg: 0 0 40px rgb(34 211 238 / 0.5);
 
   /* ========== TRANSITIONS ========== */
   --duration-fast: 100ms;
@@ -266,6 +309,30 @@
   background-clip: text;
 }
 
+/* Gradient text - DeFi Purple to Pink */
+.text-gradient-defi {
+  background: linear-gradient(135deg, #A855F7, #EC4899);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Gradient text - Cyber (Blue to Cyan to Purple) */
+.text-gradient-cyber {
+  background: linear-gradient(135deg, #1E90FF, #22D3EE, #A855F7);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Gradient text - Neon (Pink to Cyan) */
+.text-gradient-neon {
+  background: linear-gradient(135deg, #EC4899, #22D3EE);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
 /* Progress bar styles - Sonic themed */
 .progress-yes {
   background: linear-gradient(90deg, #32CD32, #FFD700);
@@ -303,8 +370,13 @@
 }
 
 /* ============================================
-   SONIC SPECIAL EFFECTS
+   RETRO-DEFI SPECIAL EFFECTS
    ============================================ */
+
+/* Pixel font utility */
+.font-pixel {
+  font-family: var(--font-pixel);
+}
 
 /* Gold glow effects for wins/rewards */
 .glow-gold {
@@ -317,6 +389,58 @@
 
 .glow-gold-lg {
   box-shadow: var(--glow-gold-lg);
+}
+
+/* Purple glow effects - DeFi special */
+.glow-purple {
+  box-shadow: var(--glow-purple);
+}
+
+.glow-purple-sm {
+  box-shadow: var(--glow-purple-sm);
+}
+
+.glow-purple-lg {
+  box-shadow: var(--glow-purple-lg);
+}
+
+/* Pink glow effects - Highlights */
+.glow-pink {
+  box-shadow: var(--glow-pink);
+}
+
+.glow-pink-sm {
+  box-shadow: var(--glow-pink-sm);
+}
+
+.glow-pink-lg {
+  box-shadow: var(--glow-pink-lg);
+}
+
+/* Cyan glow effects - Info/secondary */
+.glow-cyan {
+  box-shadow: var(--glow-cyan);
+}
+
+.glow-cyan-sm {
+  box-shadow: var(--glow-cyan-sm);
+}
+
+.glow-cyan-lg {
+  box-shadow: var(--glow-cyan-lg);
+}
+
+/* Text glow variants */
+.text-glow-purple {
+  text-shadow: 0 0 20px rgb(168 85 247 / 0.5);
+}
+
+.text-glow-pink {
+  text-shadow: 0 0 20px rgb(236 72 153 / 0.5);
+}
+
+.text-glow-cyan {
+  text-shadow: 0 0 20px rgb(34 211 238 / 0.5);
 }
 
 /* Ring collect animation shimmer */

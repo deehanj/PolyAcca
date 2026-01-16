@@ -44,7 +44,9 @@ function transformMarketForCard(market: ApiMarket): Market {
       day: "numeric",
       year: "numeric",
     }),
+    endDateISO: market.endDate, // Keep ISO format for API submission
     image: market.image,
+    description: market.description,
     conditionId: market.conditionId,
     yesTokenId: market.yesTokenId,
     noTokenId: market.noTokenId,

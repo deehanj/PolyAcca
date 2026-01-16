@@ -296,11 +296,19 @@ export interface UpdateProfileRequest {
 
 // Chains
 export interface CreateLegInput {
+  // Existing fields
   conditionId: string;
   tokenId: string;
   marketQuestion: string;
   side: 'YES' | 'NO';
   targetPrice: string;
+  // New fields for market storage
+  questionId: string;
+  yesTokenId: string;
+  noTokenId: string;
+  endDate: string; // ISO date string
+  description?: string; // Optional
+  category?: string; // Optional
 }
 
 export interface CreatePositionRequest {

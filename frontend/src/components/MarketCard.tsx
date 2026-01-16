@@ -3,18 +3,20 @@ import { useAccumulator } from "../context/AccumulatorContext";
 import { Badge } from "./ui/Badge";
 
 export interface Market {
-  id: string;
+  id: string; // This is the questionId from Polymarket
   question: string;
   category: string;
   volume: string;
   yesPrice: number;
   noPrice: number;
-  endDate: string;
+  endDate: string; // Display format (e.g., "Jan 15, 2025")
+  endDateISO: string; // ISO format for API submission
   image?: string;
-  // Polymarket integration fields
-  conditionId?: string;
-  yesTokenId?: string;
-  noTokenId?: string;
+  description?: string;
+  // Polymarket integration fields (required for chain submission)
+  conditionId: string;
+  yesTokenId: string;
+  noTokenId: string;
 }
 
 interface MarketCardProps {

@@ -11,16 +11,19 @@ import {
   getUserChain,
   saveUserChain,
   saveBet,
+  upsertMarket,
   keys,
   gsiKeys,
 } from '../../shared/dynamo-client';
 import {
   generateChainId,
   type CreatePositionRequest,
+  type CreateLegInput,
   type ChainEntity,
   type UserChainEntity,
   type BetEntity,
   type ChainLeg,
+  type MarketEntity,
 } from '../../shared/types';
 import { errorResponse, getUserChainDetail, successResponse } from './utils';
 
@@ -71,6 +74,17 @@ export async function createUserChain(
     const price = parseFloat(leg.targetPrice);
     if (isNaN(price) || price <= 0 || price >= 1) {
       return errorResponse(400, 'Target price must be between 0 and 1');
+    }
+
+    // Validate market fields required for market storage
+    if (!leg.questionId) {
+      return errorResponse(400, 'Each leg requires questionId');
+    }
+    if (!leg.yesTokenId || !leg.noTokenId) {
+      return errorResponse(400, 'Each leg requires yesTokenId and noTokenId');
+    }
+    if (!leg.endDate) {
+      return errorResponse(400, 'Each leg requires endDate');
     }
   }
 
@@ -127,6 +141,40 @@ export async function createUserChain(
 
   // Upsert: creates if not exists, adds stake to totalValue if exists
   await upsertChain(chainEntity, request.initialStake);
+
+  // Upsert markets for each unique conditionId
+  // This ensures markets exist in DynamoDB for resolution handling
+  const uniqueMarkets = new Map<string, CreateLegInput>();
+  for (const leg of request.legs) {
+    if (!uniqueMarkets.has(leg.conditionId)) {
+      uniqueMarkets.set(leg.conditionId, leg);
+    }
+  }
+
+  for (const [conditionId, leg] of uniqueMarkets) {
+    const marketKeys = keys.market(conditionId);
+    const marketGsi = gsiKeys.marketByStatus('ACTIVE', leg.endDate);
+
+    const market: MarketEntity = {
+      ...marketKeys,
+      ...marketGsi,
+      entityType: 'MARKET',
+      conditionId,
+      questionId: leg.questionId,
+      question: leg.marketQuestion,
+      description: leg.description,
+      yesTokenId: leg.yesTokenId,
+      noTokenId: leg.noTokenId,
+      status: 'ACTIVE',
+      endDate: leg.endDate,
+      category: leg.category,
+      lastSyncedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    await upsertMarket(market);
+  }
 
   // Check if user already has a position on this chain
   const existingUserChain = await getUserChain(chainId, walletAddress);
