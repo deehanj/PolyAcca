@@ -120,6 +120,71 @@ export interface OrderParams {
   tickSize?: TickSize;
 }
 
+export interface OrderStatusResult {
+  status?: string;
+  filled: boolean;
+}
+
+function parseOrderStatus(order: any): OrderStatusResult {
+  const rawStatus = order?.status ?? order?.state ?? order?.orderStatus ?? order?.order_state;
+  const normalized = typeof rawStatus === 'string' ? rawStatus.toUpperCase() : undefined;
+  const filledStatuses = new Set(['FILLED', 'EXECUTED', 'MATCHED']);
+
+  const filledSize = Number(order?.filledSize ?? order?.filled_size ?? order?.sizeFilled ?? order?.filled);
+  const totalSize = Number(order?.size ?? order?.totalSize ?? order?.orderSize ?? order?.quantity);
+  const sizeMatches = Number.isFinite(filledSize) && Number.isFinite(totalSize) && totalSize > 0
+    ? filledSize >= totalSize
+    : false;
+
+  return {
+    status: normalized,
+    filled: (normalized ? filledStatuses.has(normalized) : false) || sizeMatches,
+  };
+}
+
+async function callOrderStatusGetter(client: ClobClient, orderId: string): Promise<any> {
+  const getter =
+    (client as any).getOrder ||
+    (client as any).getOrderById ||
+    (client as any).getOrderStatus;
+
+  if (!getter) {
+    logger.warn('Order status lookup not supported by client');
+    return null;
+  }
+
+  try {
+    return await getter.call(client, { orderID: orderId });
+  } catch (error) {
+    try {
+      return await getter.call(client, { orderId });
+    } catch {
+      return await getter.call(client, orderId);
+    }
+  }
+}
+
+/**
+ * Fetch order status from Polymarket CLOB.
+ */
+export async function fetchOrderStatus(
+  credentials: Pick<PolymarketCredentials, 'apiKey' | 'apiSecret' | 'passphrase'>,
+  orderId: string
+): Promise<OrderStatusResult> {
+  const client = createClient(credentials);
+
+  try {
+    const order = await callOrderStatusGetter(client, orderId);
+    if (!order) {
+      return { filled: false };
+    }
+    return parseOrderStatus(order);
+  } catch (error) {
+    logger.errorWithStack('Failed to fetch order status', error, { orderId });
+    throw error;
+  }
+}
+
 /**
  * Cancel an order on Polymarket (uses API credentials only, no signer needed)
  */

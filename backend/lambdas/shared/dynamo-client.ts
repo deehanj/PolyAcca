@@ -12,6 +12,7 @@ import {
   DeleteCommand,
   QueryCommand,
   UpdateCommand,
+  TransactWriteCommand,
   type GetCommandInput,
   type PutCommandInput,
   type QueryCommandInput,
@@ -428,6 +429,80 @@ export async function upsertChain(
         '#status': 'status',
         '#name': 'name',
       },
+    })
+  );
+}
+
+/**
+ * Atomically create a user chain position (userChain + bets) and increment chain totalValue.
+ * Prevents double-positions and keeps chain totals consistent.
+ */
+export async function createUserChainPosition(
+  chain: ChainEntity,
+  additionalStake: string,
+  userChain: UserChainEntity,
+  bets: BetEntity[]
+): Promise<void> {
+  const { PK, SK } = keys.chain(chain.chainId);
+  const now = new Date().toISOString();
+
+  const transactItems = [
+    {
+      Update: {
+        TableName: MONOTABLE_NAME,
+        Key: { PK, SK },
+        UpdateExpression: `
+          SET chainId = if_not_exists(chainId, :chainId),
+              entityType = if_not_exists(entityType, :entityType),
+              #name = if_not_exists(#name, :name),
+              description = if_not_exists(description, :description),
+              imageUrl = if_not_exists(imageUrl, :imageUrl),
+              chain = if_not_exists(chain, :chain),
+              legs = if_not_exists(legs, :legs),
+              #status = if_not_exists(#status, :status),
+              createdAt = if_not_exists(createdAt, :createdAt),
+              totalValue = if_not_exists(totalValue, :zero) + :additionalStake,
+              updatedAt = :now
+        `,
+        ExpressionAttributeValues: {
+          ':chainId': chain.chainId,
+          ':entityType': 'CHAIN',
+          ':name': chain.name,
+          ':description': chain.description ?? null,
+          ':imageUrl': chain.imageUrl ?? null,
+          ':chain': chain.chain,
+          ':legs': chain.legs,
+          ':status': chain.status,
+          ':createdAt': chain.createdAt,
+          ':zero': 0,
+          ':additionalStake': parseFloat(additionalStake),
+          ':now': now,
+        },
+        ExpressionAttributeNames: {
+          '#status': 'status',
+          '#name': 'name',
+        },
+      },
+    },
+    {
+      Put: {
+        TableName: MONOTABLE_NAME,
+        Item: userChain,
+        ConditionExpression: 'attribute_not_exists(PK)',
+      },
+    },
+    ...bets.map((bet) => ({
+      Put: {
+        TableName: MONOTABLE_NAME,
+        Item: bet,
+        ConditionExpression: 'attribute_not_exists(PK)',
+      },
+    })),
+  ];
+
+  await docClient.send(
+    new TransactWriteCommand({
+      TransactItems: transactItems,
     })
   );
 }

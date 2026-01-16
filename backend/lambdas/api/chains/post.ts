@@ -7,11 +7,9 @@
 import type { APIGatewayProxyResult } from 'aws-lambda';
 import { randomUUID } from 'crypto';
 import {
-  upsertChain,
   getUserChain,
-  saveUserChain,
-  saveBet,
   upsertMarket,
+  createUserChainPosition,
   keys,
   gsiKeys,
 } from '../../shared/dynamo-client';
@@ -26,6 +24,75 @@ import {
   type MarketEntity,
 } from '../../shared/types';
 import { errorResponse, getUserChainDetail, successResponse } from './utils';
+import { fetchMarketByConditionId } from '../../shared/gamma-client';
+
+async function hydrateLegsFromGamma(legs: CreateLegInput[]): Promise<CreateLegInput[]> {
+  const uniqueConditionIds = Array.from(new Set(legs.map((leg) => leg.conditionId)));
+  const markets = await Promise.all(
+    uniqueConditionIds.map(async (conditionId) => {
+      const market = await fetchMarketByConditionId(conditionId);
+      return { conditionId, market };
+    })
+  );
+
+  const marketsByCondition = new Map(
+    markets.map(({ conditionId, market }) => [conditionId, market])
+  );
+
+  const now = Date.now();
+
+  return legs.map((leg) => {
+    const market = marketsByCondition.get(leg.conditionId);
+    if (!market) {
+      throw new Error(`Market not found for conditionId: ${leg.conditionId}`);
+    }
+
+    const marketEnd = new Date(market.endDate).getTime();
+    if (!Number.isFinite(marketEnd) || marketEnd <= now || !market.active || market.closed) {
+      throw new Error(`Market is not active for conditionId: ${leg.conditionId}`);
+    }
+
+    const normalizedQuestion = market.question.trim();
+    if (leg.questionId && leg.questionId !== market.id) {
+      throw new Error(`Question ID mismatch for conditionId: ${leg.conditionId}`);
+    }
+    if (leg.marketQuestion && leg.marketQuestion.trim() !== normalizedQuestion) {
+      throw new Error(`Market question mismatch for conditionId: ${leg.conditionId}`);
+    }
+    if (leg.yesTokenId && leg.yesTokenId !== market.yesTokenId) {
+      throw new Error(`YES token mismatch for conditionId: ${leg.conditionId}`);
+    }
+    if (leg.noTokenId && leg.noTokenId !== market.noTokenId) {
+      throw new Error(`NO token mismatch for conditionId: ${leg.conditionId}`);
+    }
+    if (leg.endDate) {
+      const legEnd = new Date(leg.endDate).getTime();
+      if (!Number.isFinite(legEnd) || legEnd !== marketEnd) {
+        throw new Error(`End date mismatch for conditionId: ${leg.conditionId}`);
+      }
+    }
+    if (leg.category && leg.category.toLowerCase() !== market.category.toLowerCase()) {
+      throw new Error(`Category mismatch for conditionId: ${leg.conditionId}`);
+    }
+
+    const expectedTokenId = leg.side === 'YES' ? market.yesTokenId : market.noTokenId;
+    if (leg.tokenId && leg.tokenId !== expectedTokenId) {
+      throw new Error(`Token ID mismatch for conditionId: ${leg.conditionId}`);
+    }
+
+    return {
+      ...leg,
+      questionId: market.id,
+      marketQuestion: normalizedQuestion,
+      description: market.description ?? leg.description,
+      category: market.category ?? leg.category,
+      yesTokenId: market.yesTokenId,
+      noTokenId: market.noTokenId,
+      endDate: market.endDate,
+      tokenId: expectedTokenId,
+    };
+  });
+}
 
 /**
  * POST /chains - Create user chain
@@ -57,8 +124,9 @@ export async function createUserChain(
     return errorResponse(400, 'Maximum 10 legs per chain');
   }
 
-  if (!request.initialStake || parseFloat(request.initialStake) <= 0) {
-    return errorResponse(400, 'Initial stake must be greater than 0');
+  const initialStakeValue = parseFloat(request.initialStake || '');
+  if (!Number.isFinite(initialStakeValue) || initialStakeValue <= 0) {
+    return errorResponse(400, 'Initial stake must be a valid number greater than 0');
   }
 
   // Validate each leg
@@ -72,7 +140,7 @@ export async function createUserChain(
     }
 
     const price = parseFloat(leg.targetPrice);
-    if (isNaN(price) || price <= 0 || price >= 1) {
+    if (!Number.isFinite(price) || price <= 0 || price >= 1) {
       return errorResponse(400, 'Target price must be between 0 and 1');
     }
 
@@ -86,6 +154,16 @@ export async function createUserChain(
     if (!leg.endDate) {
       return errorResponse(400, 'Each leg requires endDate');
     }
+  }
+
+  let validatedLegs: CreateLegInput[];
+  try {
+    validatedLegs = await hydrateLegsFromGamma(request.legs);
+  } catch (error) {
+    console.error('Market validation failed:', error);
+    const message = (error as Error).message || 'Market validation failed';
+    const statusCode = message.includes('Gamma API') ? 502 : 400;
+    return errorResponse(statusCode, message);
   }
 
   // Validate chain name (required for new chains)
@@ -108,12 +186,18 @@ export async function createUserChain(
   const now = new Date().toISOString();
 
   // Generate deterministic chain ID from chain definition
-  const chainId = generateChainId(request.legs);
+  const chainId = generateChainId(validatedLegs);
+
+  // Check if user already has a position on this chain
+  const existingUserChain = await getUserChain(chainId, walletAddress);
+  if (existingUserChain) {
+    return errorResponse(400, 'You already have a position on this chain');
+  }
 
   // Build chain definition
   const chainKeys = keys.chain(chainId);
 
-  const legs: ChainLeg[] = request.legs.map((leg, index) => ({
+  const legs: ChainLeg[] = validatedLegs.map((leg, index) => ({
     sequence: index + 1,
     conditionId: leg.conditionId,
     tokenId: leg.tokenId,
@@ -122,7 +206,7 @@ export async function createUserChain(
   }));
 
   // Simple chain format for debugging: ["conditionId:YES", "conditionId:NO"]
-  const chainArray = request.legs.map((leg) => `${leg.conditionId}:${leg.side}`);
+  const chainArray = validatedLegs.map((leg) => `${leg.conditionId}:${leg.side}`);
 
   const chainEntity: ChainEntity = {
     ...chainKeys,
@@ -139,13 +223,10 @@ export async function createUserChain(
     updatedAt: now,
   };
 
-  // Upsert: creates if not exists, adds stake to totalValue if exists
-  await upsertChain(chainEntity, request.initialStake);
-
   // Upsert markets for each unique conditionId
   // This ensures markets exist in DynamoDB for resolution handling
   const uniqueMarkets = new Map<string, CreateLegInput>();
-  for (const leg of request.legs) {
+  for (const leg of validatedLegs) {
     if (!uniqueMarkets.has(leg.conditionId)) {
       uniqueMarkets.set(leg.conditionId, leg);
     }
@@ -176,12 +257,6 @@ export async function createUserChain(
     await upsertMarket(market);
   }
 
-  // Check if user already has a position on this chain
-  const existingUserChain = await getUserChain(chainId, walletAddress);
-  if (existingUserChain) {
-    return errorResponse(400, 'You already have a position on this chain');
-  }
-
   // Create user chain
   const userChainKeys = keys.userChain(chainId, walletAddress);
   const userChainGsi = gsiKeys.userChainByUser(walletAddress, chainId);
@@ -201,13 +276,12 @@ export async function createUserChain(
     updatedAt: now,
   };
 
-  await saveUserChain(userChain);
-
   // Create bet entities for each leg
-  let currentStake = parseFloat(request.initialStake);
+  let currentStake = initialStakeValue;
+  const bets: BetEntity[] = [];
 
-  for (let i = 0; i < request.legs.length; i++) {
-    const legInput = request.legs[i];
+  for (let i = 0; i < validatedLegs.length; i++) {
+    const legInput = validatedLegs[i];
     const sequence = i + 1;
     const betId = randomUUID();
 
@@ -240,10 +314,20 @@ export async function createUserChain(
       updatedAt: now,
     };
 
-    await saveBet(bet);
+    bets.push(bet);
 
     // Next bet's stake is this bet's potential payout
     currentStake = parseFloat(potentialPayout);
+  }
+
+  try {
+    await createUserChainPosition(chainEntity, request.initialStake, userChain, bets);
+  } catch (error) {
+    const name = (error as Error).name;
+    if (name === 'TransactionCanceledException' || name === 'ConditionalCheckFailedException') {
+      return errorResponse(400, 'You already have a position on this chain');
+    }
+    throw error;
   }
 
   // Return created user chain with details

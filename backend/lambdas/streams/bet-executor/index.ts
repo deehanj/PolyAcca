@@ -28,6 +28,7 @@ import {
 import {
   decryptEmbeddedWalletCredentials,
   placeOrder,
+  fetchOrderStatus,
   deriveApiCredentials,
   encryptEmbeddedWalletCredentials,
   setBuilderCredentials,
@@ -80,6 +81,10 @@ async function initBuilderCredentials(): Promise<void> {
 interface ExecutionError extends Error {
   code?: string;
   type?: string;
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
@@ -167,7 +172,7 @@ async function handleExecutionFailure(
 async function executeBetWithEmbeddedWallet(
   bet: BetEntity,
   embeddedWalletAddress: string
-): Promise<string> {
+): Promise<{ orderId: string; filled: boolean }> {
   log.info('Executing bet with embedded wallet', {
     betId: bet.betId,
     embeddedWalletAddress,
@@ -220,7 +225,20 @@ async function executeBetWithEmbeddedWallet(
     size: parseFloat(bet.stake) / parseFloat(bet.targetPrice),
   });
 
-  return orderId;
+  const maxAttempts = 3;
+  let filled = false;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const status = await fetchOrderStatus(credentials, orderId);
+    if (status.filled) {
+      filled = true;
+      break;
+    }
+    if (attempt < maxAttempts) {
+      await wait(500 * attempt);
+    }
+  }
+
+  return { orderId, filled };
 }
 
 /**
@@ -249,7 +267,7 @@ async function executeBet(bet: BetEntity): Promise<void> {
     }
 
     // Execute using embedded wallet
-    const orderId = await executeBetWithEmbeddedWallet(bet, user.embeddedWalletAddress);
+    const { orderId, filled } = await executeBetWithEmbeddedWallet(bet, user.embeddedWalletAddress);
 
     log.info('Order placed', { betId: bet.betId, orderId });
 
@@ -260,9 +278,14 @@ async function executeBet(bet: BetEntity): Promise<void> {
       executedAt: now,
     });
 
-    // For now, assume order fills immediately and update to FILLED
-    // In production, you'd monitor order status via Polymarket API or webhooks
-    await updateBetStatus(bet.chainId, bet.walletAddress, bet.sequence, 'FILLED');
+    if (filled) {
+      await updateBetStatus(bet.chainId, bet.walletAddress, bet.sequence, 'FILLED');
+    } else {
+      log.warn('Order not confirmed filled yet; leaving status PLACED', {
+        betId: bet.betId,
+        orderId,
+      });
+    }
 
     log.info('Bet execution complete', { betId: bet.betId });
   } catch (error) {
