@@ -89,7 +89,7 @@ export async function decryptEmbeddedWalletCredentials(
 /**
  * Create an authenticated ClobClient instance with optional builder attribution
  */
-function createClient(credentials?: PolymarketCredentials): ClobClient {
+function createClient(credentials?: Pick<PolymarketCredentials, 'apiKey' | 'apiSecret' | 'passphrase'>): ClobClient {
   if (!credentials) {
     return new ClobClient(POLYMARKET_HOST, POLYGON_CHAIN_ID);
   }

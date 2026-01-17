@@ -1,5 +1,5 @@
 import { useAccount, useSignMessage, useDisconnect } from 'wagmi';
-import { useState, useEffect, useCallback, createContext, useContext } from 'react';
+import { useState, useEffect, useCallback, createContext, useContext, useRef } from 'react';
 import type { ReactNode } from 'react';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -61,6 +61,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     error: null,
   });
 
+  // Ref to prevent double-invocation in React Strict Mode
+  const isAuthenticatingRef = useRef(false);
+
   // Restore token from localStorage on mount
   useEffect(() => {
     const savedToken = localStorage.getItem('polyacca_token');
@@ -96,6 +99,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Don't re-authenticate if we have a token
     if (authState.token) return;
+
+    // Use ref to prevent double-invocation in React Strict Mode
+    // (state updates aren't immediate, but refs are)
+    if (isAuthenticatingRef.current) return;
+    isAuthenticatingRef.current = true;
 
     setAuthState(prev => ({ ...prev, isAuthenticating: true, error: null }));
 
@@ -156,6 +164,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (errorMessage.includes('rejected') || errorMessage.includes('denied')) {
         disconnect();
       }
+    } finally {
+      // Reset ref so authentication can be retried
+      isAuthenticatingRef.current = false;
     }
   }, [address, isConnected, authState.token, signMessageAsync, disconnect]);
 
