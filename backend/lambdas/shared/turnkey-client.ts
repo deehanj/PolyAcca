@@ -170,7 +170,7 @@ export async function getWalletAccounts(walletId: string): Promise<string[]> {
     walletId,
   });
 
-  return response.accounts.map((account) => account.address);
+  return response.accounts.map((account: { address: string }) => account.address);
 }
 
 // =============================================================================
@@ -194,16 +194,17 @@ export async function createSigner(walletAddress: string): Promise<ethers.Signer
   const provider = new ethers.providers.JsonRpcProvider(POLYGON_RPC_URL);
 
   // Create the Turnkey signer
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const signer = new TurnkeySigner(
     {
-      client,
+      client: client as any,
       organizationId: TURNKEY_ORGANIZATION_ID,
       signWith: walletAddress,
     },
     provider
   );
 
-  return signer;
+  return signer as unknown as ethers.Signer;
 }
 
 /**
@@ -215,16 +216,17 @@ export async function createSignerWithProvider(
 ): Promise<ethers.Signer> {
   const client = await getTurnkeyClient();
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const signer = new TurnkeySigner(
     {
-      client,
+      client: client as any,
       organizationId: TURNKEY_ORGANIZATION_ID,
       signWith: walletAddress,
     },
     provider
   );
 
-  return signer;
+  return signer as unknown as ethers.Signer;
 }
 
 // =============================================================================

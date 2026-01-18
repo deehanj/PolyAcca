@@ -132,7 +132,7 @@ async function buildAdminState(): Promise<AdminState> {
 
       return {
         chainId: chain.chainId,
-        name: chain.name,
+        name: chain.name || `Chain ${chain.chainId.slice(0, 8)}`,
         description: chain.description,
         chain: chain.chain,
         totalValue: chain.totalValue,
