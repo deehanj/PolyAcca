@@ -13,6 +13,7 @@ import { erc20Abi, parseUnits, formatUnits } from 'viem';
 import { Wallet, Loader2, Copy, Check, ArrowRight, Clock, RefreshCw, Send, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { useAuth } from '../hooks/useAuth';
+import { useTradingBalance } from '../context/TradingBalanceContext';
 import { Dialog, DialogTitle, DialogDescription } from './ui/Dialog';
 import { Input } from './ui/Input';
 import { SUPPORTED_CHAINS } from '../lib/wagmi';
@@ -51,7 +52,14 @@ export function TradingBalance() {
   const { isAuthenticated } = useAuth();
   const { address: connectedAddress } = useAccount();
   const { embeddedWalletAddress, isLoading: profileLoading } = useUserProfile();
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const {
+    tradingBalance: contextTradingBalance,
+    isDepositModalOpen: isModalOpen,
+    openDepositModal,
+    closeDepositModal,
+    refetchBalance: refetchTradingBalance,
+    isLoading: contextLoading,
+  } = useTradingBalance();
   const [activeTab, setActiveTab] = useState<'deposit' | 'withdraw'>('deposit');
   const [depositAmount, setDepositAmount] = useState('');
   const [withdrawAmount, setWithdrawAmount] = useState('');
@@ -78,20 +86,8 @@ export function TradingBalance() {
   // Message signing for withdraw
   const { signMessageAsync } = useSignMessage();
 
-  // ============================================================================
-  // Embedded wallet balance (trading balance)
-  // ============================================================================
-  const { data: tradingBalance, isLoading: tradingBalanceLoading, refetch: refetchTradingBalance } = useReadContract({
-    address: SUPPORTED_CHAINS.polygon.usdc,
-    abi: erc20Abi,
-    functionName: 'balanceOf',
-    args: embeddedWalletAddress ? [embeddedWalletAddress as `0x${string}`] : undefined,
-    chainId: SUPPORTED_CHAINS.polygon.id,
-    query: {
-      enabled: !!embeddedWalletAddress,
-      refetchInterval: 30000,
-    },
-  });
+  // Trading balance is now provided by TradingBalanceContext
+  // Use tradingBalanceRaw and contextTradingBalance from the context
 
   // ============================================================================
   // Connected wallet balances (source for deposits)
@@ -240,7 +236,7 @@ export function TradingBalance() {
   }
 
   // Show loading state
-  if (profileLoading || (embeddedWalletAddress && tradingBalanceLoading)) {
+  if (profileLoading || contextLoading) {
     return (
       <div className="flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm">
         <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
@@ -254,7 +250,7 @@ export function TradingBalance() {
     return null;
   }
 
-  const formattedTradingBalance = formatBalance(tradingBalance);
+  const formattedTradingBalance = contextTradingBalance;
 
   const handleCopyAddress = async (address: string, label: string) => {
     await navigator.clipboard.writeText(address);
@@ -277,7 +273,7 @@ export function TradingBalance() {
   };
 
   const handleClose = () => {
-    setIsModalOpen(false);
+    closeDepositModal();
     setActiveTab('deposit');
     setDepositAmount('');
     setWithdrawAmount('');
@@ -434,7 +430,7 @@ export function TradingBalance() {
   return (
     <>
       <button
-        onClick={() => setIsModalOpen(true)}
+        onClick={openDepositModal}
         className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-card border border-border hover:bg-muted transition-colors"
         title={`Trading wallet: ${embeddedWalletAddress}`}
       >

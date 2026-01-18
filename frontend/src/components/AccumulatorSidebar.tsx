@@ -4,6 +4,7 @@ import {
   type AccumulatorBet,
 } from "../context/AccumulatorContext";
 import { useAuth } from "../hooks/useAuth";
+import { useTradingBalance } from "../context/TradingBalanceContext";
 import type { Market } from "./MarketCard";
 import { Button } from "./ui/Button";
 import { Input } from "./ui/Input";
@@ -20,6 +21,7 @@ export const AccumulatorSidebar = forwardRef<HTMLDivElement>(
     const { bets, addBet, removeBet, clearBets, totalOdds, potentialPayout, getLegsForApi } =
       useAccumulator();
     const { isAuthenticated, isConnected, authenticate, getAuthHeaders } = useAuth();
+    const { hasSufficientBalance, openDepositModal } = useTradingBalance();
     const [stake, setStake] = useState<string>("10");
     const [isDragOver, setIsDragOver] = useState(false);
     const [showSpeedLines, setShowSpeedLines] = useState(false);
@@ -109,6 +111,12 @@ export const AccumulatorSidebar = forwardRef<HTMLDivElement>(
     const stakeAmount = parseFloat(stake);
     if (isNaN(stakeAmount) || stakeAmount <= 0) {
       setSubmitError("Please enter a valid stake amount");
+      return;
+    }
+
+    // Check if user has sufficient balance
+    if (!hasSufficientBalance(stakeAmount)) {
+      openDepositModal();
       return;
     }
 

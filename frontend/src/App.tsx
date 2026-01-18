@@ -3,6 +3,7 @@ import { Toaster } from "sonner";
 import { Web3Provider } from "./providers/Web3Provider";
 import { AuthProvider } from "./hooks/useAuth";
 import { AccumulatorProvider } from "./context/AccumulatorContext";
+import { TradingBalanceProvider } from "./context/TradingBalanceContext";
 import { useBetNotifications } from "./hooks/useBetNotifications";
 import { HomePage } from "./pages/Home";
 import { DesignPage } from "./pages/Design";
@@ -27,12 +28,14 @@ function App() {
   return (
     <Web3Provider>
       <AuthProvider>
-        <BrowserRouter>
-          <AccumulatorProvider>
-            <AppContent />
-            <Toaster position="bottom-right" theme="dark" richColors />
-          </AccumulatorProvider>
-        </BrowserRouter>
+        <TradingBalanceProvider>
+          <BrowserRouter>
+            <AccumulatorProvider>
+              <AppContent />
+              <Toaster position="bottom-right" theme="dark" richColors />
+            </AccumulatorProvider>
+          </BrowserRouter>
+        </TradingBalanceProvider>
       </AuthProvider>
     </Web3Provider>
   );
