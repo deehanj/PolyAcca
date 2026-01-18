@@ -15,6 +15,18 @@ const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
 
 /**
+ * Browser-like headers to help bypass Cloudflare bot protection
+ */
+const BROWSER_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  'Accept': 'application/json, text/plain, */*',
+  'Accept-Language': 'en-US,en;q=0.9',
+  'Accept-Encoding': 'gzip, deflate, br',
+  'Connection': 'keep-alive',
+  'Cache-Control': 'no-cache',
+};
+
+/**
  * Parse JSON string fields from Gamma API response
  */
 function parseJsonField<T>(value: string | undefined, fallback: T): T {
@@ -115,9 +127,7 @@ export async function fetchMarkets(
   try {
     const response = await fetch(url, {
       method: 'GET',
-      headers: {
-        Accept: 'application/json',
-      },
+      headers: BROWSER_HEADERS,
     });
 
     if (!response.ok) {
@@ -198,9 +208,7 @@ export async function fetchMarketById(marketId: string): Promise<GammaMarket | n
   try {
     const response = await fetch(url, {
       method: 'GET',
-      headers: {
-        Accept: 'application/json',
-      },
+      headers: BROWSER_HEADERS,
     });
 
     if (response.status === 404) {
@@ -228,7 +236,10 @@ export async function fetchMarketByConditionId(
   const url = `${GAMMA_API_BASE}/markets?condition_ids=${conditionId}&limit=1`;
 
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: BROWSER_HEADERS,
+    });
     if (!response.ok) {
       throw new Error(`Gamma API error: ${response.status}`);
     }

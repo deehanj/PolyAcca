@@ -11,6 +11,10 @@
  * The position-termination-handler will void remaining bets via stream.
  */
 
+// Install Cloudflare bypass headers BEFORE any other imports that might use axios
+import { installCloudflareBypassHeaders } from '../../shared/axios-cloudflare-headers';
+installCloudflareBypassHeaders();
+
 import type { DynamoDBStreamEvent, DynamoDBRecord } from 'aws-lambda';
 import { unmarshall } from '@aws-sdk/util-dynamodb';
 import type { AttributeValue } from '@aws-sdk/client-dynamodb';
@@ -98,6 +102,15 @@ function classifyError(error: unknown): BetStatus {
   const err = error as ExecutionError;
   const message = err.message?.toLowerCase() || '';
   const code = err.code?.toLowerCase() || '';
+
+  // Cloudflare blocking - treat as temporary execution error
+  if (message.includes('cloudflare') || message.includes('403') ||
+      message.includes('access denied') || message.includes('just a moment') ||
+      message.includes('challenge') || message.includes('captcha') ||
+      message.includes('ray id') || message.includes('blocked')) {
+    log.warn('Cloudflare blocking detected', { message: err.message });
+    return 'EXECUTION_ERROR';
+  }
 
   // Credential issues
   if (message.includes('credential') || message.includes('api key') ||
