@@ -86,6 +86,10 @@ function buildQueryString(params: MarketsQueryParams): string {
     searchParams.set('closed', String(params.closed));
   }
 
+  // Filter out markets that have already ended (server-side)
+  const endDateMin = new Date().toISOString();
+  searchParams.set('end_date_min', endDateMin);
+
   // Note: Gamma API may not support category filter directly
   // We filter client-side after fetching
 
