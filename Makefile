@@ -7,8 +7,8 @@ install-fe:
 	cd frontend && npm install
 
 install-be:
-	cd backend && npm install --legacy-peer-deps
-	cd backend/lambdas && npm install --legacy-peer-deps
+	cd backend && npm install
+	cd backend/lambdas && npm install
 
 # Run frontend development server
 dev:

@@ -48,33 +48,30 @@ export async function fundWalletWithGas(
 
   try {
     // Create provider for Polygon
-    const provider = new ethers.providers.JsonRpcProvider(POLYGON_RPC_URL, {
-      name: 'polygon',
-      chainId: POLYGON_CHAIN_ID,
-    });
+    const provider = new ethers.JsonRpcProvider(POLYGON_RPC_URL, POLYGON_CHAIN_ID);
 
     // Check platform wallet balance first
     const platformBalance = await provider.getBalance(platformWalletAddress);
-    const fundingAmountWei = ethers.utils.parseEther(fundingAmount);
+    const fundingAmountWei = ethers.parseEther(fundingAmount);
 
     // Need some buffer for gas costs of the transfer itself
-    const minRequired = fundingAmountWei.add(ethers.utils.parseEther('0.01'));
+    const minRequired = fundingAmountWei + ethers.parseEther('0.01');
 
-    if (platformBalance.lt(minRequired)) {
+    if (platformBalance < minRequired) {
       logger.warn('Platform wallet has insufficient POL balance', {
         platformWalletAddress,
-        balance: ethers.utils.formatEther(platformBalance),
-        required: ethers.utils.formatEther(minRequired),
+        balance: ethers.formatEther(platformBalance),
+        required: ethers.formatEther(minRequired),
       });
       return null;
     }
 
     // Check if destination already has some POL (avoid double-funding)
     const destBalance = await provider.getBalance(destinationAddress);
-    if (destBalance.gt(ethers.utils.parseEther('0.01'))) {
+    if (destBalance > ethers.parseEther('0.01')) {
       logger.info('Destination wallet already has POL, skipping funding', {
         destinationAddress,
-        balance: ethers.utils.formatEther(destBalance),
+        balance: ethers.formatEther(destBalance),
       });
       return null;
     }
@@ -98,12 +95,12 @@ export async function fundWalletWithGas(
     const receipt = await tx.wait(1);
 
     logger.info('Gas funding transaction confirmed', {
-      txHash: receipt.transactionHash,
-      blockNumber: receipt.blockNumber,
-      gasUsed: receipt.gasUsed.toString(),
+      txHash: receipt?.hash,
+      blockNumber: receipt?.blockNumber,
+      gasUsed: receipt?.gasUsed.toString(),
     });
 
-    return receipt.transactionHash;
+    return receipt?.hash ?? null;
   } catch (error) {
     logger.errorWithStack('Failed to fund wallet with gas', error, {
       platformWalletAddress,

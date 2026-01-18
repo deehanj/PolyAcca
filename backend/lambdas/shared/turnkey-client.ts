@@ -191,7 +191,7 @@ export async function createSigner(walletAddress: string): Promise<ethers.Signer
   logger.debug('Creating signer for wallet', { walletAddress });
 
   // Create a provider for Polygon (required for EIP-712 domain separator)
-  const provider = new ethers.providers.JsonRpcProvider(POLYGON_RPC_URL);
+  const provider = new ethers.JsonRpcProvider(POLYGON_RPC_URL);
 
   // Create the Turnkey signer
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -212,7 +212,7 @@ export async function createSigner(walletAddress: string): Promise<ethers.Signer
  */
 export async function createSignerWithProvider(
   walletAddress: string,
-  provider: ethers.providers.Provider
+  provider: ethers.Provider
 ): Promise<ethers.Signer> {
   const client = await getTurnkeyClient();
 

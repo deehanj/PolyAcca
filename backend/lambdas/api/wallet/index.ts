@@ -86,7 +86,7 @@ async function handleWithdraw(
   // Verify signature
   let recoveredAddress: string;
   try {
-    recoveredAddress = ethers.utils.verifyMessage(message, signature);
+    recoveredAddress = ethers.verifyMessage(message, signature);
   } catch {
     return errorResponse(401, 'Invalid signature');
   }
@@ -117,19 +117,16 @@ async function handleWithdraw(
 
   try {
     // Create provider for Polygon
-    const provider = new ethers.providers.JsonRpcProvider(POLYGON_RPC_URL, {
-      name: 'polygon',
-      chainId: POLYGON_CHAIN_ID,
-    });
+    const provider = new ethers.JsonRpcProvider(POLYGON_RPC_URL, POLYGON_CHAIN_ID);
 
     // Check if embedded wallet needs gas funding
     const embeddedBalance = await provider.getBalance(user.embeddedWalletAddress);
-    const minGasBalance = ethers.utils.parseEther('0.01'); // Need at least 0.01 POL for gas
+    const minGasBalance = ethers.parseEther('0.01'); // Need at least 0.01 POL for gas
 
-    if (embeddedBalance.lt(minGasBalance)) {
+    if (embeddedBalance < minGasBalance) {
       logger.info('Embedded wallet needs gas funding', {
         embeddedWalletAddress: user.embeddedWalletAddress,
-        currentBalance: ethers.utils.formatEther(embeddedBalance),
+        currentBalance: ethers.formatEther(embeddedBalance),
       });
 
       const platformWalletAddress = requireEnvVar('PLATFORM_WALLET_ADDRESS');
@@ -156,10 +153,10 @@ async function handleWithdraw(
 
     // Check balance
     const balance = await usdcContract.balanceOf(user.embeddedWalletAddress);
-    const amountWei = ethers.utils.parseUnits(amount, USDC_DECIMALS);
+    const amountWei = ethers.parseUnits(amount, USDC_DECIMALS);
 
-    if (balance.lt(amountWei)) {
-      const balanceFormatted = ethers.utils.formatUnits(balance, USDC_DECIMALS);
+    if (balance < amountWei) {
+      const balanceFormatted = ethers.formatUnits(balance, USDC_DECIMALS);
       return errorResponse(400, `Insufficient balance. Available: ${balanceFormatted} USDC`);
     }
 
@@ -176,13 +173,13 @@ async function handleWithdraw(
     const receipt = await tx.wait(1);
 
     logger.info('Withdraw transaction confirmed', {
-      txHash: receipt.transactionHash,
-      blockNumber: receipt.blockNumber,
-      gasUsed: receipt.gasUsed.toString(),
+      txHash: receipt?.hash,
+      blockNumber: receipt?.blockNumber,
+      gasUsed: receipt?.gasUsed.toString(),
     });
 
     const response: WithdrawResponse = {
-      txHash: receipt.transactionHash,
+      txHash: receipt?.hash ?? '',
       amount,
       destination: walletAddress,
     };
