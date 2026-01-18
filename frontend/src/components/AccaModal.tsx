@@ -5,7 +5,7 @@ import { Input } from "./ui/Input";
 import { useAuth } from "../hooks/useAuth";
 import { Share2, Copy, Check, Upload, X, Loader2, ExternalLink } from "lucide-react";
 
-const API_URL = import.meta.env.VITE_API_URL || "";
+const API_URL = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
 const CHAIN_IMAGES_DOMAIN = import.meta.env.VITE_CHAIN_IMAGES_DOMAIN || "";
 
 interface ChainData {

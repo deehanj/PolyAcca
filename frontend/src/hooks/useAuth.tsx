@@ -2,7 +2,7 @@ import { useAccount, useSignMessage, useDisconnect } from 'wagmi';
 import { useState, useEffect, useCallback, createContext, useContext, useRef } from 'react';
 import type { ReactNode } from 'react';
 
-const API_URL = import.meta.env.VITE_API_URL || '';
+const API_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
 
 if (!API_URL) {
   console.error(

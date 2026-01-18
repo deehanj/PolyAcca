@@ -13,7 +13,7 @@ import { triggerConfetti, triggerMoneyRain } from "../lib/confetti";
 import { Zap, Trash2, Trophy, ChevronDown, X } from "lucide-react";
 import { AccaModal } from "./AccaModal";
 
-const API_URL = import.meta.env.VITE_API_URL || "";
+const API_URL = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
 
 export const AccumulatorSidebar = forwardRef<HTMLDivElement>(
   function AccumulatorSidebar(_props, ref) {

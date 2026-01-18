@@ -11,7 +11,7 @@ import type {
   ChainDetailResponse,
 } from '../types/chain';
 
-const API_URL = import.meta.env.VITE_API_URL || '';
+const API_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
 
 /**
  * Hook for fetching all chains for the authenticated user

@@ -19,7 +19,7 @@ import { SUPPORTED_CHAINS } from '../lib/wagmi';
 
 const USDC_DECIMALS = 6;
 const POLYMARKET_BRIDGE_API = 'https://bridge.polymarket.com/deposit';
-const API_URL = import.meta.env.VITE_API_URL || '';
+const API_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
 
 /**
  * Build the withdraw message for signing (must match backend)

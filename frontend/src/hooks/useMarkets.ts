@@ -5,7 +5,7 @@
 import { useQuery } from '@tanstack/react-query';
 import type { Market, MarketsResponse, MarketsQueryParams } from '../types/market';
 
-const API_URL = import.meta.env.VITE_API_URL || '';
+const API_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
 
 async function fetchMarketsFromApi(
   params: MarketsQueryParams
