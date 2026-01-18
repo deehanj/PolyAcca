@@ -8,7 +8,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { useReadContract, useWriteContract, useWaitForTransactionReceipt, useAccount, useBalance, useSwitchChain } from 'wagmi';
+import { useReadContract, useWriteContract, useWaitForTransactionReceipt, useAccount, useBalance, useSwitchChain, useSignMessage } from 'wagmi';
 import { erc20Abi, parseUnits, formatUnits } from 'viem';
 import { Wallet, Loader2, Copy, Check, ArrowRight, Clock, RefreshCw, Send, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useUserProfile } from '../hooks/useUserProfile';
@@ -19,6 +19,14 @@ import { SUPPORTED_CHAINS } from '../lib/wagmi';
 
 const USDC_DECIMALS = 6;
 const POLYMARKET_BRIDGE_API = 'https://bridge.polymarket.com/deposit';
+const API_URL = import.meta.env.VITE_API_URL || '';
+
+/**
+ * Build the withdraw message for signing (must match backend)
+ */
+function buildWithdrawMessage(amount: string, nonce: string): string {
+  return `Withdraw ${amount} USDC from PolyAcca\n\nNonce: ${nonce}`;
+}
 
 // Types for deposit addresses
 interface DepositAddresses {
@@ -43,8 +51,10 @@ export function TradingBalance() {
   const { isAuthenticated } = useAuth();
   const { address: connectedAddress } = useAccount();
   const { embeddedWalletAddress, isLoading: profileLoading } = useUserProfile();
-  const [isDepositOpen, setIsDepositOpen] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'deposit' | 'withdraw'>('deposit');
   const [depositAmount, setDepositAmount] = useState('');
+  const [withdrawAmount, setWithdrawAmount] = useState('');
   const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
   const [selectedMethod, setSelectedMethod] = useState<'polygon' | 'bridge' | null>(null);
 
@@ -57,8 +67,16 @@ export function TradingBalance() {
   const [selectedBridgeChain, setSelectedBridgeChain] = useState<'base' | 'ethereum' | null>(null);
   const [bridgeAmount, setBridgeAmount] = useState('');
 
+  // Withdraw state (signature-based flow)
+  const [isWithdrawing, setIsWithdrawing] = useState(false);
+  const [withdrawError, setWithdrawError] = useState<string | null>(null);
+  const [withdrawSuccess, setWithdrawSuccess] = useState<string | null>(null); // tx hash
+
   // Chain switching
   const { switchChain, isPending: isSwitchingChain } = useSwitchChain();
+
+  // Message signing for withdraw
+  const { signMessageAsync } = useSignMessage();
 
   // ============================================================================
   // Embedded wallet balance (trading balance)
@@ -86,7 +104,7 @@ export function TradingBalance() {
     functionName: 'balanceOf',
     args: connectedAddress ? [connectedAddress] : undefined,
     chainId: SUPPORTED_CHAINS.polygon.id,
-    query: { enabled: !!connectedAddress && isDepositOpen },
+    query: { enabled: !!connectedAddress && isModalOpen },
   });
 
   // USDC on Base (connected wallet)
@@ -96,7 +114,7 @@ export function TradingBalance() {
     functionName: 'balanceOf',
     args: connectedAddress ? [connectedAddress] : undefined,
     chainId: SUPPORTED_CHAINS.base.id,
-    query: { enabled: !!connectedAddress && isDepositOpen },
+    query: { enabled: !!connectedAddress && isModalOpen },
   });
 
   // USDC on Ethereum (connected wallet)
@@ -106,28 +124,28 @@ export function TradingBalance() {
     functionName: 'balanceOf',
     args: connectedAddress ? [connectedAddress] : undefined,
     chainId: SUPPORTED_CHAINS.ethereum.id,
-    query: { enabled: !!connectedAddress && isDepositOpen },
+    query: { enabled: !!connectedAddress && isModalOpen },
   });
 
   // POL balance for gas (connected wallet)
   const { data: polBalance } = useBalance({
     address: connectedAddress,
     chainId: SUPPORTED_CHAINS.polygon.id,
-    query: { enabled: !!connectedAddress && isDepositOpen },
+    query: { enabled: !!connectedAddress && isModalOpen },
   });
 
   // ETH balance on Base for gas (connected wallet)
   const { data: baseEthBalance } = useBalance({
     address: connectedAddress,
     chainId: SUPPORTED_CHAINS.base.id,
-    query: { enabled: !!connectedAddress && isDepositOpen },
+    query: { enabled: !!connectedAddress && isModalOpen },
   });
 
   // ETH balance on Ethereum for gas (connected wallet)
   const { data: ethereumEthBalance } = useBalance({
     address: connectedAddress,
     chainId: SUPPORTED_CHAINS.ethereum.id,
-    query: { enabled: !!connectedAddress && isDepositOpen },
+    query: { enabled: !!connectedAddress && isModalOpen },
   });
 
   // ============================================================================
@@ -259,12 +277,90 @@ export function TradingBalance() {
   };
 
   const handleClose = () => {
-    setIsDepositOpen(false);
+    setIsModalOpen(false);
+    setActiveTab('deposit');
     setDepositAmount('');
+    setWithdrawAmount('');
     setSelectedMethod(null);
     setSelectedBridgeChain(null);
     setBridgeAmount('');
+    setWithdrawError(null);
+    setWithdrawSuccess(null);
     reset();
+  };
+
+  /**
+   * Handle withdraw with signature-based authentication
+   * 1. Get nonce from API
+   * 2. Sign the withdraw message
+   * 3. Call withdraw endpoint with signature
+   */
+  const handleWithdraw = async () => {
+    if (!withdrawAmount || !connectedAddress || !embeddedWalletAddress) return;
+
+    setIsWithdrawing(true);
+    setWithdrawError(null);
+    setWithdrawSuccess(null);
+
+    try {
+      // Step 1: Get a fresh nonce
+      const nonceRes = await fetch(`${API_URL}/auth/nonce`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ walletAddress: connectedAddress }),
+      });
+
+      if (!nonceRes.ok) {
+        throw new Error('Failed to get nonce');
+      }
+
+      const nonceData = await nonceRes.json();
+      if (!nonceData.success) {
+        throw new Error(nonceData.error || 'Failed to get nonce');
+      }
+
+      // Step 2: Sign the withdraw message
+      // Format amount to 2 decimal places to match what user sees
+      const formattedAmount = parseFloat(withdrawAmount).toFixed(2);
+      const message = buildWithdrawMessage(formattedAmount, nonceData.data.nonce);
+
+      const signature = await signMessageAsync({ message });
+
+      // Step 3: Call withdraw endpoint
+      const withdrawRes = await fetch(`${API_URL}/wallet/withdraw`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          walletAddress: connectedAddress,
+          amount: formattedAmount,
+          signature,
+        }),
+      });
+
+      const withdrawData = await withdrawRes.json();
+
+      if (!withdrawRes.ok || !withdrawData.success) {
+        throw new Error(withdrawData.error || 'Withdraw failed');
+      }
+
+      // Success!
+      setWithdrawSuccess(withdrawData.data.txHash);
+      setWithdrawAmount('');
+
+      // Refetch balance after a short delay
+      setTimeout(() => refetchTradingBalance(), 3000);
+
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Withdraw failed';
+      setWithdrawError(errorMessage);
+
+      // If user rejected signature, don't show as error
+      if (errorMessage.includes('rejected') || errorMessage.includes('denied')) {
+        setWithdrawError('Signature rejected');
+      }
+    } finally {
+      setIsWithdrawing(false);
+    }
   };
 
   const handleBridgeTransfer = async () => {
@@ -338,7 +434,7 @@ export function TradingBalance() {
   return (
     <>
       <button
-        onClick={() => setIsDepositOpen(true)}
+        onClick={() => setIsModalOpen(true)}
         className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-card border border-border hover:bg-muted transition-colors"
         title={`Trading wallet: ${embeddedWalletAddress}`}
       >
@@ -351,14 +447,41 @@ export function TradingBalance() {
         <Wallet className="h-4 w-4 text-primary flex-shrink-0" />
       </button>
 
-      <Dialog open={isDepositOpen} onClose={handleClose}>
-        <DialogTitle>Fund Your Trading Wallet</DialogTitle>
+      <Dialog open={isModalOpen} onClose={handleClose}>
+        <DialogTitle>Trading Wallet</DialogTitle>
         <DialogDescription>
-          Your trading wallet needs USDC on Polygon to place bets.
+          Manage your trading wallet funds on Polygon.
         </DialogDescription>
 
-        {/* Status-based balances section */}
-        <div className="mb-4 rounded-md border border-border bg-muted/50 p-3">
+        {/* Tabs */}
+        <div className="flex gap-1 mb-4 p-1 rounded-lg bg-muted">
+          <button
+            onClick={() => setActiveTab('deposit')}
+            className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+              activeTab === 'deposit'
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Deposit
+          </button>
+          <button
+            onClick={() => setActiveTab('withdraw')}
+            className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+              activeTab === 'withdraw'
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Withdraw
+          </button>
+        </div>
+
+        {/* Deposit Tab Content */}
+        {activeTab === 'deposit' && (
+          <>
+            {/* Status-based balances section */}
+            <div className="mb-4 rounded-md border border-border bg-muted/50 p-3">
           <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">Your USDC Balances</h3>
           <div className="space-y-2 text-sm">
             {/* Polygon */}
@@ -791,6 +914,104 @@ export function TradingBalance() {
             )}
           </div>
         </div>
+          </>
+        )}
+
+        {/* Withdraw Tab Content */}
+        {activeTab === 'withdraw' && (
+          <>
+            {/* Trading wallet balance */}
+            <div className="mb-4 rounded-md border border-border bg-muted/50 p-3">
+              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">Trading Wallet Balance</h3>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <img
+                    src="https://assets.coingecko.com/coins/images/6319/small/usdc.png"
+                    alt="USDC"
+                    className="h-5 w-5 rounded-full"
+                  />
+                  <span className="font-medium">USDC</span>
+                </div>
+                <span className="text-lg font-semibold">${formattedTradingBalance}</span>
+              </div>
+            </div>
+
+            {/* Withdraw form */}
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  Withdraw Amount (USDC)
+                </label>
+                <div className="flex gap-2">
+                  <Input
+                    type="number"
+                    placeholder="0.00"
+                    value={withdrawAmount}
+                    onChange={(e) => setWithdrawAmount(e.target.value)}
+                    min="0"
+                    step="0.01"
+                    max={formattedTradingBalance}
+                    disabled={isWithdrawing}
+                  />
+                  <button
+                    onClick={() => setWithdrawAmount(formattedTradingBalance)}
+                    className="px-3 py-2 text-xs border border-border rounded-md hover:bg-muted"
+                    disabled={isWithdrawing}
+                  >
+                    Max
+                  </button>
+                </div>
+              </div>
+
+              <div className="rounded-md bg-muted/50 border border-border p-3">
+                <p className="text-xs text-muted-foreground">
+                  Funds will be sent to your connected wallet on Polygon:
+                </p>
+                <code className="text-xs font-mono text-foreground mt-1 block">
+                  {connectedAddress ? truncateAddress(connectedAddress) : 'No wallet connected'}
+                </code>
+              </div>
+
+              {withdrawError && (
+                <div className="rounded-md bg-destructive/10 border border-destructive/20 px-3 py-2 text-sm text-destructive">
+                  {withdrawError}
+                </div>
+              )}
+
+              {withdrawSuccess && (
+                <div className="rounded-md bg-green-500/10 border border-green-500/20 px-3 py-2 text-sm text-green-500">
+                  Withdrawal successful! Your balance will update shortly.
+                  <a
+                    href={`https://polygonscan.com/tx/${withdrawSuccess}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block mt-1 text-xs underline"
+                  >
+                    View on Polygonscan
+                  </a>
+                </div>
+              )}
+
+              <button
+                onClick={handleWithdraw}
+                disabled={!withdrawAmount || parseFloat(withdrawAmount) <= 0 || parseFloat(withdrawAmount) > parseFloat(formattedTradingBalance) || isWithdrawing || !connectedAddress}
+                className="w-full flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isWithdrawing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <Send className="h-4 w-4" />
+                    Withdraw to Wallet
+                  </>
+                )}
+              </button>
+            </div>
+          </>
+        )}
       </Dialog>
     </>
   );

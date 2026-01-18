@@ -3,6 +3,7 @@ import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as nodejs from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as apigateway from 'aws-cdk-lib/aws-apigateway';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
+import * as iam from 'aws-cdk-lib/aws-iam';
 import * as cdk from 'aws-cdk-lib/core';
 import * as path from 'path';
 import { AuthConstruct } from './auth';
@@ -16,6 +17,18 @@ export interface ApiConstructProps {
    * Auth construct with authorizer
    */
   auth: AuthConstruct;
+  /**
+   * Turnkey secret ARN (for wallet operations)
+   */
+  turnkeySecretArn: string;
+  /**
+   * Turnkey organization ID
+   */
+  turnkeyOrganizationId: string;
+  /**
+   * Platform wallet address for funding gas on withdrawals
+   */
+  platformWalletAddress: string;
 }
 
 export class ApiConstruct extends Construct {
@@ -23,11 +36,12 @@ export class ApiConstruct extends Construct {
   public readonly usersFunction: nodejs.NodejsFunction;
   public readonly chainsFunction: nodejs.NodejsFunction;
   public readonly marketsFunction: nodejs.NodejsFunction;
+  public readonly walletFunction: nodejs.NodejsFunction;
 
   constructor(scope: Construct, id: string, props: ApiConstructProps) {
     super(scope, id);
 
-    const { table, auth } = props;
+    const { table, auth, turnkeySecretArn, turnkeyOrganizationId, platformWalletAddress } = props;
 
     // Shared Lambda config
     const lambdaConfig = {
@@ -70,9 +84,31 @@ export class ApiConstruct extends Construct {
       timeout: cdk.Duration.seconds(15), // Shorter timeout for external API calls
     });
 
+    // Wallet Lambda - embedded wallet operations (signature-based auth)
+    this.walletFunction = new nodejs.NodejsFunction(this, 'WalletFunction', {
+      ...lambdaConfig,
+      entry: path.join(__dirname, '../../lambdas/api/wallet/index.ts'),
+      handler: 'handler',
+      timeout: cdk.Duration.seconds(60), // Longer timeout for blockchain transactions
+      environment: {
+        MONOTABLE_NAME: table.tableName,
+        TURNKEY_SECRET_ARN: turnkeySecretArn,
+        TURNKEY_ORGANIZATION_ID: turnkeyOrganizationId,
+        PLATFORM_WALLET_ADDRESS: platformWalletAddress,
+        NODE_OPTIONS: '--enable-source-maps',
+      },
+    });
+
     // Grant DynamoDB permissions
     table.grantReadWriteData(this.usersFunction);
     table.grantReadWriteData(this.chainsFunction);
+    table.grantReadWriteData(this.walletFunction);
+
+    // Grant wallet function access to Turnkey secret
+    this.walletFunction.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['secretsmanager:GetSecretValue'],
+      resources: [turnkeySecretArn],
+    }));
 
     // REST API
     this.api = new apigateway.RestApi(this, 'PolyAccaApi', {
@@ -155,6 +191,13 @@ export class ApiConstruct extends Construct {
 
     marketsResource.addMethod('GET', new apigateway.LambdaIntegration(this.marketsFunction));
     marketIdResource.addMethod('GET', new apigateway.LambdaIntegration(this.marketsFunction));
+
+    // Wallet endpoints (signature-based auth - not JWT)
+    // These endpoints verify a fresh wallet signature instead of JWT
+    const walletResource = this.api.root.addResource('wallet');
+    const withdrawResource = walletResource.addResource('withdraw');
+
+    withdrawResource.addMethod('POST', new apigateway.LambdaIntegration(this.walletFunction));
 
     // Outputs
     new cdk.CfnOutput(this, 'ApiUrl', {

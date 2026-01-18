@@ -14,6 +14,7 @@ import { WebSocketConstruct } from './constructs/websocket';
 import { AdminWebSocketConstruct } from './constructs/admin-websocket';
 import { AlchemyConstruct } from './constructs/alchemy';
 import { AlertsConstruct } from './constructs/alerts';
+import { PlatformWalletConstruct } from './constructs/platform-wallet';
 
 // Aspects
 import { LambdaErrorAlertAspect } from './aspects/LambdaErrorAlertAspect';
@@ -32,6 +33,7 @@ export class BackendStack extends cdk.Stack {
   public readonly secrets: SecretsConstruct;
   public readonly database: DatabaseConstruct;
   public readonly credentialsTable: CredentialsTableConstruct;
+  public readonly platformWallet: PlatformWalletConstruct;
   public readonly auth: AuthConstruct;
   public readonly api: ApiConstruct;
   public readonly websocket: WebSocketConstruct;
@@ -82,6 +84,15 @@ export class BackendStack extends cdk.Stack {
     });
 
     // ==========================================================================
+    // Platform Wallet (for funding new embedded wallets with POL)
+    // Created via Turnkey custom resource - fund this wallet with POL after deploy
+    // ==========================================================================
+    this.platformWallet = new PlatformWalletConstruct(this, 'PlatformWallet', {
+      secrets: this.secrets,
+      turnkeyOrganizationId,
+    });
+
+    // ==========================================================================
     // Auth (wallet-based authentication with embedded wallet creation)
     // ==========================================================================
     this.auth = new AuthConstruct(this, 'Auth', {
@@ -99,6 +110,9 @@ export class BackendStack extends cdk.Stack {
     this.api = new ApiConstruct(this, 'Api', {
       table: this.database.table,
       auth: this.auth,
+      turnkeySecretArn: this.secrets.turnkeySecretArn,
+      turnkeyOrganizationId,
+      platformWalletAddress: this.platformWallet.walletAddress,
     });
 
     // ==========================================================================

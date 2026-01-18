@@ -276,6 +276,19 @@ export interface VerifyResponse {
   expiresAt: string;
 }
 
+// Wallet Withdraw (signature-based auth)
+export interface WithdrawRequest {
+  walletAddress: string;
+  amount: string; // USDC amount (e.g., "100.00")
+  signature: string; // Signature of the withdraw message
+}
+
+export interface WithdrawResponse {
+  txHash: string;
+  amount: string;
+  destination: string; // The connected wallet that received funds
+}
+
 // Users
 export interface UserProfile {
   walletAddress: string; // MetaMask wallet (identity)

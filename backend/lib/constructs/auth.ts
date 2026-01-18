@@ -63,7 +63,7 @@ export class AuthConstruct extends Construct {
     };
 
     // Environment for verify function (includes Turnkey and credentials table for Polymarket registration)
-    const verifyEnv = {
+    const verifyEnv: Record<string, string> = {
       ...commonEnv,
       TURNKEY_SECRET_ARN: turnkeySecretArn,
       TURNKEY_ORGANIZATION_ID: turnkeyOrganizationId,
