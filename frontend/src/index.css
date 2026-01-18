@@ -375,3 +375,21 @@
   animation: ring-collect 0.6s cubic-bezier(0.4, 0, 0.2, 1);
   will-change: transform, opacity;
 }
+
+/* Stats Ticker Animation */
+@keyframes ticker {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-33.333%);
+  }
+}
+
+.animate-ticker {
+  animation: ticker 30s linear infinite;
+}
+
+.animate-ticker:hover {
+  animation-play-state: paused;
+}

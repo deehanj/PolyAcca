@@ -8,7 +8,7 @@ import { RingCollectionEffect } from "@/components/RingCollectionEffect";
 import { useMarkets } from "@/hooks/useMarkets";
 import { useRingAnimation } from "@/hooks/useRingAnimation";
 import type { Market as ApiMarket } from "@/types/market";
-import { Activity, BarChart3, Users } from "lucide-react";
+import { StatsTicker } from "@/components/StatsTicker";
 import { TypewriterText } from "@/components/ui/TypewriterText";
 
 const categories = [
@@ -122,30 +122,8 @@ export function HomePage() {
           </div>
         </section>
 
-        {/* Stats Bar - Sleek & Integrated */}
-        <section className="py-4 md:py-6 border-y border-white/5 bg-black/20 backdrop-blur-sm">
-          <div className="w-full max-w-[1800px] ml-auto mr-0 px-4 md:pl-6 md:pr-8">
-            <div className="grid grid-cols-3 gap-2 md:flex md:items-center md:gap-12">
-              <StatBox 
-                icon={<BarChart3 className="w-4 h-4 md:w-5 md:h-5 text-[var(--color-gold)]" />}
-                label="Total Volume" 
-                value="$847M" 
-              />
-              <div className="hidden md:block h-8 w-px bg-white/10" />
-              <StatBox 
-                icon={<Activity className="w-4 h-4 md:w-5 md:h-5 text-[var(--color-success)]" />}
-                label="Active Markets" 
-                value="2,847" 
-              />
-              <div className="hidden md:block h-8 w-px bg-white/10" />
-              <StatBox 
-                icon={<Users className="w-4 h-4 md:w-5 md:h-5 text-[var(--color-info)]" />}
-                label="Traders" 
-                value="184K" 
-              />
-            </div>
-          </div>
-        </section>
+        {/* Stats Ticker - Stock Market Style */}
+        <StatsTicker />
 
         {/* Main Markets Grid Section */}
         <section className="py-6 md:py-10">
@@ -275,22 +253,6 @@ export function HomePage() {
 
       {/* Ring Collection Animation Effect */}
       <RingCollectionEffect animations={animations} />
-    </div>
-  );
-}
-
-function StatBox({ icon, label, value }: { icon?: React.ReactNode; label: string; value: string }) {
-  return (
-    <div className="flex flex-col md:flex-row items-center gap-2 md:gap-3 group cursor-default p-2 md:p-0">
-      {icon && (
-        <div className="p-1.5 md:p-2 rounded-lg bg-white/5 group-hover:bg-white/10 transition-colors">
-          {icon}
-        </div>
-      )}
-      <div className="text-center md:text-left">
-        <div className="text-lg md:text-2xl font-bold text-white font-mono tracking-tight group-hover:text-glow-gold transition-all">{value}</div>
-        <div className="text-[9px] md:text-[10px] text-muted-foreground uppercase tracking-wider font-bold">{label}</div>
-      </div>
     </div>
   );
 }

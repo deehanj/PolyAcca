@@ -64,7 +64,7 @@ export function HorizontalMarketList({
 
       <div
         ref={scrollContainerRef}
-        className="flex gap-4 overflow-x-auto pt-2 pb-4 snap-x snap-mandatory scrollbar-hide -mx-2 px-2"
+        className="flex gap-4 overflow-x-auto pt-2 pb-4 snap-x snap-mandatory scrollbar-hide"
         style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
       >
         {isLoading
@@ -75,10 +75,12 @@ export function HorizontalMarketList({
               />
             ))
           : markets.map((market) => (
-              <div key={market.id} className="snap-start">
+              <div key={market.id} className="snap-start shrink-0">
                 <MiniMarketCard market={market} onBetClick={onBetClick} />
               </div>
             ))}
+        {/* Spacer to ensure last card doesn't touch the edge */}
+        <div className="shrink-0 w-1" aria-hidden="true" />
       </div>
     </div>
   );
