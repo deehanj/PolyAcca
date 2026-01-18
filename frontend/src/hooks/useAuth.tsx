@@ -170,9 +170,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [address, isConnected, authState.token, signMessageAsync, disconnect]);
 
-  // Auto-authenticate when wallet connects (if no token)
+  // Auto-authenticate when wallet connects (if no token and none in localStorage)
   useEffect(() => {
     if (isConnected && address && !authState.token && !authState.isAuthenticating) {
+      // Check if we have a valid token in localStorage first (race condition prevention)
+      const savedToken = localStorage.getItem('polyacca_token');
+      const savedAddress = localStorage.getItem('polyacca_address');
+      if (savedToken && savedAddress?.toLowerCase() === address.toLowerCase() && !isTokenExpired(savedToken)) {
+        // Token exists and is valid - let the restore effect handle it
+        return;
+      }
       authenticate();
     }
   }, [isConnected, address, authState.token, authState.isAuthenticating, authenticate]);
