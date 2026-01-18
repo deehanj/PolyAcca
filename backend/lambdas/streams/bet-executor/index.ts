@@ -110,9 +110,16 @@ function classifyError(error: unknown): BetStatus {
     return 'NO_CREDENTIALS';
   }
 
-  // Liquidity issues
+  // Turnkey wallet errors (signing failures, wallet not found)
+  if (message.includes('turnkey') || message.includes('could not find any resource to sign') ||
+      message.includes('failed to sign') || message.includes('addresses are case sensitive')) {
+    return 'NO_CREDENTIALS';
+  }
+
+  // Liquidity/balance issues
   if (message.includes('liquidity') || message.includes('insufficient') ||
-      message.includes('not enough')) {
+      message.includes('not enough') || message.includes('balance') ||
+      message.includes('funds')) {
     return 'INSUFFICIENT_LIQUIDITY';
   }
 
