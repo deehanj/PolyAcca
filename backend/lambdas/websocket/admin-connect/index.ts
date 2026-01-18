@@ -26,7 +26,7 @@ const WEBSOCKET_ENDPOINT = requireEnvVar('WEBSOCKET_ENDPOINT');
 
 interface AdminChainData {
   chainId: string;
-  name: string;
+  name?: string; // Optional - set via PUT /chains/{id} customization
   description?: string;
   chain: string[];
   totalValue: number;

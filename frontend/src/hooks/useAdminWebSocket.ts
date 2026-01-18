@@ -3,7 +3,7 @@
  * Receives initial state and real-time updates for the dashboard
  */
 
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useAuth } from './useAuth';
 import { useUserProfile } from './useUserProfile';
 import { useWebSocket } from './useWebSocket';
@@ -312,8 +312,7 @@ export function useAdminWebSocket() {
   const { isAdmin } = useUserProfile();
   const [chains, setChains] = useState<AdminChainData[]>([]);
   const [markets, setMarkets] = useState<AdminMarketData[]>([]);
-  const [error, setError] = useState<string | null>(null);
-
+  
   const wsUrl = useMemo(() => {
     if (!ADMIN_WS_URL || !token || !isAdmin) return '';
     return `${ADMIN_WS_URL}?token=${encodeURIComponent(token)}`;
@@ -347,14 +346,10 @@ export function useAdminWebSocket() {
     enabled: isAuthenticated && isAdmin && !!wsUrl,
   });
 
-  // Set error when not connected after being connected
-  useEffect(() => {
-    if (!isConnected && isAuthenticated && isAdmin && wsUrl) {
-      setError('Disconnected from admin WebSocket');
-    } else {
-      setError(null);
-    }
-  }, [isConnected, isAuthenticated, isAdmin, wsUrl]);
+  // Derive error state from connection status
+  const error = (!isConnected && isAuthenticated && isAdmin && wsUrl)
+    ? 'Disconnected from admin WebSocket'
+    : null;
 
   return {
     isConnected,

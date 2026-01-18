@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useAccount, useBalance } from "wagmi";
 
 export function RingCounter() {
@@ -7,7 +7,7 @@ export function RingCounter() {
     address: address,
   });
   const [shouldPulse, setShouldPulse] = useState(false);
-  const [prevBalance, setPrevBalance] = useState<string | null>(null);
+  const prevBalanceRef = useRef<string | null>(null);
 
   // Format balance for display
   const formattedBalance = balance
@@ -16,13 +16,17 @@ export function RingCounter() {
 
   // Trigger pulse animation when balance changes
   useEffect(() => {
+    const prevBalance = prevBalanceRef.current;
+    prevBalanceRef.current = formattedBalance;
+
     if (prevBalance !== null && prevBalance !== formattedBalance) {
+      // Intentional: trigger animation on value change
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setShouldPulse(true);
       const timeout = setTimeout(() => setShouldPulse(false), 300);
       return () => clearTimeout(timeout);
     }
-    setPrevBalance(formattedBalance);
-  }, [formattedBalance, prevBalance]);
+  }, [formattedBalance]);
 
   return (
     <div

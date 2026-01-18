@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Dialog, DialogTitle, DialogDescription } from "./ui/Dialog";
 import { Button } from "./ui/Button";
 import { Input } from "./ui/Input";
@@ -6,12 +6,13 @@ import { useAuth } from "../hooks/useAuth";
 import { Share2, Copy, Check, Upload, X, Loader2, ExternalLink } from "lucide-react";
 
 const API_URL = import.meta.env.VITE_API_URL || "";
+const CHAIN_IMAGES_DOMAIN = import.meta.env.VITE_CHAIN_IMAGES_DOMAIN || "";
 
 interface ChainData {
   chainId: string;
   name?: string;
   description?: string;
-  imageUrl?: string;
+  imageKey?: string; // S3 key - we construct the full CloudFront URL
   chain: string[];
   totalValue: number;
   status: string;
@@ -40,23 +41,8 @@ export function AccaModal({ chainId, isOpen, onClose }: AccaModalProps) {
   // Share state
   const [copied, setCopied] = useState(false);
 
-  // Fetch chain data when modal opens
-  useEffect(() => {
-    if (isOpen && chainId) {
-      fetchChainData();
-    } else {
-      // Reset state when modal closes
-      setMode("loading");
-      setChainData(null);
-      setError(null);
-      setName("");
-      setDescription("");
-      setImageFile(null);
-      setImagePreview("");
-    }
-  }, [isOpen, chainId]);
-
-  const fetchChainData = async () => {
+  // Fetch chain data function
+  const fetchChainData = useCallback(async () => {
     if (!chainId) return;
 
     setMode("loading");
@@ -87,7 +73,23 @@ export function AccaModal({ chainId, isOpen, onClose }: AccaModalProps) {
       setError(err instanceof Error ? err.message : "Failed to load chain");
       setMode("customize");
     }
-  };
+  }, [chainId, getAuthHeaders]);
+
+  // Fetch chain data when modal opens
+  useEffect(() => {
+    if (isOpen && chainId) {
+      fetchChainData();
+    } else {
+      // Reset state when modal closes
+      setMode("loading");
+      setChainData(null);
+      setError(null);
+      setName("");
+      setDescription("");
+      setImageFile(null);
+      setImagePreview("");
+    }
+  }, [isOpen, chainId, fetchChainData]);
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -343,9 +345,9 @@ export function AccaModal({ chainId, isOpen, onClose }: AccaModalProps) {
 
           {/* Chain Preview */}
           <div className="bg-black/20 rounded-lg p-4 mb-4 border border-white/10">
-            {chainData.imageUrl && (
+            {chainData.imageKey && CHAIN_IMAGES_DOMAIN && (
               <img
-                src={chainData.imageUrl}
+                src={`https://${CHAIN_IMAGES_DOMAIN}/${chainData.imageKey}`}
                 alt={chainData.name}
                 className="w-full h-32 object-cover rounded-lg mb-3"
               />

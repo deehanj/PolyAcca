@@ -404,7 +404,7 @@ export async function upsertChain(
             entityType = if_not_exists(entityType, :entityType),
             #name = if_not_exists(#name, :name),
             description = if_not_exists(description, :description),
-            imageUrl = if_not_exists(imageUrl, :imageUrl),
+            imageKey = if_not_exists(imageKey, :imageKey),
             chain = if_not_exists(chain, :chain),
             legs = if_not_exists(legs, :legs),
             #status = if_not_exists(#status, :status),
@@ -417,7 +417,7 @@ export async function upsertChain(
         ':entityType': 'CHAIN',
         ':name': chain.name,
         ':description': chain.description ?? null,
-        ':imageUrl': chain.imageUrl ?? null,
+        ':imageKey': chain.imageKey ?? null,
         ':chain': chain.chain,
         ':legs': chain.legs,
         ':status': chain.status,
@@ -457,7 +457,7 @@ export async function createUserChainPosition(
               entityType = if_not_exists(entityType, :entityType),
               #name = if_not_exists(#name, :name),
               description = if_not_exists(description, :description),
-              imageUrl = if_not_exists(imageUrl, :imageUrl),
+              imageKey = if_not_exists(imageKey, :imageKey),
               chain = if_not_exists(chain, :chain),
               legs = if_not_exists(legs, :legs),
               #status = if_not_exists(#status, :status),
@@ -470,7 +470,7 @@ export async function createUserChainPosition(
           ':entityType': 'CHAIN',
           ':name': chain.name,
           ':description': chain.description ?? null,
-          ':imageUrl': chain.imageUrl ?? null,
+          ':imageKey': chain.imageKey ?? null,
           ':chain': chain.chain,
           ':legs': chain.legs,
           ':status': chain.status,
@@ -532,13 +532,13 @@ export async function decrementChainTotalValue(
 }
 
 /**
- * Update chain customization (name, description, imageUrl)
+ * Update chain customization (name, description, imageKey)
  * Only succeeds if name is not already set (first-come-first-served)
  * Throws ConditionalCheckFailedException if chain already has a name
  */
 export async function updateChainCustomization(
   chainId: string,
-  updates: { name?: string; description?: string; imageUrl?: string }
+  updates: { name?: string; description?: string; imageKey?: string }
 ): Promise<void> {
   const { PK, SK } = keys.chain(chainId);
   const now = new Date().toISOString();
@@ -558,9 +558,9 @@ export async function updateChainCustomization(
     expressionValues[':description'] = updates.description;
   }
 
-  if (updates.imageUrl !== undefined) {
-    expressionParts.push('imageUrl = :imageUrl');
-    expressionValues[':imageUrl'] = updates.imageUrl;
+  if (updates.imageKey !== undefined) {
+    expressionParts.push('imageKey = :imageKey');
+    expressionValues[':imageKey'] = updates.imageKey;
   }
 
   await docClient.send(

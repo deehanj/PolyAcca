@@ -195,7 +195,7 @@ export async function createUserChain(
     ...chainKeys,
     entityType: 'CHAIN',
     chainId,
-    // name, description, imageUrl are set via PUT /chains/{chainId} after creation
+    // name, description, imageKey are set via PUT /chains/{chainId} after creation
     chain: chainArray,
     legs,
     totalValue: 0, // Will be set by upsert

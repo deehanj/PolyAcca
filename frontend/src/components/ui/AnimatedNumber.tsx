@@ -21,9 +21,11 @@ export function AnimatedNumber({
   const startTimeRef = useRef<number | null>(null);
   const startValueRef = useRef(value);
   const targetValueRef = useRef(value);
+  const currentValueRef = useRef(value); // Track current value for animation start
 
   useEffect(() => {
-    startValueRef.current = displayValue;
+    // Use ref to get current display value without adding it to dependencies
+    startValueRef.current = currentValueRef.current;
     targetValueRef.current = value;
     startTimeRef.current = null;
 
@@ -41,6 +43,7 @@ export function AnimatedNumber({
         startValueRef.current +
         (targetValueRef.current - startValueRef.current) * ease;
 
+      currentValueRef.current = nextValue;
       setDisplayValue(nextValue);
 
       if (percentage < 1) {

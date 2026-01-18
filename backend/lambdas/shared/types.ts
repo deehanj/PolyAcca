@@ -102,7 +102,7 @@ export interface ChainEntity extends BaseEntity {
   chainId: string; // Hash of chain: sha256(cond1:side1|cond2:side2|...)
   name?: string; // Human-readable chain name (set via PUT /chains/{id})
   description?: string; // Optional description
-  imageUrl?: string; // Optional image URL for chain display
+  imageKey?: string; // S3 key for chain image (frontend prepends CloudFront domain)
   chain: string[]; // Simple format for debugging: ["conditionId:YES", "conditionId:NO"]
   legs: ChainLeg[]; // Full leg details
   totalValue: number; // Aggregate of all user stakes (USDC)
@@ -344,7 +344,7 @@ export interface ChainSummary {
   chainId: string;
   name?: string;
   description?: string;
-  imageUrl?: string;
+  imageKey?: string; // S3 key - frontend prepends CloudFront domain
   chain: string[]; // Array of "conditionId:side" pairs
   totalValue: number; // Aggregate of all user stakes (USDC)
   status: ChainStatus;

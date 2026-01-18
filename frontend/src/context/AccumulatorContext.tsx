@@ -144,6 +144,7 @@ export function AccumulatorProvider({ children }: { children: ReactNode }) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- Context pattern: Provider + hook must be co-located
 export function useAccumulator() {
   const context = useContext(AccumulatorContext);
   if (!context) {

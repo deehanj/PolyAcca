@@ -15,9 +15,8 @@ import type { UpdateChainRequest } from '../../shared/types';
 import { errorResponse, successResponse, toChainSummary } from './utils';
 import { optionalEnvVar } from '../../utils/envVars';
 
-// Environment variables (optional - image upload requires these)
+// Environment variables (optional - image upload requires this)
 const CHAIN_IMAGES_BUCKET = optionalEnvVar('CHAIN_IMAGES_BUCKET');
-const AWS_REGION = process.env.AWS_REGION || 'us-east-1';
 
 // Lazy-initialized clients
 let s3Client: S3Client | null = null;
@@ -25,14 +24,14 @@ let rekognitionClient: RekognitionClient | null = null;
 
 function getS3Client(): S3Client {
   if (!s3Client) {
-    s3Client = new S3Client({ region: AWS_REGION });
+    s3Client = new S3Client({});
   }
   return s3Client;
 }
 
 function getRekognitionClient(): RekognitionClient {
   if (!rekognitionClient) {
-    rekognitionClient = new RekognitionClient({ region: AWS_REGION });
+    rekognitionClient = new RekognitionClient({});
   }
   return rekognitionClient;
 }
@@ -82,7 +81,8 @@ async function moderateImage(imageBytes: Buffer): Promise<{ safe: boolean; label
 }
 
 /**
- * Upload image to S3 and return public URL
+ * Upload image to S3 and return the S3 key
+ * Frontend constructs the full CloudFront URL using its own env var
  */
 async function uploadImageToS3(
   imageBytes: Buffer,
@@ -106,7 +106,8 @@ async function uploadImageToS3(
     })
   );
 
-  return `https://${CHAIN_IMAGES_BUCKET}.s3.${AWS_REGION}.amazonaws.com/${key}`;
+  // Return the S3 key - frontend will prepend CloudFront domain
+  return key;
 }
 
 /**
@@ -203,9 +204,9 @@ export async function updateChain(
   }
 
   // Upload to S3
-  let imageUrl: string;
+  let imageKey: string;
   try {
-    imageUrl = await uploadImageToS3(imageBytes, request.imageContentType, chainId);
+    imageKey = await uploadImageToS3(imageBytes, request.imageContentType, chainId);
   } catch (error) {
     console.error('S3 upload error:', error);
     return errorResponse(500, 'Failed to upload image');
@@ -216,7 +217,7 @@ export async function updateChain(
     await updateChainCustomization(chainId, {
       name: request.name?.trim(),
       description: request.description?.trim(),
-      imageUrl,
+      imageKey,
     });
   } catch (error) {
     if ((error as Error).name === 'ConditionalCheckFailedException') {

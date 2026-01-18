@@ -4,6 +4,8 @@ import * as nodejs from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as apigateway from 'aws-cdk-lib/aws-apigateway';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as s3 from 'aws-cdk-lib/aws-s3';
+import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
+import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as cdk from 'aws-cdk-lib/core';
 import * as path from 'path';
@@ -39,6 +41,7 @@ export class ApiConstruct extends Construct {
   public readonly marketsFunction: nodejs.NodejsFunction;
   public readonly walletFunction: nodejs.NodejsFunction;
   public readonly chainImagesBucket: s3.Bucket;
+  public readonly chainImagesDistribution: cloudfront.Distribution;
 
   constructor(scope: Construct, id: string, props: ApiConstructProps) {
     super(scope, id);
@@ -71,31 +74,22 @@ export class ApiConstruct extends Construct {
       handler: 'handler',
     });
 
-    // S3 bucket for chain images (used by chains Lambda)
+    // S3 bucket for chain images (private, served via CloudFront)
     this.chainImagesBucket = new s3.Bucket(this, 'ChainImagesBucket', {
-      blockPublicAccess: new s3.BlockPublicAccess({
-        blockPublicAcls: false,
-        ignorePublicAcls: false,
-        blockPublicPolicy: false,
-        restrictPublicBuckets: false,
-      }),
-      cors: [
-        {
-          allowedHeaders: ['*'],
-          allowedMethods: [s3.HttpMethods.GET],
-          allowedOrigins: ['*'],
-          maxAge: 3000,
-        },
-      ],
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 
-    // Make bucket publicly readable for serving images
-    this.chainImagesBucket.addToResourcePolicy(new iam.PolicyStatement({
-      actions: ['s3:GetObject'],
-      resources: [`${this.chainImagesBucket.bucketArn}/*`],
-      principals: [new iam.AnyPrincipal()],
-    }));
+    // CloudFront distribution for serving chain images
+    this.chainImagesDistribution = new cloudfront.Distribution(this, 'ChainImagesDistribution', {
+      defaultBehavior: {
+        origin: origins.S3BucketOrigin.withOriginAccessControl(this.chainImagesBucket),
+        viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+        cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
+        allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,
+      },
+      priceClass: cloudfront.PriceClass.PRICE_CLASS_100, // US, Canada, Europe
+    });
 
     // Chains Lambda - chain management
     this.chainsFunction = new nodejs.NodejsFunction(this, 'ChainsFunction', {
@@ -245,6 +239,11 @@ export class ApiConstruct extends Construct {
     new cdk.CfnOutput(this, 'ApiUrl', {
       value: this.api.url,
       description: 'API Gateway URL',
+    });
+
+    new cdk.CfnOutput(this, 'ChainImagesDomain', {
+      value: this.chainImagesDistribution.distributionDomainName,
+      description: 'CloudFront domain for chain images',
     });
   }
 }

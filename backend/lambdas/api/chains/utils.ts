@@ -24,7 +24,7 @@ export function toChainSummary(entity: ChainEntity): ChainSummary {
     chainId: entity.chainId,
     name: entity.name,
     description: entity.description,
-    imageUrl: entity.imageUrl,
+    imageKey: entity.imageKey,
     chain: entity.chain,
     totalValue: entity.totalValue,
     status: entity.status,
