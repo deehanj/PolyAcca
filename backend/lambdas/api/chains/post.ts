@@ -166,23 +166,6 @@ export async function createUserChain(
     return errorResponse(statusCode, message);
   }
 
-  // Validate chain name (required for new chains)
-  if (!request.name || request.name.trim().length === 0) {
-    return errorResponse(400, 'Chain name is required');
-  }
-
-  if (request.name.length > 200) {
-    return errorResponse(400, 'Chain name must be 200 characters or less');
-  }
-
-  if (request.description && request.description.length > 2000) {
-    return errorResponse(400, 'Chain description must be 2000 characters or less');
-  }
-
-  if (request.imageUrl && request.imageUrl.length > 500) {
-    return errorResponse(400, 'Image URL must be 500 characters or less');
-  }
-
   const now = new Date().toISOString();
 
   // Generate deterministic chain ID from chain definition
@@ -212,9 +195,7 @@ export async function createUserChain(
     ...chainKeys,
     entityType: 'CHAIN',
     chainId,
-    name: request.name.trim(),
-    description: request.description?.trim(),
-    imageUrl: request.imageUrl?.trim(),
+    // name, description, imageUrl are set via PUT /chains/{chainId} after creation
     chain: chainArray,
     legs,
     totalValue: 0, // Will be set by upsert

@@ -11,6 +11,7 @@ import { Badge } from "./ui/Badge";
 import { AnimatedNumber } from "./ui/AnimatedNumber";
 import { triggerConfetti, triggerMoneyRain } from "../lib/confetti";
 import { Zap, Trash2, Trophy, ChevronDown, X } from "lucide-react";
+import { AccaModal } from "./AccaModal";
 
 const API_URL = import.meta.env.VITE_API_URL || "";
 
@@ -27,6 +28,9 @@ export const AccumulatorSidebar = forwardRef<HTMLDivElement>(
     const [submitError, setSubmitError] = useState<string | null>(null);
     const [isMobileOpen, setIsMobileOpen] = useState(false);
     const prevOddsRef = useRef<number>(1);
+
+    // Modal state for post-placement customization
+    const [modalChainId, setModalChainId] = useState<string | null>(null);
 
   const stakeNum = parseFloat(stake) || 0;
   const payout = potentialPayout(stakeNum);
@@ -111,11 +115,6 @@ export const AccumulatorSidebar = forwardRef<HTMLDivElement>(
     setIsSubmitting(true);
 
     try {
-      // Generate chain name from first market question
-      const chainName = bets.length === 1
-        ? bets[0].market.question.slice(0, 100)
-        : `${bets.length}-leg accumulator`;
-
       const response = await fetch(`${API_URL}/chains`, {
         method: "POST",
         headers: {
@@ -125,7 +124,6 @@ export const AccumulatorSidebar = forwardRef<HTMLDivElement>(
         body: JSON.stringify({
           legs: getLegsForApi(),
           initialStake: stakeAmount.toFixed(2),
-          name: chainName,
         }),
       });
 
@@ -135,15 +133,23 @@ export const AccumulatorSidebar = forwardRef<HTMLDivElement>(
         throw new Error(data.error || "Failed to place bet");
       }
 
-      // Success - clear bets and show success
+      // Success - clear bets and show celebration
       triggerConfetti();
       if (parseFloat(stake) >= 100) {
         setTimeout(triggerMoneyRain, 500); // Double celebration for big bets
       }
+
+      // Get chainId from response and open modal
+      const chainId = data.data?.chainDefinition?.chainId || data.data?.chainId;
       clearBets();
       setStake("10");
       setIsMobileOpen(false);
-      // TODO: Show success toast/notification
+
+      // Open the customization/share modal
+      if (chainId) {
+        setModalChainId(chainId);
+      }
+
       console.log("Chain created successfully:", data.data);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Failed to place bet";
@@ -268,7 +274,7 @@ export const AccumulatorSidebar = forwardRef<HTMLDivElement>(
 
       {/* Footer - Stake & Payout */}
       {bets.length > 0 && (
-        <div className="p-6 border-t border-border bg-[var(--background-alt)]">
+        <div className="p-6 border-t border-border bg-[var(--background-alt)] overflow-y-auto">
           {/* Combined Odds */}
           <div className="flex items-center justify-between mb-4 bg-white/5 p-3 rounded-lg border border-white/5">
             <span className="text-xs text-muted-foreground uppercase tracking-wider font-bold">Total Odds</span>
@@ -368,7 +374,7 @@ export const AccumulatorSidebar = forwardRef<HTMLDivElement>(
       <aside
         ref={ref}
         className={`
-          hidden md:flex fixed right-0 top-[65px] bottom-0 w-80 bg-background/80 backdrop-blur-xl border-l border-border
+          hidden md:flex fixed right-0 top-0 bottom-0 w-80 bg-background/80 backdrop-blur-xl border-l border-border
           flex-col z-40 transition-all duration-300 overflow-hidden
           ${isDragOver ? "border-l-2 border-l-[var(--color-gold)] shadow-glow" : ""}
         `}
@@ -380,7 +386,7 @@ export const AccumulatorSidebar = forwardRef<HTMLDivElement>(
       </aside>
 
       {/* Mobile Drawer */}
-      <div 
+      <div
         className={`
           fixed inset-0 z-50 md:hidden transition-transform duration-300 ease-in-out bg-background flex flex-col
           ${isMobileOpen ? "translate-y-0" : "translate-y-full"}
@@ -388,6 +394,13 @@ export const AccumulatorSidebar = forwardRef<HTMLDivElement>(
       >
         <SidebarContent />
       </div>
+
+      {/* Customization/Share Modal */}
+      <AccaModal
+        chainId={modalChainId}
+        isOpen={!!modalChainId}
+        onClose={() => setModalChainId(null)}
+      />
     </>
   );
   }

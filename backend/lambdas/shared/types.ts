@@ -100,7 +100,7 @@ export interface ChainLeg {
 export interface ChainEntity extends BaseEntity {
   entityType: 'CHAIN';
   chainId: string; // Hash of chain: sha256(cond1:side1|cond2:side2|...)
-  name: string; // Human-readable chain name
+  name?: string; // Human-readable chain name (set via PUT /chains/{id})
   description?: string; // Optional description
   imageUrl?: string; // Optional image URL for chain display
   chain: string[]; // Simple format for debugging: ["conditionId:YES", "conditionId:NO"]
@@ -327,15 +327,22 @@ export interface CreateLegInput {
 export interface CreatePositionRequest {
   legs: CreateLegInput[];
   initialStake: string;
-  // Chain metadata (used when creating a new chain)
-  name?: string; // Required if chain doesn't exist
+}
+
+/**
+ * Request to customize a chain (name, description, image)
+ * Only allowed if chain doesn't already have these set (first-come-first-served)
+ */
+export interface UpdateChainRequest {
+  name?: string;
   description?: string;
-  imageUrl?: string;
+  imageData?: string; // Base64-encoded image
+  imageContentType?: string; // e.g., "image/jpeg", "image/png"
 }
 
 export interface ChainSummary {
   chainId: string;
-  name: string;
+  name?: string;
   description?: string;
   imageUrl?: string;
   chain: string[]; // Array of "conditionId:side" pairs

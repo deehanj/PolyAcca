@@ -531,6 +531,57 @@ export async function decrementChainTotalValue(
   );
 }
 
+/**
+ * Update chain customization (name, description, imageUrl)
+ * Only succeeds if name is not already set (first-come-first-served)
+ * Throws ConditionalCheckFailedException if chain already has a name
+ */
+export async function updateChainCustomization(
+  chainId: string,
+  updates: { name?: string; description?: string; imageUrl?: string }
+): Promise<void> {
+  const { PK, SK } = keys.chain(chainId);
+  const now = new Date().toISOString();
+
+  const expressionParts: string[] = ['updatedAt = :now'];
+  const expressionValues: Record<string, unknown> = { ':now': now };
+  const expressionNames: Record<string, string> = {};
+
+  if (updates.name !== undefined) {
+    expressionParts.push('#name = :name');
+    expressionValues[':name'] = updates.name;
+    expressionNames['#name'] = 'name';
+  }
+
+  if (updates.description !== undefined) {
+    expressionParts.push('description = :description');
+    expressionValues[':description'] = updates.description;
+  }
+
+  if (updates.imageUrl !== undefined) {
+    expressionParts.push('imageUrl = :imageUrl');
+    expressionValues[':imageUrl'] = updates.imageUrl;
+  }
+
+  await docClient.send(
+    new UpdateCommand({
+      TableName: MONOTABLE_NAME,
+      Key: { PK, SK },
+      UpdateExpression: `SET ${expressionParts.join(', ')}`,
+      // Only allow if name is not already set (attribute_not_exists or is null)
+      ConditionExpression: 'attribute_not_exists(#name) OR #name = :null',
+      ExpressionAttributeValues: {
+        ...expressionValues,
+        ':null': null,
+      },
+      ExpressionAttributeNames: {
+        ...expressionNames,
+        '#name': 'name',
+      },
+    })
+  );
+}
+
 // =============================================================================
 // UserChain Operations (user's stake on a chain)
 // =============================================================================

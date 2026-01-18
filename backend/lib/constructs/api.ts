@@ -3,6 +3,7 @@ import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as nodejs from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as apigateway from 'aws-cdk-lib/aws-apigateway';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
+import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as cdk from 'aws-cdk-lib/core';
 import * as path from 'path';
@@ -37,6 +38,7 @@ export class ApiConstruct extends Construct {
   public readonly chainsFunction: nodejs.NodejsFunction;
   public readonly marketsFunction: nodejs.NodejsFunction;
   public readonly walletFunction: nodejs.NodejsFunction;
+  public readonly chainImagesBucket: s3.Bucket;
 
   constructor(scope: Construct, id: string, props: ApiConstructProps) {
     super(scope, id);
@@ -69,11 +71,43 @@ export class ApiConstruct extends Construct {
       handler: 'handler',
     });
 
+    // S3 bucket for chain images (used by chains Lambda)
+    this.chainImagesBucket = new s3.Bucket(this, 'ChainImagesBucket', {
+      blockPublicAccess: new s3.BlockPublicAccess({
+        blockPublicAcls: false,
+        ignorePublicAcls: false,
+        blockPublicPolicy: false,
+        restrictPublicBuckets: false,
+      }),
+      cors: [
+        {
+          allowedHeaders: ['*'],
+          allowedMethods: [s3.HttpMethods.GET],
+          allowedOrigins: ['*'],
+          maxAge: 3000,
+        },
+      ],
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+    });
+
+    // Make bucket publicly readable for serving images
+    this.chainImagesBucket.addToResourcePolicy(new iam.PolicyStatement({
+      actions: ['s3:GetObject'],
+      resources: [`${this.chainImagesBucket.bucketArn}/*`],
+      principals: [new iam.AnyPrincipal()],
+    }));
+
     // Chains Lambda - chain management
     this.chainsFunction = new nodejs.NodejsFunction(this, 'ChainsFunction', {
       ...lambdaConfig,
       entry: path.join(__dirname, '../../lambdas/api/chains/index.ts'),
       handler: 'handler',
+      timeout: cdk.Duration.seconds(30), // Allow time for Rekognition + S3 upload
+      environment: {
+        MONOTABLE_NAME: table.tableName,
+        CHAIN_IMAGES_BUCKET: this.chainImagesBucket.bucketName,
+        NODE_OPTIONS: '--enable-source-maps',
+      },
     });
 
     // Markets Lambda - public market listing (no auth required)
@@ -103,6 +137,13 @@ export class ApiConstruct extends Construct {
     table.grantReadWriteData(this.usersFunction);
     table.grantReadWriteData(this.chainsFunction);
     table.grantReadWriteData(this.walletFunction);
+
+    // Grant chains function S3 and Rekognition permissions (for image upload)
+    this.chainImagesBucket.grantPut(this.chainsFunction);
+    this.chainsFunction.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['rekognition:DetectModerationLabels'],
+      resources: ['*'],
+    }));
 
     // Grant wallet function access to Turnkey secret
     this.walletFunction.addToRolePolicy(new iam.PolicyStatement({
@@ -182,6 +223,7 @@ export class ApiConstruct extends Construct {
     chainsResource.addMethod('GET', new apigateway.LambdaIntegration(this.chainsFunction), protectedMethodOptions);
     chainsResource.addMethod('POST', new apigateway.LambdaIntegration(this.chainsFunction), protectedMethodOptions);
     chainIdResource.addMethod('GET', new apigateway.LambdaIntegration(this.chainsFunction), protectedMethodOptions);
+    chainIdResource.addMethod('PUT', new apigateway.LambdaIntegration(this.chainsFunction), protectedMethodOptions);
     chainIdResource.addMethod('DELETE', new apigateway.LambdaIntegration(this.chainsFunction), protectedMethodOptions);
     chainUsersResource.addMethod('GET', new apigateway.LambdaIntegration(this.chainsFunction), protectedMethodOptions);
 

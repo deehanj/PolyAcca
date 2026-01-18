@@ -5,6 +5,7 @@
  * - GET /chains - List user's chains
  * - POST /chains - Create user chain
  * - GET /chains/{id} - Get user chain details
+ * - PUT /chains/{id} - Update chain customization (name, description, image)
  * - GET /chains/{id}/users - Get all users on a chain
  * - DELETE /chains/{id} - Cancel user chain
  */
@@ -14,6 +15,7 @@ import type { ApiResponse } from '../../shared/types';
 import { HEADERS, getWalletAddress, errorResponse } from './utils';
 import { listUserChains, getUserChainById, getChainUsers } from './get';
 import { createUserChain } from './post';
+import { updateChain } from './put';
 import { cancelUserChain } from './delete';
 
 export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
@@ -38,6 +40,8 @@ export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayPr
       switch (method) {
         case 'GET':
           return getUserChainById(walletAddress, chainId);
+        case 'PUT':
+          return updateChain(chainId, event.body);
         case 'DELETE':
           return cancelUserChain(walletAddress, chainId);
         default:
