@@ -509,6 +509,46 @@ export async function createUserChainPosition(
 }
 
 /**
+ * Delete a user's chain position (user chain + all bets)
+ * Used when retrying a failed chain
+ */
+export async function deleteUserChainPosition(
+  chainId: string,
+  walletAddress: string,
+  totalLegs: number
+): Promise<void> {
+  const userChainKeys = keys.userChain(chainId, walletAddress);
+
+  // Build delete items for user chain and all bets
+  const deleteItems = [
+    {
+      Delete: {
+        TableName: MONOTABLE_NAME,
+        Key: { PK: userChainKeys.PK, SK: userChainKeys.SK },
+      },
+    },
+  ];
+
+  // Delete all bet entities for this user chain
+  for (let sequence = 1; sequence <= totalLegs; sequence++) {
+    const betKeys = keys.bet(chainId, walletAddress, sequence);
+    deleteItems.push({
+      Delete: {
+        TableName: MONOTABLE_NAME,
+        Key: { PK: betKeys.PK, SK: betKeys.SK },
+      },
+    });
+  }
+
+  // DynamoDB transactions support max 100 items, should be fine for <= 10 legs + 1 user chain
+  await docClient.send(
+    new TransactWriteCommand({
+      TransactItems: deleteItems,
+    })
+  );
+}
+
+/**
  * Decrement chain totalValue (used when user cancels their position)
  */
 export async function decrementChainTotalValue(

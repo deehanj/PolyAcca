@@ -10,6 +10,7 @@ import {
   getUserChain,
   upsertMarket,
   createUserChainPosition,
+  deleteUserChainPosition,
   keys,
   gsiKeys,
 } from '../../shared/dynamo-client';
@@ -174,7 +175,14 @@ export async function createUserChain(
   // Check if user already has a position on this chain
   const existingUserChain = await getUserChain(chainId, walletAddress);
   if (existingUserChain) {
-    return errorResponse(400, 'You already have a position on this chain');
+    // Allow retry if previous attempt failed or was cancelled
+    const terminalFailedStatuses = ['FAILED', 'CANCELLED'];
+    if (!terminalFailedStatuses.includes(existingUserChain.status)) {
+      return errorResponse(400, 'You already have an active position on this chain');
+    }
+    // Delete the old failed position so we can create a new one
+    const totalLegs = validatedLegs.length;
+    await deleteUserChainPosition(chainId, walletAddress, totalLegs);
   }
 
   // Build chain definition
