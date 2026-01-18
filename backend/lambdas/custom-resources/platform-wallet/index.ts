@@ -7,12 +7,12 @@
  * On CREATE: Creates "PolyAcca-Platform" wallet, returns address
  * On UPDATE: Returns existing wallet address (no changes)
  * On DELETE: No-op (wallet persists in Turnkey)
+ *
+ * Note: When using CDK's cr.Provider, the handler should return data directly
+ * rather than sending the response manually - the Provider framework handles that.
  */
 
-import type {
-  CloudFormationCustomResourceEvent,
-  CloudFormationCustomResourceResponse,
-} from 'aws-lambda';
+import type { CdkCustomResourceEvent, CdkCustomResourceResponse } from 'aws-lambda';
 import { TurnkeyClient } from '@turnkey/http';
 import { ApiKeyStamper } from '@turnkey/api-key-stamper';
 import {
@@ -127,74 +127,42 @@ async function createPlatformWallet(client: TurnkeyClient): Promise<string> {
 }
 
 /**
- * Send response to CloudFormation
+ * Custom resource handler for CDK cr.Provider
+ *
+ * Returns data directly - the Provider framework handles the CloudFormation response.
  */
-async function sendResponse(
-  event: CloudFormationCustomResourceEvent,
-  status: 'SUCCESS' | 'FAILED',
-  data: Record<string, string>,
-  reason?: string
-): Promise<void> {
-  const responseBody: CloudFormationCustomResourceResponse = {
-    Status: status,
-    Reason: reason || '',
-    PhysicalResourceId: data.WalletAddress || event.LogicalResourceId,
-    StackId: event.StackId,
-    RequestId: event.RequestId,
-    LogicalResourceId: event.LogicalResourceId,
-    Data: data,
-  };
-
-  const response = await fetch(event.ResponseURL, {
-    method: 'PUT',
-    body: JSON.stringify(responseBody),
-    headers: {
-      'Content-Type': '',
-      'Content-Length': String(JSON.stringify(responseBody).length),
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to send response: ${response.statusText}`);
-  }
-}
-
 export async function handler(
-  event: CloudFormationCustomResourceEvent
-): Promise<void> {
+  event: CdkCustomResourceEvent
+): Promise<CdkCustomResourceResponse> {
   console.log('Platform wallet custom resource event:', JSON.stringify(event));
 
-  try {
-    const client = await getTurnkeyClient();
+  const client = await getTurnkeyClient();
 
-    if (event.RequestType === 'Delete') {
-      // Don't delete the wallet - it persists in Turnkey
-      await sendResponse(event, 'SUCCESS', {
+  if (event.RequestType === 'Delete') {
+    // Don't delete the wallet - it persists in Turnkey
+    // Return the existing physical resource ID
+    return {
+      PhysicalResourceId: event.PhysicalResourceId,
+      Data: {
         WalletAddress: event.PhysicalResourceId,
-      });
-      return;
-    }
-
-    // For Create and Update, check if wallet exists
-    let walletAddress = await findExistingPlatformWallet(client);
-
-    if (!walletAddress) {
-      // Create new wallet
-      walletAddress = await createPlatformWallet(client);
-    } else {
-      console.log('Platform wallet already exists:', walletAddress);
-    }
-
-    await sendResponse(event, 'SUCCESS', {
-      WalletAddress: walletAddress,
-    });
-  } catch (error) {
-    console.error('Platform wallet custom resource error:', error);
-    await sendResponse(
-      event,
-      'FAILED',
-      {},
-      error instanceof Error ? error.message : 'Unknown error'
-    );
+      },
+    };
   }
+
+  // For Create and Update, check if wallet exists
+  let walletAddress = await findExistingPlatformWallet(client);
+
+  if (!walletAddress) {
+    // Create new wallet
+    walletAddress = await createPlatformWallet(client);
+  } else {
+    console.log('Platform wallet already exists:', walletAddress);
+  }
+
+  return {
+    PhysicalResourceId: walletAddress,
+    Data: {
+      WalletAddress: walletAddress,
+    },
+  };
 }
