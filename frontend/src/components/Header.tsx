@@ -66,9 +66,9 @@ export function Header() {
             <RingCounter />
             <Button
               variant="ghost"
-              size="icon"
+              size="sm"
               onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="text-muted-foreground hover:text-foreground"
+              className="text-muted-foreground hover:text-foreground p-2"
             >
               {isMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
             </Button>
