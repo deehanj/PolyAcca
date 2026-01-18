@@ -2,13 +2,17 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Shield, Menu, X, Layers } from "lucide-react";
 import { AuthButton } from "./AuthButton";
-import { RingCounter } from "./RingCounter";
 import { TradingBalance } from "./TradingBalance";
 import { useUserProfile } from "../hooks/useUserProfile";
 import { useAuth } from "../hooks/useAuth";
 import { Button } from "./ui/Button";
 import logoImage from "../assets/coins_cropped.png";
 import { ThemeToggle } from "./ThemeToggle";
+
+// Show Design link only on localhost or cloudfront domains
+const isDevEnvironment =
+  window.location.hostname === "localhost" ||
+  window.location.hostname.includes("cloudfront");
 
 export function Header() {
   const { isAdmin } = useUserProfile();
@@ -38,8 +42,6 @@ export function Header() {
 
           {/* Desktop Actions */}
           <div className="hidden md:flex items-center gap-6">
-            <RingCounter />
-            
             <nav className="flex items-center gap-6">
               {isAuthenticated && (
                 <Link
@@ -50,12 +52,14 @@ export function Header() {
                   My Accas
                 </Link>
               )}
-              <Link
-                to="/design"
-                className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-              >
-                Design
-              </Link>
+              {isDevEnvironment && (
+                <Link
+                  to="/design"
+                  className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Design
+                </Link>
+              )}
               {isAdmin && (
                 <Link
                   to="/admin"
@@ -76,7 +80,6 @@ export function Header() {
 
           {/* Mobile Menu Button */}
           <div className="flex md:hidden items-center gap-4">
-            <RingCounter />
             <ThemeToggle />
             <Button
               variant="ghost"
@@ -104,13 +107,15 @@ export function Header() {
                 My Accumulators
               </Link>
             )}
-            <Link
-              to="/design"
-              onClick={() => setIsMenuOpen(false)}
-              className="text-lg font-medium text-foreground py-2 border-b border-white/5"
-            >
-              Design System
-            </Link>
+            {isDevEnvironment && (
+              <Link
+                to="/design"
+                onClick={() => setIsMenuOpen(false)}
+                className="text-lg font-medium text-foreground py-2 border-b border-white/5"
+              >
+                Design System
+              </Link>
+            )}
             {isAdmin && (
               <Link
                 to="/admin"

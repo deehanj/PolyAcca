@@ -22,8 +22,8 @@ export function StatsTicker() {
   const items = [...tickerItems, ...tickerItems, ...tickerItems];
 
   return (
-    <div className="w-full max-w-[1800px] ml-auto mr-0 px-4 md:pl-6 md:pr-8 py-2">
-      <div className="relative w-full overflow-hidden bg-muted/50 border-y border-border">
+    <div className="w-full">
+      <div className="relative w-full overflow-hidden bg-muted/50 border-b border-border">
         {/* Gradient masks for smooth fade effect */}
         <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-muted/80 to-transparent z-10 pointer-events-none" />
         <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-muted/80 to-transparent z-10 pointer-events-none" />

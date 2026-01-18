@@ -107,6 +107,9 @@ export interface ChainEntity extends BaseEntity {
   legs: ChainLeg[]; // Full leg details
   totalValue: number; // Aggregate of all user stakes (USDC)
   status: ChainStatus; // Based on market resolutions
+  // Denormalized fields for display (computed at creation)
+  categories?: string[]; // Unique categories from underlying markets
+  firstMarketEndDate?: string; // Earliest end date among all legs (ISO string)
 }
 
 export type ChainStatus =
@@ -349,6 +352,12 @@ export interface ChainSummary {
   totalValue: number; // Aggregate of all user stakes (USDC)
   status: ChainStatus;
   createdAt: string;
+  // Extended fields for trending display
+  categories?: string[]; // Unique categories from underlying markets
+  firstMarketEndDate?: string; // Earliest end date (for "time to resolution")
+  participantCount?: number; // Number of users who've staked on this chain
+  completedLegs?: number; // Number of legs that have resolved (chain-wide)
+  totalLegs?: number; // Total number of legs in the chain
 }
 
 export interface UserChainSummary {

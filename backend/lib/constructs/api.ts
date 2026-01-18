@@ -211,9 +211,14 @@ export class ApiConstruct extends Construct {
 
     // Chains endpoints
     const chainsResource = this.api.root.addResource('chains');
+    const chainsTrendingResource = chainsResource.addResource('trending');
     const chainIdResource = chainsResource.addResource('{chainId}');
     const chainUsersResource = chainIdResource.addResource('users');
 
+    // Public: GET /chains/trending (no auth required)
+    chainsTrendingResource.addMethod('GET', new apigateway.LambdaIntegration(this.chainsFunction));
+
+    // Protected chains endpoints
     chainsResource.addMethod('GET', new apigateway.LambdaIntegration(this.chainsFunction), protectedMethodOptions);
     chainsResource.addMethod('POST', new apigateway.LambdaIntegration(this.chainsFunction), protectedMethodOptions);
     chainIdResource.addMethod('GET', new apigateway.LambdaIntegration(this.chainsFunction), protectedMethodOptions);

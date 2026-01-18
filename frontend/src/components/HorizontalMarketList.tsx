@@ -100,6 +100,14 @@ function MiniMarketCard({
   const inAccumulator = isInAccumulator(market.id);
   const currentSelection = getSelection(market.id);
 
+  const handleDragStart = (e: React.DragEvent, selection: "yes" | "no") => {
+    e.dataTransfer.setData(
+      "application/json",
+      JSON.stringify({ market, selection })
+    );
+    e.dataTransfer.effectAllowed = "copy";
+  };
+
   const handleYesClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     onBetClick?.(e.currentTarget, "yes");
     addBet(market, "yes");
@@ -148,8 +156,10 @@ function MiniMarketCard({
       {/* Action Buttons */}
       <div className="grid grid-cols-2 gap-2">
         <button
+          draggable
+          onDragStart={(e) => handleDragStart(e, "yes")}
           onClick={handleYesClick}
-          className={`flex flex-col items-center justify-center py-1.5 rounded-lg border transition-all active:scale-95 ${
+          className={`flex flex-col items-center justify-center py-1.5 rounded-lg border transition-all active:scale-95 cursor-grab active:cursor-grabbing ${
             currentSelection === "yes"
               ? "border-[var(--color-success)] bg-[var(--color-success)]/20 shadow-glow-success"
               : "border-[var(--color-success)]/30 bg-[var(--color-success)]/10 hover:bg-[var(--color-success)]/20"
@@ -163,8 +173,10 @@ function MiniMarketCard({
           </span>
         </button>
         <button
+          draggable
+          onDragStart={(e) => handleDragStart(e, "no")}
           onClick={handleNoClick}
-          className={`flex flex-col items-center justify-center py-1.5 rounded-lg border transition-all active:scale-95 ${
+          className={`flex flex-col items-center justify-center py-1.5 rounded-lg border transition-all active:scale-95 cursor-grab active:cursor-grabbing ${
             currentSelection === "no"
               ? "border-destructive bg-destructive/20 shadow-glow-destructive"
               : "border-destructive/30 bg-destructive/10 hover:bg-destructive/20"

@@ -2,6 +2,7 @@
  * GET handlers for chains
  *
  * - GET /chains - List user's chains
+ * - GET /chains/trending - List trending chains (public)
  * - GET /chains/{id} - Get user chain details
  * - GET /chains/{id}/users - Get all users on a chain
  */
@@ -12,11 +13,13 @@ import {
   getUserChain,
   getChain,
   getChainUsers as getChainUsersFromDb,
+  getAllChains,
 } from '../../shared/dynamo-client';
-import type { UserChainSummary, UserChainDetail } from '../../shared/types';
+import type { UserChainSummary, UserChainDetail, ChainSummary, ChainEntity } from '../../shared/types';
 import {
   toUserChainSummary,
   toChainSummary,
+  toTrendingChainSummary,
   successResponse,
   errorResponse,
   getUserChainDetail,
@@ -91,4 +94,39 @@ export async function getChainUsers(
     chain: toChainSummary(chain),
     users: summaries,
   });
+}
+
+/**
+ * GET /chains/trending - List trending chains (public, no auth required)
+ * Returns chains sorted by totalValue (most popular first)
+ * Includes extended data: participant count, completed legs, categories
+ */
+export async function listTrendingChains(
+  limit: number = 10
+): Promise<APIGatewayProxyResult> {
+  const chains = await getAllChains();
+
+  // Filter to only chains with names (customized) and sort by totalValue descending
+  const trendingChains = chains
+    .filter((chain) => chain.name) // Only show customized chains
+    .sort((a, b) => (b.totalValue || 0) - (a.totalValue || 0))
+    .slice(0, limit);
+
+  // Fetch participant counts and compute completed legs for each chain
+  const summaries: ChainSummary[] = await Promise.all(
+    trendingChains.map(async (chain: ChainEntity) => {
+      const userChains = await getChainUsersFromDb(chain.chainId);
+      const participantCount = userChains.length;
+
+      // Calculate completed legs (max completed across all participants)
+      // This represents chain-wide progress
+      const completedLegs = userChains.length > 0
+        ? Math.max(...userChains.map((uc) => uc.completedLegs || 0))
+        : 0;
+
+      return toTrendingChainSummary(chain, participantCount, completedLegs);
+    })
+  );
+
+  return successResponse<ChainSummary[]>(summaries);
 }

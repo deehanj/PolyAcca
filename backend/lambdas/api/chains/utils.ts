@@ -17,7 +17,7 @@ import { getChain, getChainBets } from '../../shared/dynamo-client';
 export { HEADERS, getWalletAddress, errorResponse, successResponse } from '../../shared/api-utils';
 
 /**
- * Convert ChainEntity to ChainSummary
+ * Convert ChainEntity to ChainSummary (basic version)
  */
 export function toChainSummary(entity: ChainEntity): ChainSummary {
   return {
@@ -29,6 +29,25 @@ export function toChainSummary(entity: ChainEntity): ChainSummary {
     totalValue: entity.totalValue,
     status: entity.status,
     createdAt: entity.createdAt,
+    // Include denormalized fields if available
+    categories: entity.categories,
+    firstMarketEndDate: entity.firstMarketEndDate,
+    totalLegs: entity.legs?.length ?? entity.chain.length,
+  };
+}
+
+/**
+ * Convert ChainEntity to ChainSummary with extended data for trending
+ */
+export function toTrendingChainSummary(
+  entity: ChainEntity,
+  participantCount: number,
+  completedLegs: number
+): ChainSummary {
+  return {
+    ...toChainSummary(entity),
+    participantCount,
+    completedLegs,
   };
 }
 

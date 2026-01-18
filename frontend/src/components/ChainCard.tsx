@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Badge } from "./ui/Badge";
-import { ChevronDown, ChevronUp, Trophy, XCircle, Clock, AlertCircle, Loader2 } from "lucide-react";
+import { ChevronDown, ChevronUp, Trophy, XCircle, Clock, AlertCircle, Loader2, Share2 } from "lucide-react";
 import type { UserChainSummary, UserChainDetail } from "../types/chain";
 import { useChainDetail } from "../hooks/useChains";
+import { SharePnLCard } from "./SharePnLCard";
 
 interface ChainCardProps {
   chain: UserChainSummary;
@@ -43,8 +44,9 @@ const statusConfig = {
 
 export function ChainCard({ chain }: ChainCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isShareOpen, setIsShareOpen] = useState(false);
   const { chain: chainDetail, isLoading: isLoadingDetail } = useChainDetail(
-    isExpanded ? chain.chainId : undefined
+    isExpanded || isShareOpen ? chain.chainId : undefined
   );
 
   const status = statusConfig[chain.status] || statusConfig.PENDING;
@@ -140,13 +142,22 @@ export function ChainCard({ chain }: ChainCardProps) {
           <span className="text-[10px] uppercase text-muted-foreground font-mono tracking-wide">
             {createdDate}
           </span>
-          <button
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-[var(--color-gold)] transition-colors"
-          >
-            {isExpanded ? 'Hide' : 'View'} Details
-            {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setIsShareOpen(true)}
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-[var(--color-gold)] transition-colors"
+            >
+              <Share2 className="w-4 h-4" />
+              Share
+            </button>
+            <button
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-[var(--color-gold)] transition-colors"
+            >
+              {isExpanded ? 'Hide' : 'View'} Details
+              {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -166,6 +177,14 @@ export function ChainCard({ chain }: ChainCardProps) {
           )}
         </div>
       )}
+
+      {/* Share PnL Modal */}
+      <SharePnLCard
+        chain={chain}
+        chainName={chainDetail?.chainDefinition?.name || displayName}
+        isOpen={isShareOpen}
+        onClose={() => setIsShareOpen(false)}
+      />
     </div>
   );
 }

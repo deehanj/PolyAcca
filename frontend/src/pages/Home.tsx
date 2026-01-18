@@ -9,6 +9,7 @@ import { useMarkets } from "@/hooks/useMarkets";
 import { useRingAnimation } from "@/hooks/useRingAnimation";
 import type { Market as ApiMarket } from "@/types/market";
 import { StatsTicker } from "@/components/StatsTicker";
+import { TrendingAccas } from "@/components/TrendingAccas";
 import { TypewriterText } from "@/components/ui/TypewriterText";
 
 const categories = [
@@ -109,21 +110,26 @@ export function HomePage() {
 
       <Header />
 
+      {/* Stats Ticker - Below the header */}
+      <StatsTicker />
+
       <main className="pb-32 md:pb-20">
-        {/* Horizontal Scrolling Section - Immediate Markets */}
-        <section className="pt-8 pb-4 md:pt-12 md:pb-6">
+        {/* Trending Accas Section */}
+        <section className="pt-8 pb-2 md:pt-10 md:pb-4">
+          <TrendingAccas />
+        </section>
+
+        {/* Trending Markets Section */}
+        <section className="pb-4 md:pb-6">
           <div className="w-full max-w-[1800px] ml-auto mr-0 px-4 md:pl-6 md:pr-8">
             <HorizontalMarketList
-              title="TRENDING NOW"
+              title="TRENDING MARKETS"
               markets={transformedTrendingMarkets}
               onBetClick={handleBetClick}
               isLoading={isTrendingLoading}
             />
           </div>
         </section>
-
-        {/* Stats Ticker - Stock Market Style */}
-        <StatsTicker />
 
         {/* Main Markets Grid Section */}
         <section className="py-6 md:py-10">

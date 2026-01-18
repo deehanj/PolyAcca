@@ -13,22 +13,29 @@
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import type { ApiResponse } from '../../shared/types';
 import { HEADERS, getWalletAddress, errorResponse } from './utils';
-import { listUserChains, getUserChainById, getChainUsers } from './get';
+import { listUserChains, getUserChainById, getChainUsers, listTrendingChains } from './get';
 import { createUserChain } from './post';
 import { updateChain } from './put';
 import { cancelUserChain } from './delete';
 
 export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
   try {
-    // Get wallet address from authorizer
+    const method = event.httpMethod;
+    const chainId = event.pathParameters?.chainId;
+    const isUsersRoute = event.path.endsWith('/users');
+    const isTrendingRoute = event.path.endsWith('/trending');
+
+    // Public endpoint: GET /chains/trending (no auth required)
+    if (isTrendingRoute && method === 'GET') {
+      const limit = parseInt(event.queryStringParameters?.limit || '10', 10);
+      return listTrendingChains(Math.min(limit, 50)); // Cap at 50
+    }
+
+    // All other routes require authentication
     const walletAddress = getWalletAddress(event);
     if (!walletAddress) {
       return errorResponse(401, 'Unauthorized');
     }
-
-    const method = event.httpMethod;
-    const chainId = event.pathParameters?.chainId;
-    const isUsersRoute = event.path.endsWith('/users');
 
     // Route handling
     if (chainId) {

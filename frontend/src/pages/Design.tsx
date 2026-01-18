@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
-import { Zap, Trophy, Sparkles, Activity } from "lucide-react";
+import { Zap, Trophy, Sparkles, Activity, Flame, Share2, Users, Clock } from "lucide-react";
+import logoImage from "../assets/coins_cropped.png";
 
 export function DesignPage() {
   return (
@@ -406,6 +408,36 @@ export function DesignPage() {
             </div>
           </div>
         </section>
+
+        {/* Accumulator Components Section */}
+        <section>
+          <SectionHeader
+            title="Accumulator Components"
+            description="Specialized components for accumulator display and sharing."
+          />
+
+          <div className="space-y-12">
+            {/* Trending Acca Card */}
+            <div>
+              <h3 className="text-sm font-medium text-muted-foreground mb-6 uppercase tracking-wider">
+                Trending Acca Card
+              </h3>
+              <div className="w-[360px]">
+                <TrendingAccaCardExample />
+              </div>
+            </div>
+
+            {/* PnL Share Card */}
+            <div>
+              <h3 className="text-sm font-medium text-muted-foreground mb-6 uppercase tracking-wider">
+                PnL Share Card
+              </h3>
+              <div className="max-w-md">
+                <PnLShareCardExample />
+              </div>
+            </div>
+          </div>
+        </section>
       </main>
 
       {/* Footer */}
@@ -459,6 +491,193 @@ function ColorSwatch({
         <p className="text-xs text-muted-foreground font-mono uppercase tracking-wide">{value}</p>
         <p className="text-[10px] text-muted-foreground/50 font-mono mt-0.5">{variable}</p>
       </div>
+    </div>
+  );
+}
+
+function TrendingAccaCardExample() {
+  const totalLegs = 5;
+  const completedLegs = 3;
+
+  return (
+    <div className="bg-card/80 hover:bg-card rounded-xl p-3 border border-border hover:border-[var(--color-gold)]/50 transition-all duration-200 hover:-translate-y-0.5 group">
+      <div className="flex gap-3">
+        {/* Square image on left */}
+        <div className="w-16 h-16 rounded-lg overflow-hidden bg-muted/50 shrink-0 flex items-center justify-center">
+          <Flame className="w-6 h-6 text-[var(--color-gold)] opacity-30" />
+        </div>
+
+        {/* Content on right */}
+        <div className="flex-1 min-w-0 flex flex-col">
+          {/* Title row with Players & Value */}
+          <div className="flex items-start gap-2">
+            <h3 className="font-bold text-sm text-foreground truncate group-hover:text-[var(--color-gold)] transition-colors flex-1">
+              Trump 2024 Sweep
+            </h3>
+            <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-1 text-muted-foreground">
+                <Users className="w-3 h-3" />
+                <span className="text-xs font-mono">42</span>
+              </div>
+              <span className="text-xs font-mono text-muted-foreground">$2.4K</span>
+            </div>
+          </div>
+
+          {/* Category tags */}
+          <div className="flex flex-wrap gap-1 mt-1">
+            <Badge
+              variant="outline"
+              size="sm"
+              className="text-[9px] px-1.5 py-0 h-4 border-[var(--color-gold)]/30 text-[var(--color-gold)]"
+            >
+              Politics
+            </Badge>
+            <Badge
+              variant="outline"
+              size="sm"
+              className="text-[9px] px-1.5 py-0 h-4 border-[var(--color-gold)]/30 text-[var(--color-gold)]"
+            >
+              US
+            </Badge>
+          </div>
+
+          {/* Bottom section: Time & Legs on left, Multiplier on right */}
+          <div className="flex items-end justify-between mt-auto">
+            <div className="flex flex-col gap-1">
+              {/* Time remaining */}
+              <div className="flex items-center gap-1 text-muted-foreground">
+                <Clock className="w-3 h-3" />
+                <span className="text-[10px] font-mono">2d 5h</span>
+              </div>
+
+              {/* Leg circles */}
+              <div className="flex items-center gap-0.5">
+                {Array.from({ length: totalLegs }).map((_, i) => (
+                  <div
+                    key={i}
+                    className={`w-2 h-2 rounded-full ${
+                      i < completedLegs
+                        ? "bg-[var(--color-success)]"
+                        : "bg-muted-foreground/30"
+                    }`}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* Multiplier - right aligned */}
+            <span className="text-lg font-mono font-bold text-[var(--color-gold)]">
+              4.5x
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PnLShareCardExample() {
+  const [showShareButtons, setShowShareButtons] = useState(false);
+
+  return (
+    <div className="space-y-4">
+      {/* The PnL Card */}
+      <div className="relative rounded-2xl overflow-hidden bg-gradient-to-br from-[#1a1a2e] to-[#0f0f1a] p-6">
+        {/* Decorative elements */}
+        <div className="absolute top-4 right-4 opacity-20">
+          <div className="w-24 h-24 rounded-full bg-[var(--color-gold)] blur-3xl" />
+        </div>
+        <div className="absolute -bottom-8 -right-8 opacity-10">
+          <div className="w-32 h-32 rounded-full bg-[var(--primary)] blur-3xl" />
+        </div>
+
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6 relative z-10">
+          <div className="flex items-center gap-3">
+            <img src={logoImage} alt="PolyAcca" className="w-10 h-10" />
+            <div>
+              <span className="text-lg font-bold text-white">
+                Crypto Bull Run
+              </span>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[var(--color-success)]/20 text-[var(--color-success)]">
+                  WON
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* PnL Display */}
+        <div className="mb-6 relative z-10">
+          <div className="text-5xl font-bold font-mono text-[var(--color-gold)]">
+            +127.5%
+            <span className="text-2xl ml-2">↑</span>
+          </div>
+        </div>
+
+        {/* Stats Grid */}
+        <div className="grid grid-cols-2 gap-6 relative z-10">
+          <div>
+            <span className="text-xs text-gray-400 uppercase tracking-wide">Stake</span>
+            <div className="text-xl font-mono font-bold text-white mt-1">
+              $50.00
+            </div>
+          </div>
+          <div>
+            <span className="text-xs text-gray-400 uppercase tracking-wide">Payout</span>
+            <div className="text-xl font-mono font-bold text-[var(--color-success)] mt-1">
+              $113.75
+            </div>
+          </div>
+        </div>
+
+        {/* Progress Bar */}
+        <div className="mt-6 relative z-10">
+          <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+            <div
+              className="h-full rounded-full bg-[var(--color-success)]"
+              style={{ width: "100%" }}
+            />
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between mt-6 pt-4 border-t border-white/10 relative z-10">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500">Powered by</span>
+            <span className="text-sm font-bold text-[var(--color-gold)]">POLYACCA.FUN</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Share Button */}
+      <Button
+        onClick={() => setShowShareButtons(!showShareButtons)}
+        className="w-full"
+        variant="outline"
+      >
+        <Share2 className="w-4 h-4 mr-2" />
+        {showShareButtons ? "Hide Share Options" : "Share PnL"}
+      </Button>
+
+      {/* Share Options */}
+      {showShareButtons && (
+        <div className="flex gap-3 animate-fade-in-up">
+          <Button className="flex-1 bg-[#0088cc] hover:bg-[#0088cc]/80 text-white">
+            <svg viewBox="0 0 24 24" className="w-5 h-5 mr-2" fill="currentColor">
+              <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
+            </svg>
+            Telegram
+          </Button>
+          <Button className="flex-1 bg-black hover:bg-black/80 text-white border border-white/20">
+            <svg viewBox="0 0 24 24" className="w-5 h-5 mr-2" fill="currentColor">
+              <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+            </svg>
+            X (Twitter)
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
