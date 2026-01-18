@@ -128,7 +128,22 @@ export async function fetchMarkets(
 
     // Filter out markets that have already ended
     const now = new Date();
+    const beforeFilterCount = markets.length;
     markets = markets.filter((m) => new Date(m.endDate) > now);
+
+    logger.info('Market endDate filter applied', {
+      beforeFilter: beforeFilterCount,
+      afterFilter: markets.length,
+      filtered: beforeFilterCount - markets.length,
+      now: now.toISOString(),
+      sampleEndDates: rawMarkets.slice(0, 5).map((m) => ({
+        id: m.id,
+        question: m.question?.substring(0, 50),
+        endDate: m.endDate,
+        parsed: new Date(m.endDate).toISOString(),
+        isInFuture: new Date(m.endDate) > now,
+      })),
+    });
 
     // Client-side category filter if needed
     if (params.category && params.category.toLowerCase() !== 'all') {
