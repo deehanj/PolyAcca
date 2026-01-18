@@ -45,16 +45,16 @@ export function HorizontalMarketList({
         <div className="flex gap-2">
           <Button
             variant="outline"
-            size="icon"
-            className="h-8 w-8 rounded-full border-[var(--border-accent)] hover:bg-[var(--accent)]/10"
+            size="sm"
+            className="h-8 w-8 p-0 rounded-full border-[var(--border-accent)] hover:bg-[var(--accent)]/10"
             onClick={() => scroll("left")}
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <Button
             variant="outline"
-            size="icon"
-            className="h-8 w-8 rounded-full border-[var(--border-accent)] hover:bg-[var(--accent)]/10"
+            size="sm"
+            className="h-8 w-8 p-0 rounded-full border-[var(--border-accent)] hover:bg-[var(--accent)]/10"
             onClick={() => scroll("right")}
           >
             <ChevronRight className="h-4 w-4" />
