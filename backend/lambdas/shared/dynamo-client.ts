@@ -284,7 +284,8 @@ export async function updateUserEmbeddedWallet(
       `,
       ExpressionAttributeValues: {
         ':turnkeyWalletId': embeddedWallet.turnkeyWalletId,
-        ':embeddedWalletAddress': embeddedWallet.embeddedWalletAddress.toLowerCase(),
+        // IMPORTANT: Do NOT lowercase - Turnkey requires exact checksum case
+        ':embeddedWalletAddress': embeddedWallet.embeddedWalletAddress,
         ':now': now,
       },
     })

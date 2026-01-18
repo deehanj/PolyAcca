@@ -2,13 +2,13 @@ import { useState, useRef } from "react";
 import { Header } from "@/components/Header";
 import { MarketCard, type Market } from "@/components/MarketCard";
 import { AccumulatorSidebar } from "@/components/AccumulatorSidebar";
+import { HorizontalMarketList } from "@/components/HorizontalMarketList";
 import { Button } from "@/components/ui/Button";
-// import { FallingDots } from "@/components/FallingDots";
-import { DotSphere } from "@/components/DotSphere";
 import { RingCollectionEffect } from "@/components/RingCollectionEffect";
 import { useMarkets } from "@/hooks/useMarkets";
 import { useRingAnimation } from "@/hooks/useRingAnimation";
 import type { Market as ApiMarket } from "@/types/market";
+import { Activity, BarChart3, Users } from "lucide-react";
 
 const categories = [
   "All",
@@ -60,12 +60,23 @@ export function HomePage() {
   const sidebarRef = useRef<HTMLDivElement>(null);
   const { animations, triggerAnimation } = useRingAnimation();
 
+  // Fetch main markets list
   const { markets, isLoading, error, isFetching } = useMarkets({
     limit,
     offset,
     active: true,
     category: selectedCategory === "All" ? undefined : selectedCategory,
     order: "volume",
+  });
+
+  // Fetch trending/recent markets for the horizontal list (fetch separately or reuse)
+  // For now we'll reuse the first few markets or fetch a different set if the API supported it
+  // In a real app, you might want a separate query for "trending"
+  const { markets: trendingMarkets, isLoading: isTrendingLoading } = useMarkets({
+    limit: 10,
+    offset: 0,
+    active: true,
+    order: "volume", // or "liquidity" or "created_at" if available
   });
 
   const handleCategoryChange = (category: string) => {
@@ -84,163 +95,176 @@ export function HomePage() {
     }
   };
 
+  const transformedTrendingMarkets = trendingMarkets.map(transformMarketForCard);
+
   return (
-    <div className="min-h-screen pr-80 relative">
-      {/* Matrix-style falling dots background - temporarily disabled */}
-      {/* <div className="fixed inset-0 -z-10">
-        <FallingDots columns={100} dotsPerColumn={30} />
-      </div> */}
+    <div className="min-h-screen md:pr-80 relative bg-[var(--background)] overflow-x-hidden">
+      {/* Dynamic Background Elements */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden -z-10">
+        <div className="absolute top-0 left-0 w-full h-[500px] bg-gradient-to-b from-[var(--sonic-blue)]/5 to-transparent" />
+        <div className="absolute -top-[200px] -right-[200px] w-[600px] h-[600px] bg-[var(--sonic-blue)]/10 rounded-full blur-[100px]" />
+        <div className="absolute top-[20%] left-[10%] w-[300px] h-[300px] bg-[var(--color-purple)]/5 rounded-full blur-[80px]" />
+      </div>
 
       <Header />
 
-      {/* Hero Section - Left aligned with sphere */}
-      <section className="py-20">
-        <div className="max-w-6xl mx-auto px-6">
-          <div className="flex items-center gap-8">
-            {/* Text group */}
-            <div className="flex-1">
-              <div className="mb-12">
-                <h1 className="text-5xl md:text-6xl font-bold mb-4 text-gradient-accent">
-                  Predict the Future
-                </h1>
-                <p className="text-xl text-muted-foreground max-w-xl">
-                  Trade on real-world events. Chain bets together for multiplied returns.
-                </p>
-              </div>
+      <main className="pb-32 md:pb-20">
+        {/* Horizontal Scrolling Section - Immediate Markets */}
+        <section className="pt-6 pb-2 md:pt-8 md:pb-4">
+          <div className="max-w-6xl mx-auto px-4 md:px-6">
+            <HorizontalMarketList
+              title="Trending Now"
+              markets={transformedTrendingMarkets}
+              onBetClick={handleBetClick}
+              isLoading={isTrendingLoading}
+            />
+          </div>
+        </section>
 
-              {/* CTA */}
-              <Button size="lg">Connect Wallet</Button>
-            </div>
-
-            {/* DotSphere */}
-            <div className="w-[400px] h-[400px] flex-shrink-0">
-              <DotSphere
-                pointCount={3000}
-                radius={1.0}
-                pointSize={1.5}
-                rotationSpeed={0.3}
+        {/* Stats Bar - Sleek & Integrated */}
+        <section className="py-4 md:py-6 border-y border-white/5 bg-black/20 backdrop-blur-sm">
+          <div className="max-w-6xl mx-auto px-4 md:px-6">
+            <div className="grid grid-cols-3 gap-2 md:flex md:items-center md:gap-12">
+              <StatBox 
+                icon={<BarChart3 className="w-4 h-4 md:w-5 md:h-5 text-[var(--color-gold)]" />}
+                label="Total Volume" 
+                value="$847M" 
+              />
+              <div className="hidden md:block h-8 w-px bg-white/10" />
+              <StatBox 
+                icon={<Activity className="w-4 h-4 md:w-5 md:h-5 text-[var(--color-success)]" />}
+                label="Active Markets" 
+                value="2,847" 
+              />
+              <div className="hidden md:block h-8 w-px bg-white/10" />
+              <StatBox 
+                icon={<Users className="w-4 h-4 md:w-5 md:h-5 text-[var(--color-cyan)]" />}
+                label="Traders" 
+                value="184K" 
               />
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* Stats Bar - Separate section with background */}
-      <section className="py-6 bg-card border-y border-border">
-        <div className="max-w-6xl mx-auto px-6">
-          <div className="flex items-center gap-12">
-            <StatBox label="Total Volume" value="$847M" />
-            <div className="h-8 w-px bg-border" />
-            <StatBox label="Active Markets" value="2,847" />
-            <div className="h-8 w-px bg-border" />
-            <StatBox label="Traders" value="184K" />
-          </div>
-        </div>
-      </section>
+        {/* Main Markets Grid Section */}
+        <section className="py-6 md:py-10">
+          <div className="max-w-6xl mx-auto px-4 md:px-6">
+            {/* Filter Bar */}
+            <div className="sticky top-[64px] z-30 py-3 md:py-4 bg-[var(--background)]/80 backdrop-blur-xl mb-6 -mx-4 md:-mx-6 px-4 md:px-6 border-b border-white/5">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <h2 className="text-lg md:text-xl font-bold text-foreground flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-[var(--color-success)] animate-pulse" />
+                  Live Markets
+                  {isFetching && !isLoading && (
+                    <span className="ml-2 text-[10px] md:text-xs text-muted-foreground font-mono">
+                      [UPDATING...]
+                    </span>
+                  )}
+                </h2>
+                
+                <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
+                  {categories.map((category) => (
+                    <button
+                      key={category}
+                      onClick={() => handleCategoryChange(category)}
+                      className={`
+                        px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 whitespace-nowrap border
+                        ${selectedCategory === category
+                          ? "bg-[var(--primary)] text-white border-[var(--primary)] shadow-[0_0_15px_rgba(30,144,255,0.4)]"
+                          : "bg-white/5 border-white/5 text-muted-foreground hover:bg-white/10 hover:text-white"
+                        }
+                      `}
+                    >
+                      {category}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
 
-      {/* Markets Section */}
-      <section className="py-12">
-        <div className="max-w-6xl mx-auto px-6">
-          {/* Section Header + Category Filter on same row */}
-          <div className="flex items-center justify-between mb-8">
-            <h2 className="text-xl font-semibold text-foreground">
-              Live Markets
-              {isFetching && !isLoading && (
-                <span className="ml-2 text-sm text-muted-foreground">
-                  Updating...
-                </span>
-              )}
-            </h2>
-            <div className="flex gap-2">
-              {categories.map((category) => (
-                <Button
-                  key={category}
-                  variant={selectedCategory === category ? "primary" : "ghost"}
-                  size="sm"
-                  onClick={() => handleCategoryChange(category)}
-                >
-                  {category}
+            {/* Loading State */}
+            {isLoading && (
+              <div className="flex justify-center py-20">
+                <div className="relative">
+                  <div className="w-12 h-12 md:w-16 md:h-16 border-4 border-[var(--primary)]/30 rounded-full animate-spin" />
+                  <div className="absolute inset-0 w-12 h-12 md:w-16 md:h-16 border-4 border-t-[var(--primary)] rounded-full animate-spin" />
+                </div>
+              </div>
+            )}
+
+            {/* Error State */}
+            {error && (
+              <div className="text-center py-20">
+                <div className="inline-block p-4 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive mb-4 text-sm">
+                  {error}
+                </div>
+                <Button variant="outline" onClick={() => window.location.reload()}>
+                  Try Again
                 </Button>
-              ))}
-            </div>
+              </div>
+            )}
+
+            {/* Markets Grid */}
+            {!isLoading && !error && markets.length > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+                {markets.map((market) => (
+                  <MarketCard
+                    key={market.id}
+                    market={transformMarketForCard(market)}
+                    onBetClick={handleBetClick}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Empty State */}
+            {!isLoading && !error && markets.length === 0 && (
+              <div className="text-center py-20">
+                <div className="text-6xl mb-4 opacity-20 grayscale">👾</div>
+                <h3 className="text-xl font-bold text-muted-foreground mb-2">No Markets Found</h3>
+                <p className="text-muted-foreground/60 text-sm">Try selecting a different category</p>
+              </div>
+            )}
+
+            {/* Load More */}
+            {markets.length >= limit && (
+              <div className="mt-12 text-center">
+                <Button 
+                  variant="outline" 
+                  onClick={handleLoadMore}
+                  className="w-full md:w-auto px-8 py-6 text-sm md:text-lg border-white/10 hover:border-[var(--primary)] hover:text-[var(--primary)] hover:bg-[var(--primary)]/5 transition-all group"
+                >
+                  LOAD MORE MARKETS
+                  <span className="ml-2 group-hover:translate-y-1 transition-transform">↓</span>
+                </Button>
+              </div>
+            )}
           </div>
+        </section>
+      </main>
 
-          {/* Loading State */}
-          {isLoading && (
-            <div className="flex justify-center py-12">
-              <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full" />
-            </div>
-          )}
-
-          {/* Error State */}
-          {error && (
-            <div className="text-center py-12 text-destructive">
-              Failed to load markets: {error}
-            </div>
-          )}
-
-          {/* Markets Grid */}
-          {!isLoading && !error && markets.length > 0 && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-              {markets.map((market) => (
-                <MarketCard
-                  key={market.id}
-                  market={transformMarketForCard(market)}
-                  onBetClick={handleBetClick}
-                />
-              ))}
-            </div>
-          )}
-
-          {/* Empty State */}
-          {!isLoading && !error && markets.length === 0 && (
-            <div className="text-center py-12 text-muted-foreground">
-              No markets found for this category.
-            </div>
-          )}
-
-          {/* Load More - Left aligned */}
-          {markets.length >= limit && (
-            <div className="mt-12">
-              <Button variant="outline" onClick={handleLoadMore}>
-                Load More Markets
-              </Button>
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* Footer - Two column layout */}
-      <footer className="border-t border-border py-6 mt-12">
-        <div className="max-w-6xl mx-auto px-6 flex justify-between items-center">
+      {/* Footer */}
+      <footer className="border-t border-white/5 py-8 mt-12 bg-black/20 mb-20 md:mb-0">
+        <div className="max-w-6xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6 text-center md:text-left">
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-1">
-              <span className="text-lg font-bold text-primary">POLY</span>
-              <span className="text-lg font-bold text-foreground">ACCA</span>
+            <div className="flex items-center gap-1 font-bold text-xl tracking-tighter">
+              <span className="text-[var(--primary)]">POLY</span>
+              <span className="text-white">ACCA</span>
             </div>
-            <span className="text-sm text-muted-foreground">
-              © 2025 PolyAcca
+            <span className="text-xs text-muted-foreground font-mono">
+              © 2025 ALL RIGHTS RESERVED
             </span>
           </div>
-          <div className="flex gap-6">
-            <a
-              href="#"
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Terms
-            </a>
-            <a
-              href="#"
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Privacy
-            </a>
-            <a
-              href="#"
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Discord
-            </a>
+          <div className="flex gap-6 md:gap-8">
+            {["Terms", "Privacy", "Discord"].map((item) => (
+              <a
+                key={item}
+                href="#"
+                className="text-xs font-medium text-muted-foreground hover:text-[var(--color-gold)] transition-colors uppercase tracking-wider"
+              >
+                {item}
+              </a>
+            ))}
           </div>
         </div>
       </footer>
@@ -254,11 +278,18 @@ export function HomePage() {
   );
 }
 
-function StatBox({ label, value }: { label: string; value: string }) {
+function StatBox({ icon, label, value }: { icon?: React.ReactNode; label: string; value: string }) {
   return (
-    <div>
-      <div className="text-2xl font-bold text-primary">{value}</div>
-      <div className="text-sm text-muted-foreground">{label}</div>
+    <div className="flex flex-col md:flex-row items-center gap-2 md:gap-3 group cursor-default p-2 md:p-0">
+      {icon && (
+        <div className="p-1.5 md:p-2 rounded-lg bg-white/5 group-hover:bg-white/10 transition-colors">
+          {icon}
+        </div>
+      )}
+      <div className="text-center md:text-left">
+        <div className="text-lg md:text-2xl font-bold text-white font-mono tracking-tight group-hover:text-glow-gold transition-all">{value}</div>
+        <div className="text-[9px] md:text-[10px] text-muted-foreground uppercase tracking-wider font-bold">{label}</div>
+      </div>
     </div>
   );
 }

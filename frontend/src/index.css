@@ -12,20 +12,19 @@
 @custom-variant dark (&:is(.dark *));
 
 /* ============================================
-   DESIGN SYSTEM TOKENS - Retro-DeFi Fusion
-   Sonic arcade vibes meets modern DeFi sleekness
+   DESIGN SYSTEM TOKENS - Retro-DeFi Fusion 2.0
+   Cleaner, Modern, Responsive
    ============================================ */
 
 @theme inline {
-  /* Border Radius Scale */
-  --radius: 0.5rem;
-  --radius-sm: 0.25rem;
-  --radius-md: 0.5rem;
-  --radius-lg: 0.75rem;
-  --radius-xl: 1rem;
-  --radius-2xl: 1.5rem;
-  --radius-3xl: 2rem;
-  --radius-4xl: 2.5rem;
+  /* Border Radius - Refined for cleaner look */
+  --radius: 0.75rem;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+  --radius-2xl: 2rem;
+  --radius-3xl: 3rem;
 
   /* Color mappings for Tailwind */
   --color-background: var(--background);
@@ -93,124 +92,120 @@
 
 :root {
   /* ========== SONIC PALETTE ========== */
-  /* Core Sonic Colors */
-  --sonic-blue: #1E90FF;              /* Sonic's iconic blue */
-  --sonic-blue-dark: #0066CC;         /* Darker Sonic blue */
-  --sonic-blue-light: #4DA6FF;        /* Lighter Sonic blue */
-  --ring-gold: #FFD700;               /* Golden rings */
-  --ring-gold-bright: #FFEA00;        /* Shiny ring highlight */
-  --ring-gold-dark: #DAA520;          /* Ring shadow */
-  --green-hill: #32CD32;              /* Green Hill Zone grass */
-  --green-hill-dark: #228B22;         /* Darker green */
-  --checkered-orange: #FF8C00;        /* Checkered ground */
-  --checkered-brown: #C46210;         /* Checkered ground dark */
-  --sky-blue: #87CEEB;                /* Background sky */
-  --classic-red: #FF4444;             /* Enemies/danger */
+  --sonic-blue: #1E90FF;
+  --sonic-blue-dark: #0066CC;
+  --sonic-blue-light: #4DA6FF;
+  --ring-gold: #FFD700;
+  --ring-gold-bright: #FFEA00;
+  --ring-gold-dark: #DAA520;
+  --green-hill: #32CD32;
+  --green-hill-dark: #228B22;
+  --checkered-orange: #FF8C00;
+  --checkered-brown: #C46210;
+  --sky-blue: #87CEEB;
+  --classic-red: #FF4444;
 
   /* ========== DEFI ACCENT PALETTE ========== */
-  /* Electric Purple - DeFi special features */
   --electric-purple: #A855F7;
   --electric-purple-light: #C084FC;
   --electric-purple-dark: #9333EA;
-  --electric-purple-muted: rgba(168, 85, 247, 0.2);
+  --electric-purple-muted: rgba(168, 85, 247, 0.1);
 
-  /* Hot Pink - Highlights, notifications */
   --hot-pink: #EC4899;
   --hot-pink-light: #F472B6;
   --hot-pink-dark: #DB2777;
-  --hot-pink-muted: rgba(236, 72, 153, 0.2);
+  --hot-pink-muted: rgba(236, 72, 153, 0.1);
 
-  /* Cyber Cyan - Secondary accent */
   --cyber-cyan: #22D3EE;
   --cyber-cyan-light: #67E8F9;
   --cyber-cyan-dark: #06B6D4;
-  --cyber-cyan-muted: rgba(34, 211, 238, 0.2);
+  --cyber-cyan-muted: rgba(34, 211, 238, 0.1);
 
-  /* ========== BACKGROUNDS ========== */
-  --background: #0D1520;              /* Deep blue-black like night zone */
-  --background-alt: #0A1018;          /* Even darker */
-  --background-elevated: #152238;     /* Elevated with blue tint */
-  --background-hover: #1A2D4A;        /* Hover state */
+  /* ========== BACKGROUNDS - Cleaner, Darker ========== */
+  --background: #09090b;              /* Very dark zinc */
+  --background-alt: #18181b;          /* Slightly lighter */
+  --background-elevated: #27272a;     /* Elevated */
+  --background-hover: #27272a;
 
   /* ========== FOREGROUND / TEXT ========== */
-  --foreground: #FFFFFF;
-  --foreground-muted: #A8C0D8;        /* Blue-tinted muted text */
-  --foreground-subtle: #6B8AAD;       /* Subtle blue-gray */
+  --foreground: #FAFAFA;
+  --foreground-muted: #A1A1AA;
+  --foreground-subtle: #71717A;
 
   /* ========== ACCENT (Sonic Blue) ========== */
-  --accent: #1E90FF;                  /* Sonic Blue */
-  --accent-hover: #4DA6FF;            /* Lighter on hover */
-  --accent-muted: rgba(30, 144, 255, 0.2);
+  --accent: #1E90FF;
+  --accent-hover: #4DA6FF;
+  --accent-muted: rgba(30, 144, 255, 0.1);
   --accent-foreground: #FFFFFF;
 
   /* ========== SEMANTIC MAPPINGS ========== */
-  --card: #152238;                    /* Blue-tinted card */
-  --card-foreground: #FFFFFF;
-  --popover: #152238;
-  --popover-foreground: #FFFFFF;
-  --primary: #1E90FF;                 /* Sonic Blue primary */
+  --card: rgba(24, 24, 27, 0.6);      /* Transparent card background */
+  --card-foreground: #FAFAFA;
+  --popover: #18181b;
+  --popover-foreground: #FAFAFA;
+  --primary: #1E90FF;
   --primary-foreground: #FFFFFF;
-  --secondary: #FFD700;               /* Ring Gold secondary */
-  --secondary-foreground: #0A0A0A;
-  --muted: #1A2D4A;
-  --muted-foreground: #A8C0D8;
+  --secondary: #FFD700;
+  --secondary-foreground: #09090b;
+  --muted: #27272a;
+  --muted-foreground: #A1A1AA;
   --accent-foreground: #FFFFFF;
   --destructive: #FF4444;
 
-  /* ========== BORDERS ========== */
-  --border: #1E3A5F;                  /* Blue-tinted border */
-  --border-hover: #2A4A75;
-  --border-accent: #1E90FF;
-  --input: #1A2D4A;
-  --ring: #1E90FF;
+  /* ========== BORDERS - Subtler ========== */
+  --border: rgba(255, 255, 255, 0.1);
+  --border-hover: rgba(255, 255, 255, 0.2);
+  --border-accent: rgba(30, 144, 255, 0.5);
+  --input: rgba(255, 255, 255, 0.1);
+  --ring: rgba(30, 144, 255, 0.5);
 
-  /* ========== CHART COLORS (Sonic themed) ========== */
-  --chart-1: #1E90FF;                 /* Sonic Blue */
-  --chart-2: #FFD700;                 /* Ring Gold */
-  --chart-3: #32CD32;                 /* Green Hill */
-  --chart-4: #FF8C00;                 /* Checkered Orange */
-  --chart-5: #FF4444;                 /* Classic Red */
+  /* ========== CHART COLORS ========== */
+  --chart-1: #1E90FF;
+  --chart-2: #FFD700;
+  --chart-3: #32CD32;
+  --chart-4: #FF8C00;
+  --chart-5: #FF4444;
 
   /* ========== SIDEBAR ========== */
-  --sidebar: #0A1018;
-  --sidebar-foreground: #FFFFFF;
+  --sidebar: #09090b;
+  --sidebar-foreground: #FAFAFA;
   --sidebar-primary: #1E90FF;
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #152238;
-  --sidebar-accent-foreground: #FFFFFF;
-  --sidebar-border: #1E3A5F;
+  --sidebar-accent: #27272a;
+  --sidebar-accent-foreground: #FAFAFA;
+  --sidebar-border: rgba(255, 255, 255, 0.1);
   --sidebar-ring: #1E90FF;
 
-  /* ========== SHADOWS ========== */
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.5);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.5), 0 2px 4px -2px rgb(0 0 0 / 0.5);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.5), 0 4px 6px -4px rgb(0 0 0 / 0.5);
-  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.5), 0 8px 10px -6px rgb(0 0 0 / 0.5);
+  /* ========== SHADOWS - Smoother ========== */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.3), 0 2px 4px -2px rgb(0 0 0 / 0.3);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.3), 0 4px 6px -4px rgb(0 0 0 / 0.3);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.3), 0 8px 10px -6px rgb(0 0 0 / 0.3);
 
-  /* ========== GLOW EFFECTS (Sonic Blue & Gold) ========== */
-  --glow-sm: 0 0 10px rgb(30 144 255 / 0.3);
-  --glow: 0 0 20px rgb(30 144 255 / 0.4);
-  --glow-lg: 0 0 40px rgb(30 144 255 / 0.5);
-  --glow-gold-sm: 0 0 10px rgb(255 215 0 / 0.3);
-  --glow-gold: 0 0 20px rgb(255 215 0 / 0.4);
-  --glow-gold-lg: 0 0 40px rgb(255 215 0 / 0.5);
+  /* ========== GLOW EFFECTS - More Modern ========== */
+  --glow-sm: 0 0 15px rgba(30, 144, 255, 0.2);
+  --glow: 0 0 30px rgba(30, 144, 255, 0.3);
+  --glow-lg: 0 0 60px rgba(30, 144, 255, 0.4);
+  --glow-gold-sm: 0 0 15px rgba(255, 215, 0, 0.2);
+  --glow-gold: 0 0 30px rgba(255, 215, 0, 0.3);
+  --glow-gold-lg: 0 0 60px rgba(255, 215, 0, 0.4);
 
   /* ========== GLOW EFFECTS (DeFi Accents) ========== */
-  --glow-purple-sm: 0 0 10px rgb(168 85 247 / 0.3);
-  --glow-purple: 0 0 20px rgb(168 85 247 / 0.4);
-  --glow-purple-lg: 0 0 40px rgb(168 85 247 / 0.5);
-  --glow-pink-sm: 0 0 10px rgb(236 72 153 / 0.3);
-  --glow-pink: 0 0 20px rgb(236 72 153 / 0.4);
-  --glow-pink-lg: 0 0 40px rgb(236 72 153 / 0.5);
-  --glow-cyan-sm: 0 0 10px rgb(34 211 238 / 0.3);
-  --glow-cyan: 0 0 20px rgb(34 211 238 / 0.4);
-  --glow-cyan-lg: 0 0 40px rgb(34 211 238 / 0.5);
+  --glow-purple-sm: 0 0 15px rgba(168, 85, 247, 0.2);
+  --glow-purple: 0 0 30px rgba(168, 85, 247, 0.3);
+  --glow-purple-lg: 0 0 60px rgba(168, 85, 247, 0.4);
+  --glow-pink-sm: 0 0 15px rgba(236, 72, 153, 0.2);
+  --glow-pink: 0 0 30px rgba(236, 72, 153, 0.3);
+  --glow-pink-lg: 0 0 60px rgba(236, 72, 153, 0.4);
+  --glow-cyan-sm: 0 0 15px rgba(34, 211, 238, 0.2);
+  --glow-cyan: 0 0 30px rgba(34, 211, 238, 0.3);
+  --glow-cyan-lg: 0 0 60px rgba(34, 211, 238, 0.4);
 
   /* ========== TRANSITIONS ========== */
-  --duration-fast: 100ms;
-  --duration-normal: 200ms;
-  --duration-slow: 300ms;
-  --ease-default: cubic-bezier(0.4, 0, 0.2, 1);
+  --duration-fast: 150ms;
+  --duration-normal: 300ms;
+  --duration-slow: 500ms;
+  --ease-default: cubic-bezier(0.2, 0, 0, 1); /* Apple-style ease */
   --ease-in: cubic-bezier(0.4, 0, 1, 1);
   --ease-out: cubic-bezier(0, 0, 0.2, 1);
   --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
@@ -234,11 +229,12 @@
   body {
     @apply bg-background text-foreground;
     min-height: 100vh;
+    overflow-x: hidden;
   }
 
   /* Selection styling - Sonic Blue */
   ::selection {
-    background: rgba(30, 144, 255, 0.4);
+    background: rgba(30, 144, 255, 0.3);
     color: #FFFFFF;
   }
 
@@ -252,40 +248,48 @@
   html {
     scroll-behavior: smooth;
   }
+
+  /* Custom Scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
+  }
 }
 
 /* ============================================
    UTILITY CLASSES
    ============================================ */
 
-/* Glow effects */
-.glow {
-  box-shadow: var(--glow);
-}
-
-.glow-sm {
-  box-shadow: var(--glow-sm);
-}
-
-.glow-lg {
-  box-shadow: var(--glow-lg);
-}
-
-.text-glow {
-  text-shadow: 0 0 20px rgb(30 144 255 / 0.5);
-}
-
-.text-glow-gold {
-  text-shadow: 0 0 20px rgb(255 215 0 / 0.5);
-}
-
-/* Glass effect - Blue tinted */
+/* Glass effect - Cleaner */
 .glass {
-  backdrop-filter: blur(12px);
-  background: rgba(21, 34, 56, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  background: rgba(24, 24, 27, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-/* Gradient text - Sonic Blue */
+.glass-card {
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  background: rgba(24, 24, 27, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 20px -5px rgba(0, 0, 0, 0.3);
+}
+
+/* Text Gradients - Smoother */
 .text-gradient-accent {
   background: linear-gradient(135deg, #1E90FF, #4DA6FF);
   -webkit-background-clip: text;
@@ -293,23 +297,20 @@
   background-clip: text;
 }
 
-/* Gradient text - Ring Gold */
 .text-gradient-gold {
-  background: linear-gradient(135deg, #FFD700, #FFEA00);
+  background: linear-gradient(135deg, #FFD700, #FDB931);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
-/* Gradient text - Sonic Speed (Blue to Gold) */
 .text-gradient-sonic {
-  background: linear-gradient(135deg, #1E90FF, #4DA6FF, #FFD700);
+  background: linear-gradient(135deg, #1E90FF, #67E8F9);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
-/* Gradient text - DeFi Purple to Pink */
 .text-gradient-defi {
   background: linear-gradient(135deg, #A855F7, #EC4899);
   -webkit-background-clip: text;
@@ -317,15 +318,6 @@
   background-clip: text;
 }
 
-/* Gradient text - Cyber (Blue to Cyan to Purple) */
-.text-gradient-cyber {
-  background: linear-gradient(135deg, #1E90FF, #22D3EE, #A855F7);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-/* Gradient text - Neon (Pink to Cyan) */
 .text-gradient-neon {
   background: linear-gradient(135deg, #EC4899, #22D3EE);
   -webkit-background-clip: text;
@@ -333,15 +325,13 @@
   background-clip: text;
 }
 
-/* Progress bar styles - Sonic themed */
+/* Progress bar styles - Refined */
 .progress-yes {
-  background: linear-gradient(90deg, #32CD32, #FFD700);
-  box-shadow: 0 0 10px rgb(255 215 0 / 0.4);
+  background: linear-gradient(90deg, #32CD32, #4ADE80);
 }
 
 .progress-no {
-  background: linear-gradient(90deg, #FF4444, #FF8C00);
-  box-shadow: 0 0 10px rgb(255 68 68 / 0.4);
+  background: linear-gradient(90deg, #EF4444, #F87171);
 }
 
 /* Card hover effect */
@@ -350,9 +340,9 @@
 }
 
 .card-hover:hover {
-  border-color: var(--border-hover);
-  box-shadow: var(--shadow-md);
+  border-color: rgba(30, 144, 255, 0.3);
   transform: translateY(-2px);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
 }
 
 /* Button base transition */
@@ -360,12 +350,12 @@
   transition: all var(--duration-fast) var(--ease-default);
 }
 
-/* Grid background (subtle Sonic blue) */
+/* Grid background - Subtler */
 .grid-bg {
   background-image:
-    linear-gradient(rgba(30, 144, 255, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(30, 144, 255, 0.05) 1px, transparent 1px);
-  background-size: 50px 50px;
+    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 32px 32px;
   background-position: center center;
 }
 
@@ -373,243 +363,48 @@
    RETRO-DEFI SPECIAL EFFECTS
    ============================================ */
 
-/* Pixel font utility */
 .font-pixel {
   font-family: var(--font-pixel);
+  letter-spacing: 0.05em;
 }
 
-/* Gold glow effects for wins/rewards */
-.glow-gold {
-  box-shadow: var(--glow-gold);
-}
+/* Glow Utilities */
+.glow-gold { box-shadow: var(--glow-gold); }
+.glow-purple { box-shadow: var(--glow-purple); }
+.glow-cyan { box-shadow: var(--glow-cyan); }
 
-.glow-gold-sm {
-  box-shadow: var(--glow-gold-sm);
-}
+/* Text Glows */
+.text-glow { text-shadow: 0 0 20px rgba(30, 144, 255, 0.5); }
+.text-glow-gold { text-shadow: 0 0 20px rgba(255, 215, 0, 0.5); }
 
-.glow-gold-lg {
-  box-shadow: var(--glow-gold-lg);
-}
-
-/* Purple glow effects - DeFi special */
-.glow-purple {
-  box-shadow: var(--glow-purple);
-}
-
-.glow-purple-sm {
-  box-shadow: var(--glow-purple-sm);
-}
-
-.glow-purple-lg {
-  box-shadow: var(--glow-purple-lg);
-}
-
-/* Pink glow effects - Highlights */
-.glow-pink {
-  box-shadow: var(--glow-pink);
-}
-
-.glow-pink-sm {
-  box-shadow: var(--glow-pink-sm);
-}
-
-.glow-pink-lg {
-  box-shadow: var(--glow-pink-lg);
-}
-
-/* Cyan glow effects - Info/secondary */
-.glow-cyan {
-  box-shadow: var(--glow-cyan);
-}
-
-.glow-cyan-sm {
-  box-shadow: var(--glow-cyan-sm);
-}
-
-.glow-cyan-lg {
-  box-shadow: var(--glow-cyan-lg);
-}
-
-/* Text glow variants */
-.text-glow-purple {
-  text-shadow: 0 0 20px rgb(168 85 247 / 0.5);
-}
-
-.text-glow-pink {
-  text-shadow: 0 0 20px rgb(236 72 153 / 0.5);
-}
-
-.text-glow-cyan {
-  text-shadow: 0 0 20px rgb(34 211 238 / 0.5);
-}
-
-/* Ring collect animation shimmer */
+/* Animations - Smoother */
 @keyframes ring-shimmer {
-  0% {
-    box-shadow: 0 0 5px rgb(255 215 0 / 0.3);
-  }
-  50% {
-    box-shadow: 0 0 20px rgb(255 215 0 / 0.6), 0 0 30px rgb(255 234 0 / 0.3);
-  }
-  100% {
-    box-shadow: 0 0 5px rgb(255 215 0 / 0.3);
-  }
+  0% { box-shadow: 0 0 5px rgba(255, 215, 0, 0.2); }
+  50% { box-shadow: 0 0 20px rgba(255, 215, 0, 0.4); }
+  100% { box-shadow: 0 0 5px rgba(255, 215, 0, 0.2); }
 }
 
 .ring-shimmer {
-  animation: ring-shimmer 2s ease-in-out infinite;
+  animation: ring-shimmer 3s ease-in-out infinite;
 }
 
-/* Speed lines effect (for fast actions) */
+/* Speed effect - Cleaned up */
 @keyframes speed-blur {
-  0% {
-    filter: blur(0px);
-    transform: translateX(0);
-  }
-  50% {
-    filter: blur(2px);
-    transform: translateX(-2px);
-  }
-  100% {
-    filter: blur(0px);
-    transform: translateX(0);
-  }
+  0% { transform: skewX(0deg); }
+  50% { transform: skewX(-10deg); }
+  100% { transform: skewX(0deg); }
 }
 
-.speed-effect:hover {
-  animation: speed-blur 0.3s ease-out;
+.speed-effect:active {
+  animation: speed-blur 0.2s cubic-bezier(0.2, 0, 0, 1);
 }
 
-/* Checkered pattern background (Sonic loops) */
-.checkered-bg {
-  background-image:
-    linear-gradient(45deg, var(--checkered-orange) 25%, transparent 25%),
-    linear-gradient(-45deg, var(--checkered-orange) 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, var(--checkered-brown) 75%),
-    linear-gradient(-45deg, transparent 75%, var(--checkered-brown) 75%);
-  background-size: 20px 20px;
-  background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+/* Mobile helpers */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
 }
 
-/* Win celebration glow */
-.win-glow {
-  box-shadow:
-    0 0 20px rgb(255 215 0 / 0.5),
-    0 0 40px rgb(255 215 0 / 0.3),
-    0 0 60px rgb(255 215 0 / 0.1);
-}
-
-/* ============================================
-   SONIC GAMIFICATION ANIMATIONS
-   ============================================ */
-
-/* Ring counter pulse */
-@keyframes ring-count-pulse {
-  0%, 100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.05);
-  }
-}
-
-.ring-pulse {
-  animation: ring-count-pulse 0.3s ease-out;
-}
-
-/* Ring collection animation */
-@keyframes ring-collect {
-  0% {
-    opacity: 0;
-    transform: translate(0, 0) scale(0.5) rotate(0deg);
-  }
-  20% {
-    opacity: 1;
-    transform: translate(
-      calc((var(--end-x) - var(--start-x)) * 0.1),
-      calc((var(--end-y) - var(--start-y)) * 0.1)
-    ) scale(1) rotate(180deg);
-  }
-  80% {
-    opacity: 1;
-    transform: translate(
-      calc((var(--end-x) - var(--start-x)) * 0.9),
-      calc((var(--end-y) - var(--start-y)) * 0.9)
-    ) scale(0.8) rotate(540deg);
-  }
-  100% {
-    opacity: 0;
-    transform: translate(
-      calc(var(--end-x) - var(--start-x)),
-      calc(var(--end-y) - var(--start-y))
-    ) scale(0.3) rotate(720deg);
-  }
-}
-
-.ring-particle {
-  filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.6));
-  pointer-events: none;
-  animation: ring-collect 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* Speed line overlay */
-@keyframes speed-lines {
-  0% {
-    opacity: 0;
-    transform: translateX(-100%);
-  }
-  50% {
-    opacity: 0.6;
-  }
-  100% {
-    opacity: 0;
-    transform: translateX(100%);
-  }
-}
-
-.speed-lines-overlay {
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(30, 144, 255, 0.3) 20%,
-    rgba(30, 144, 255, 0.6) 50%,
-    rgba(30, 144, 255, 0.3) 80%,
-    transparent 100%
-  );
-  animation: speed-lines 0.4s ease-out;
-  pointer-events: none;
-}
-
-/* Multiplier pop animation */
-@keyframes multiplier-pop {
-  0% {
-    transform: scale(1);
-    filter: blur(0px);
-  }
-  30% {
-    transform: scale(1.15);
-    filter: blur(1px);
-  }
-  50% {
-    transform: scale(1.1);
-    filter: blur(0px);
-  }
-  100% {
-    transform: scale(1);
-    filter: blur(0px);
-  }
-}
-
-.multiplier-pop {
-  animation: multiplier-pop 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-}
-
-/* Respect prefers-reduced-motion */
-@media (prefers-reduced-motion: reduce) {
-  .ring-pulse,
-  .ring-particle,
-  .speed-lines-overlay,
-  .multiplier-pop {
-    animation: none !important;
-  }
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }

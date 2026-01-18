@@ -8,6 +8,7 @@ import type { Market } from "./MarketCard";
 import { Button } from "./ui/Button";
 import { Input } from "./ui/Input";
 import { Badge } from "./ui/Badge";
+import { Zap, Trash2, Trophy, ChevronUp, ChevronDown, X } from "lucide-react";
 
 const API_URL = import.meta.env.VITE_API_URL || "";
 
@@ -22,6 +23,7 @@ export const AccumulatorSidebar = forwardRef<HTMLDivElement>(
     const [multiplierPop, setMultiplierPop] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [submitError, setSubmitError] = useState<string | null>(null);
+    const [isMobileOpen, setIsMobileOpen] = useState(false);
     const prevOddsRef = useRef<number>(1);
 
   const stakeNum = parseFloat(stake) || 0;
@@ -72,6 +74,7 @@ export const AccumulatorSidebar = forwardRef<HTMLDivElement>(
         selection: "yes" | "no";
       };
       addBet(market, selection);
+      setIsMobileOpen(true); // Open on drop for mobile
     } catch (err) {
       console.error("Failed to parse drop data", err);
     }
@@ -133,6 +136,7 @@ export const AccumulatorSidebar = forwardRef<HTMLDivElement>(
       // Success - clear bets and show success
       clearBets();
       setStake("10");
+      setIsMobileOpen(false);
       // TODO: Show success toast/notification
       console.log("Chain created successfully:", data.data);
     } catch (err) {
@@ -143,76 +147,112 @@ export const AccumulatorSidebar = forwardRef<HTMLDivElement>(
     }
   };
 
-  return (
-    <aside
-      ref={ref}
-      className={`
-        fixed right-0 top-0 h-full w-80 bg-background border-l border-border
-        flex flex-col z-40 transition-all duration-200 overflow-hidden
-        ${isDragOver ? "border-l-2 border-l-primary shadow-[var(--glow)]" : ""}
-      `}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
-    >
+  const MobileFloatingButton = () => (
+    <div className="fixed bottom-0 left-0 w-full p-4 md:hidden z-50 pointer-events-none">
+      <button
+        onClick={() => setIsMobileOpen(!isMobileOpen)}
+        className={`
+          w-full pointer-events-auto bg-[var(--background-elevated)]/90 backdrop-blur-xl border border-[var(--border)] 
+          shadow-lg rounded-xl p-4 flex items-center justify-between transition-all duration-300
+          ${bets.length > 0 ? "border-[var(--color-gold)]/50 shadow-[0_-5px_20px_rgba(255,215,0,0.1)]" : ""}
+        `}
+      >
+        <div className="flex items-center gap-3">
+          <div className="bg-[var(--color-gold)]/10 p-2 rounded-lg">
+            <Zap className="h-5 w-5 text-[var(--color-gold)]" />
+          </div>
+          <div className="text-left">
+            <div className="font-bold text-sm text-foreground">
+              {bets.length} Selections
+            </div>
+            {bets.length > 0 && (
+              <div className="text-xs font-mono text-[var(--color-gold)]">
+                {totalOdds.toFixed(2)}x Odds
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="bg-[var(--primary)] text-white px-4 py-2 rounded-lg font-bold text-sm">
+          {isMobileOpen ? "Close" : "View Slip"}
+        </div>
+      </button>
+    </div>
+  );
+
+  const SidebarContent = () => (
+    <>
       {/* Speed Lines Overlay */}
       {showSpeedLines && (
         <div className="absolute inset-0 z-50 speed-lines-overlay pointer-events-none" />
       )}
-      {/* Header - matches navbar height (h-16 + 1px gradient + 1px border) */}
-      <div className="h-[66px] px-4 flex items-center justify-between border-b border-border">
-        <div>
-          <h2 className="text-lg font-semibold text-primary">ACCUMULATOR</h2>
-          <p className="text-xs text-muted-foreground">
-            {bets.length} selection{bets.length !== 1 ? "s" : ""}
-          </p>
+      
+      {/* HUD Header */}
+      <div className="h-[66px] px-6 flex items-center justify-between border-b border-border bg-[var(--background-alt)]">
+        <div className="flex items-center gap-3">
+          <Zap className="h-5 w-5 text-[var(--color-gold)]" />
+          <div>
+            <h2 className="text-sm font-bold text-gradient-gold tracking-wide font-pixel">ACCUMULATOR</h2>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-mono">
+              {bets.length} LEG{bets.length !== 1 ? "S" : ""} ACTIVE
+            </p>
+          </div>
         </div>
-        {bets.length > 0 && (
-          <button
-            onClick={clearBets}
-            className="text-xs text-destructive hover:text-destructive/80 transition-colors"
+        <div className="flex items-center gap-2">
+          {bets.length > 0 && (
+            <button
+              onClick={clearBets}
+              className="p-2 hover:bg-white/5 rounded-lg text-muted-foreground hover:text-destructive transition-colors"
+              title="Clear All"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
+          <button 
+            className="md:hidden p-2 hover:bg-white/5 rounded-lg"
+            onClick={() => setIsMobileOpen(false)}
           >
-            Clear All
+            <ChevronDown className="h-5 w-5" />
           </button>
-        )}
+        </div>
       </div>
-      {/* Match navbar's gradient border */}
-      <div className="h-[1px] bg-gradient-to-r from-transparent via-primary/50 to-transparent" />
+      
+      {/* HUD Gradient Line */}
+      <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-[var(--color-gold)]/50 to-transparent" />
 
       {/* Drop Zone / Bets List */}
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
         {bets.length === 0 ? (
           <div
             className={`
               h-full flex flex-col items-center justify-center
-              border-2 border-dashed rounded-lg transition-all
+              border-2 border-dashed rounded-xl transition-all duration-300 min-h-[300px]
               ${
                 isDragOver
-                  ? "border-primary bg-primary/10"
-                  : "border-border"
+                  ? "border-[var(--color-gold)] bg-[var(--color-gold)]/5 scale-[0.98]"
+                  : "border-white/5 bg-white/5"
               }
             `}
           >
             <div className="text-center p-6">
-              <div className="text-4xl mb-4">
+              <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-4 animate-pulse">
                 <span
-                  className={
-                    isDragOver ? "text-primary" : "text-muted-foreground/50"
-                  }
+                  className={`text-4xl ${
+                    isDragOver ? "text-[var(--color-gold)]" : "text-muted-foreground/20"
+                  }`}
                 >
                   +
                 </span>
               </div>
-              <p className="text-sm text-muted-foreground">
-                Drag markets here
+              <p className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+                Build Your Acca
               </p>
-              <p className="text-xs text-muted-foreground/60 mt-2">
-                or click Yes/No buttons to add
+              <p className="text-[10px] text-muted-foreground/50 mt-2 font-mono">
+                DRAG MARKETS HERE
               </p>
             </div>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-3 pb-20 md:pb-0">
             {bets.map((bet) => (
               <BetItem key={bet.market.id} bet={bet} onRemove={removeBet} />
             ))}
@@ -222,12 +262,12 @@ export const AccumulatorSidebar = forwardRef<HTMLDivElement>(
 
       {/* Footer - Stake & Payout */}
       {bets.length > 0 && (
-        <div className="p-4 border-t border-border">
+        <div className="p-6 border-t border-border bg-[var(--background-alt)]">
           {/* Combined Odds */}
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-sm text-muted-foreground">Combined Odds</span>
+          <div className="flex items-center justify-between mb-4 bg-white/5 p-3 rounded-lg border border-white/5">
+            <span className="text-xs text-muted-foreground uppercase tracking-wider font-bold">Total Odds</span>
             <span
-              className={`text-xl font-bold text-primary ${
+              className={`text-2xl font-bold text-[var(--color-gold)] font-mono ${
                 multiplierPop ? "multiplier-pop" : ""
               }`}
             >
@@ -237,18 +277,23 @@ export const AccumulatorSidebar = forwardRef<HTMLDivElement>(
 
           {/* Stake Input */}
           <div className="mb-4">
-            <label className="block text-xs text-muted-foreground mb-2">
-              Stake Amount
-            </label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-primary">
+            <div className="flex justify-between items-center mb-2">
+              <label className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">
+                Stake (USDC)
+              </label>
+              <span className="text-[10px] text-[var(--primary)] cursor-pointer hover:underline">
+                Max
+              </span>
+            </div>
+            <div className="relative group">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-[var(--color-gold)] transition-colors">
                 $
               </span>
               <Input
                 type="number"
                 value={stake}
                 onChange={(e) => setStake(e.target.value)}
-                className="pl-7 text-right text-lg font-semibold"
+                className="pl-7 text-right text-lg font-bold font-mono bg-black/20 border-white/10 focus:border-[var(--color-gold)] transition-colors h-12"
                 min="0"
                 step="1"
               />
@@ -256,54 +301,88 @@ export const AccumulatorSidebar = forwardRef<HTMLDivElement>(
           </div>
 
           {/* Quick Stakes */}
-          <div className="flex gap-2 mb-4">
-            {[10, 25, 50, 100].map((amount) => (
-              <Button
+          <div className="flex gap-2 mb-6">
+            {[10, 50, 100].map((amount) => (
+              <button
                 key={amount}
-                variant="outline"
-                size="sm"
                 onClick={() => setStake(amount.toString())}
-                className="flex-1 text-xs"
+                className="flex-1 py-1.5 text-xs font-mono font-medium rounded border border-white/10 hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] hover:bg-[var(--color-gold)]/10 transition-all"
               >
                 ${amount}
-              </Button>
+              </button>
             ))}
           </div>
 
           {/* Potential Payout */}
-          <div className="bg-primary/10 border border-primary/30 rounded-lg p-4 mb-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">
-                Potential Payout
-              </span>
-              <span className="text-2xl font-bold text-primary text-glow">
+          <div className="relative overflow-hidden bg-gradient-to-br from-[var(--color-gold)]/10 to-transparent border border-[var(--color-gold)]/30 rounded-xl p-5 mb-4 group">
+            <div className="absolute inset-0 bg-[var(--color-gold)]/5 animate-pulse" />
+            
+            <div className="relative z-10">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-[var(--color-gold)] uppercase tracking-wider font-bold flex items-center gap-1">
+                  <Trophy className="w-3 h-3" />
+                  Potential Win
+                </span>
+              </div>
+              <div className="text-4xl font-bold text-[var(--color-gold)] text-glow-gold font-mono tracking-tight my-1">
                 ${payout.toFixed(2)}
-              </span>
-            </div>
-            <div className="text-xs text-[var(--color-success)] mt-1 text-right">
-              +${(payout - stakeNum).toFixed(2)} profit
+              </div>
+              <div className="text-[10px] text-[var(--color-success)] text-right font-mono font-bold">
+                +${(payout - stakeNum).toFixed(2)} PROFIT
+              </div>
             </div>
           </div>
 
           {/* Error Message */}
           {submitError && (
-            <div className="text-sm text-destructive mb-4 p-2 bg-destructive/10 rounded">
-              {submitError}
+            <div className="text-xs text-destructive mb-4 p-3 bg-destructive/10 rounded-lg border border-destructive/20 font-mono flex items-center gap-2">
+               <X className="h-3 w-3" /> {submitError}
             </div>
           )}
 
           {/* Place Bet Button */}
           <Button
-            className="w-full"
+            className="w-full bg-[var(--color-gold)] text-black hover:bg-[var(--color-gold-bright)] font-bold uppercase tracking-widest py-6 text-lg shadow-[0_0_20px_rgba(255,215,0,0.2)] hover:shadow-[0_0_30px_rgba(255,215,0,0.4)] transition-all active:scale-[0.98]"
             size="lg"
             onClick={handlePlaceBet}
             disabled={isSubmitting}
           >
-            {isSubmitting ? "Placing Bet..." : "Place Accumulator Bet"}
+            {isSubmitting ? "PROCESSING..." : "PLACE BET"}
           </Button>
         </div>
       )}
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      <MobileFloatingButton />
+      
+      {/* Desktop Sidebar */}
+      <aside
+        ref={ref}
+        className={`
+          hidden md:flex fixed right-0 top-[65px] bottom-0 w-80 bg-background/80 backdrop-blur-xl border-l border-border
+          flex-col z-40 transition-all duration-300 overflow-hidden
+          ${isDragOver ? "border-l-2 border-l-[var(--color-gold)] shadow-[var(--glow)]" : ""}
+        `}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
+        <SidebarContent />
+      </aside>
+
+      {/* Mobile Drawer */}
+      <div 
+        className={`
+          fixed inset-0 z-50 md:hidden transition-transform duration-300 ease-in-out bg-background flex flex-col
+          ${isMobileOpen ? "translate-y-0" : "translate-y-full"}
+        `}
+      >
+        <SidebarContent />
+      </div>
+    </>
   );
   }
 );
@@ -318,26 +397,32 @@ function BetItem({
   const isYes = bet.selection === "yes";
 
   return (
-    <div className="bg-card border border-border rounded-lg p-3 relative group">
+    <div className="glass-card rounded-lg p-3 relative group border-l-2 hover:border-l-[var(--color-gold)] transition-all">
       {/* Remove Button */}
       <button
         onClick={() => onRemove(bet.market.id)}
-        className="absolute -top-2 -right-2 w-5 h-5 bg-destructive text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/80"
+        className="absolute -top-2 -right-2 w-6 h-6 bg-destructive text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:bg-destructive/80 hover:scale-110 shadow-lg z-10"
       >
-        ×
+        <Trash2 className="w-3 h-3" />
       </button>
 
       {/* Market Question */}
-      <p className="text-sm text-foreground mb-2 pr-4 line-clamp-2">
+      <p className="text-xs font-medium text-foreground mb-3 pr-4 line-clamp-2 leading-relaxed">
         {bet.market.question}
       </p>
 
       {/* Selection & Odds */}
-      <div className="flex items-center justify-between">
-        <Badge variant={isYes ? "success" : "error"} size="sm">
-          {bet.selection.toUpperCase()}
+      <div className="flex items-center justify-between bg-black/20 p-2 rounded">
+        <Badge 
+          variant="outline" 
+          className={`
+            border-0 text-[10px] uppercase font-bold px-2 py-0.5
+            ${isYes ? "bg-[var(--color-success)]/20 text-[var(--color-success)]" : "bg-[var(--color-error)]/20 text-[var(--color-error)]"}
+          `}
+        >
+          {bet.selection}
         </Badge>
-        <span className="text-sm font-semibold text-primary">
+        <span className="text-sm font-mono font-bold text-[var(--color-gold)]">
           {bet.odds.toFixed(2)}x
         </span>
       </div>

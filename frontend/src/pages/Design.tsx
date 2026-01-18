@@ -9,19 +9,32 @@ import {
 } from "@/components/ui/Card";
 import { Input, Textarea } from "@/components/ui/Input";
 import { Badge } from "@/components/ui/Badge";
+import { Zap, Trophy, Sparkles, Activity } from "lucide-react";
 
 export function DesignPage() {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background relative overflow-hidden">
+      {/* Background Ambience */}
+      <div className="fixed inset-0 pointer-events-none -z-10">
+        <div className="absolute top-0 left-0 w-full h-[500px] bg-gradient-to-b from-[var(--sonic-blue)]/5 to-transparent" />
+        <div className="absolute top-[20%] right-[10%] w-[300px] h-[300px] bg-[var(--color-purple)]/5 rounded-full blur-[80px]" />
+      </div>
+
       {/* Header */}
-      <header className="border-b border-border sticky top-0 bg-background/80 backdrop-blur-sm z-50">
+      <header className="border-b border-border sticky top-0 bg-background/80 backdrop-blur-xl z-50">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-          <h1 className="text-xl font-semibold">
-            <span className="text-primary">PolyAcca</span> Design System
-          </h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold tracking-tight">
+              <span className="text-[var(--primary)]">POLY</span>
+              <span className="text-foreground">ACCA</span>
+            </h1>
+            <Badge variant="outline" className="font-mono text-[10px] uppercase">
+              Design System 2.0
+            </Badge>
+          </div>
           <a
             href="/"
-            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            className="text-xs font-medium text-muted-foreground hover:text-[var(--primary)] transition-colors uppercase tracking-wider"
           >
             Back to App
           </a>
@@ -29,171 +42,114 @@ export function DesignPage() {
       </header>
 
       <main className="max-w-6xl mx-auto px-6 py-12 space-y-20">
+        {/* Intro */}
+        <section className="text-center py-10">
+          <h1 className="text-5xl font-bold mb-6 text-gradient-sonic">
+            Retro-DeFi Fusion
+          </h1>
+          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+            A design language blending 90s arcade nostalgia with modern DeFi sleekness.
+            Featuring Sonic-inspired colors, pixel typography, and glassmorphic interfaces.
+          </p>
+        </section>
+
         {/* Colors Section */}
         <section>
           <SectionHeader
-            title="Colors"
-            description="The color palette forms the foundation of our visual identity."
+            title="Sonic Palette"
+            description="High-energy primary colors inspired by classic gaming zones."
           />
 
           <div className="space-y-8">
-            {/* Backgrounds */}
+            {/* Primary Brand */}
             <div>
-              <h3 className="text-sm font-medium text-muted-foreground mb-4">
-                Backgrounds
+              <h3 className="text-sm font-medium text-muted-foreground mb-4 uppercase tracking-wider">
+                Brand Core
               </h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <ColorSwatch
+                  name="Sonic Blue"
+                  value="#1E90FF"
+                  variable="--sonic-blue"
+                  className="bg-[var(--sonic-blue)]"
+                />
+                <ColorSwatch
+                  name="Ring Gold"
+                  value="#FFD700"
+                  variable="--ring-gold"
+                  className="bg-[var(--ring-gold)]"
+                />
+                <ColorSwatch
+                  name="Ring Gold Bright"
+                  value="#FFEA00"
+                  variable="--ring-gold-bright"
+                  className="bg-[var(--ring-gold-bright)]"
+                />
+                <ColorSwatch
                   name="Background"
-                  value="#1a1a1a"
+                  value="#0D1520"
                   variable="--background"
                   className="bg-[var(--background)]"
                 />
-                <ColorSwatch
-                  name="Background Alt"
-                  value="#141414"
-                  variable="--background-alt"
-                  className="bg-[#141414]"
-                />
-                <ColorSwatch
-                  name="Elevated"
-                  value="#242424"
-                  variable="--background-elevated"
-                  className="bg-[#242424]"
-                />
-                <ColorSwatch
-                  name="Hover"
-                  value="#2a2a2a"
-                  variable="--background-hover"
-                  className="bg-[#2a2a2a]"
-                />
               </div>
             </div>
 
-            {/* Text */}
+            {/* Semantic Zones */}
             <div>
-              <h3 className="text-sm font-medium text-muted-foreground mb-4">
-                Text
-              </h3>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <ColorSwatch
-                  name="Foreground"
-                  value="#fafafa"
-                  variable="--foreground"
-                  className="bg-[var(--foreground)]"
-                  dark
-                />
-                <ColorSwatch
-                  name="Muted"
-                  value="#a1a1a1"
-                  variable="--foreground-muted"
-                  className="bg-[#a1a1a1]"
-                  dark
-                />
-                <ColorSwatch
-                  name="Subtle"
-                  value="#737373"
-                  variable="--foreground-subtle"
-                  className="bg-[#737373]"
-                />
-              </div>
-            </div>
-
-            {/* Accent */}
-            <div>
-              <h3 className="text-sm font-medium text-muted-foreground mb-4">
-                Accent (Cyan)
+              <h3 className="text-sm font-medium text-muted-foreground mb-4 uppercase tracking-wider">
+                Game Zones (Semantic)
               </h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <ColorSwatch
-                  name="Accent"
-                  value="#9de3f1"
-                  variable="--accent"
-                  className="bg-[var(--accent)]"
-                  dark
-                />
-                <ColorSwatch
-                  name="Accent Hover"
-                  value="#b4eaf5"
-                  variable="--accent-hover"
-                  className="bg-[#b4eaf5]"
-                  dark
-                />
-                <ColorSwatch
-                  name="Accent Muted"
-                  value="rgba(157,227,241,0.2)"
-                  variable="--accent-muted"
-                  className="bg-[rgba(157,227,241,0.2)] border border-primary/30"
-                />
-                <ColorSwatch
-                  name="Accent Foreground"
-                  value="#0a0a0a"
-                  variable="--accent-foreground"
-                  className="bg-[#0a0a0a]"
-                />
-              </div>
-            </div>
-
-            {/* Semantic */}
-            <div>
-              <h3 className="text-sm font-medium text-muted-foreground mb-4">
-                Semantic
-              </h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <ColorSwatch
-                  name="Success"
-                  value="#22c55e"
+                  name="Green Hill (Success)"
+                  value="#32CD32"
                   variable="--color-success"
-                  className="bg-[#22c55e]"
-                  dark
+                  className="bg-[var(--color-success)]"
                 />
                 <ColorSwatch
-                  name="Warning"
-                  value="#eab308"
+                  name="Checkered (Warning)"
+                  value="#FF8C00"
                   variable="--color-warning"
-                  className="bg-[#eab308]"
-                  dark
+                  className="bg-[var(--color-warning)]"
                 />
                 <ColorSwatch
-                  name="Error"
-                  value="#ef4444"
+                  name="Classic Red (Error)"
+                  value="#FF4444"
                   variable="--color-error"
-                  className="bg-[#ef4444]"
+                  className="bg-[var(--color-error)]"
                 />
                 <ColorSwatch
-                  name="Info"
-                  value="#9de3f1"
-                  variable="--color-info"
-                  className="bg-[#9de3f1]"
-                  dark
+                  name="Sky Blue (Info)"
+                  value="#87CEEB"
+                  variable="--sky-blue"
+                  className="bg-[var(--sky-blue)] text-black"
                 />
               </div>
             </div>
 
-            {/* Borders */}
+            {/* DeFi Accents */}
             <div>
-              <h3 className="text-sm font-medium text-muted-foreground mb-4">
-                Borders
+              <h3 className="text-sm font-medium text-muted-foreground mb-4 uppercase tracking-wider">
+                DeFi Accents
               </h3>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <ColorSwatch
-                  name="Border"
-                  value="#2a2a2a"
-                  variable="--border"
-                  className="bg-[#2a2a2a]"
+                  name="Electric Purple"
+                  value="#A855F7"
+                  variable="--electric-purple"
+                  className="bg-[var(--electric-purple)]"
                 />
                 <ColorSwatch
-                  name="Border Hover"
-                  value="#3a3a3a"
-                  variable="--border-hover"
-                  className="bg-[#3a3a3a]"
+                  name="Hot Pink"
+                  value="#EC4899"
+                  variable="--hot-pink"
+                  className="bg-[var(--hot-pink)]"
                 />
                 <ColorSwatch
-                  name="Border Accent"
-                  value="#9de3f1"
-                  variable="--border-accent"
-                  className="bg-[#9de3f1]"
-                  dark
+                  name="Cyber Cyan"
+                  value="#22D3EE"
+                  variable="--cyber-cyan"
+                  className="bg-[var(--cyber-cyan)] text-black"
                 />
               </div>
             </div>
@@ -204,422 +160,257 @@ export function DesignPage() {
         <section>
           <SectionHeader
             title="Typography"
-            description="Inter for body text, with a consistent size scale."
+            description="Geist for clarity, Silkscreen for retro flavor."
           />
 
           <div className="space-y-8">
-            {/* Font Sizes */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-medium text-muted-foreground mb-4">
-                Font Sizes
-              </h3>
-              <div className="space-y-4 bg-card border border-border rounded-lg p-6">
-                <TypeSample size="text-xs" label="xs - 12px" />
-                <TypeSample size="text-sm" label="sm - 14px" />
-                <TypeSample size="text-base" label="base - 16px" />
-                <TypeSample size="text-lg" label="lg - 18px" />
-                <TypeSample size="text-xl" label="xl - 20px" />
-                <TypeSample size="text-2xl" label="2xl - 24px" />
-                <TypeSample size="text-3xl" label="3xl - 30px" />
-                <TypeSample size="text-4xl" label="4xl - 36px" />
-                <TypeSample size="text-5xl" label="5xl - 48px" />
+            {/* Font Families */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="space-y-4">
+                <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                  Sans Serif (Geist)
+                </h3>
+                <div className="p-6 rounded-xl border border-border bg-card">
+                  <p className="text-4xl font-bold mb-2">Predict The Future</p>
+                  <p className="text-xl text-muted-foreground">
+                    The quick brown fox jumps over the lazy dog.
+                  </p>
+                  <p className="text-xs font-mono mt-4 text-muted-foreground">
+                    --font-sans
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                  Pixel / Arcade (Silkscreen)
+                </h3>
+                <div className="p-6 rounded-xl border border-border bg-card">
+                  <p className="text-3xl font-pixel mb-2 text-[var(--primary)]">
+                    PRESS START
+                  </p>
+                  <p className="text-xl font-pixel text-muted-foreground">
+                    INSERT COIN TO CONTINUE
+                  </p>
+                  <p className="text-xs font-mono mt-4 text-muted-foreground">
+                    --font-pixel
+                  </p>
+                </div>
               </div>
             </div>
 
-            {/* Font Weights */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-medium text-muted-foreground mb-4">
-                Font Weights
-              </h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-card border border-border rounded-lg p-4">
-                  <p className="font-light text-lg">Light (300)</p>
-                </div>
-                <div className="bg-card border border-border rounded-lg p-4">
-                  <p className="font-normal text-lg">Normal (400)</p>
-                </div>
-                <div className="bg-card border border-border rounded-lg p-4">
-                  <p className="font-medium text-lg">Medium (500)</p>
-                </div>
-                <div className="bg-card border border-border rounded-lg p-4">
-                  <p className="font-semibold text-lg">Semibold (600)</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Spacing Section */}
-        <section>
-          <SectionHeader
-            title="Spacing"
-            description="Consistent spacing scale based on 4px increments."
-          />
-
-          <div className="bg-card border border-border rounded-lg p-6 overflow-x-auto">
-            <div className="flex items-end gap-2 min-w-max">
-              {[1, 2, 3, 4, 5, 6, 8, 10, 12, 16, 20, 24].map((size) => (
-                <div key={size} className="flex flex-col items-center gap-2">
-                  <div
-                    className="bg-primary rounded"
-                    style={{
-                      width: `${size * 4}px`,
-                      height: `${size * 4}px`,
-                    }}
-                  />
-                  <span className="text-xs text-muted-foreground">{size}</span>
-                  <span className="text-xs text-muted-foreground/60">
-                    {size * 4}px
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* Border Radius Section */}
-        <section>
-          <SectionHeader
-            title="Border Radius"
-            description="Rounded corners for a modern, friendly feel."
-          />
-
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
-            {[
-              { name: "sm", value: "4px" },
-              { name: "md", value: "8px" },
-              { name: "lg", value: "12px" },
-              { name: "xl", value: "16px" },
-              { name: "2xl", value: "24px" },
-              { name: "3xl", value: "32px" },
-              { name: "full", value: "9999px" },
-            ].map((radius) => (
-              <div key={radius.name} className="text-center">
-                <div
-                  className="bg-primary h-16 w-full mb-2"
-                  style={{
-                    borderRadius:
-                      radius.name === "full"
-                        ? "9999px"
-                        : `var(--radius-${radius.name})`,
-                  }}
-                />
-                <p className="text-sm font-medium">{radius.name}</p>
-                <p className="text-xs text-muted-foreground">{radius.value}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* Shadows Section */}
-        <section>
-          <SectionHeader
-            title="Shadows & Effects"
-            description="Elevation and glow effects for depth and emphasis."
-          />
-
-          <div className="space-y-8">
-            {/* Elevation */}
+            {/* Text Gradients */}
             <div>
-              <h3 className="text-sm font-medium text-muted-foreground mb-4">
-                Elevation
+              <h3 className="text-sm font-medium text-muted-foreground mb-4 uppercase tracking-wider">
+                Text Gradients
               </h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                {["sm", "md", "lg", "xl"].map((shadow) => (
-                  <div
-                    key={shadow}
-                    className="bg-card border border-border rounded-lg p-6 text-center"
-                    style={{ boxShadow: `var(--shadow-${shadow})` }}
-                  >
-                    <p className="font-medium">shadow-{shadow}</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="p-6 rounded-xl border border-border bg-card">
+                  <h2 className="text-3xl font-bold text-gradient-sonic mb-2">Sonic Speed</h2>
+                  <p className="text-xs font-mono text-muted-foreground">.text-gradient-sonic</p>
+                </div>
+                <div className="p-6 rounded-xl border border-border bg-card">
+                  <h2 className="text-3xl font-bold text-gradient-gold mb-2">Golden Rings</h2>
+                  <p className="text-xs font-mono text-muted-foreground">.text-gradient-gold</p>
+                </div>
+                <div className="p-6 rounded-xl border border-border bg-card">
+                  <h2 className="text-3xl font-bold text-gradient-defi mb-2">DeFi Future</h2>
+                  <p className="text-xs font-mono text-muted-foreground">.text-gradient-defi</p>
+                </div>
+                <div className="p-6 rounded-xl border border-border bg-card">
+                  <h2 className="text-3xl font-bold text-gradient-neon mb-2">Neon Nights</h2>
+                  <p className="text-xs font-mono text-muted-foreground">.text-gradient-neon</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Effects Section */}
+        <section>
+          <SectionHeader
+            title="Effects & Atmosphere"
+            description="Glows, glass, and speed lines."
+          />
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {/* Glows */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                Neon Glows
+              </h3>
+              <div className="flex flex-col gap-6">
+                <div className="h-16 rounded-lg bg-[var(--background-elevated)] border border-[var(--primary)] shadow-[var(--glow)] flex items-center justify-center text-[var(--primary)] font-bold">
+                  Blue Glow
+                </div>
+                <div className="h-16 rounded-lg bg-[var(--background-elevated)] border border-[var(--ring-gold)] shadow-[var(--glow-gold)] flex items-center justify-center text-[var(--ring-gold)] font-bold">
+                  Gold Glow
+                </div>
+                <div className="h-16 rounded-lg bg-[var(--background-elevated)] border border-[var(--electric-purple)] shadow-[var(--glow-purple)] flex items-center justify-center text-[var(--electric-purple)] font-bold">
+                  Purple Glow
+                </div>
+              </div>
+            </div>
+
+            {/* Glass Cards */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                Glassmorphism
+              </h3>
+              <div className="relative h-64 rounded-xl overflow-hidden bg-[url('https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80')] bg-cover">
+                <div className="absolute inset-0 bg-black/60" />
+                <div className="absolute inset-0 flex flex-col gap-4 p-4 justify-center">
+                  <div className="glass p-4 rounded-xl text-center">
+                    <p className="font-bold text-white">Standard Glass</p>
+                    <p className="text-xs text-white/70">.glass</p>
                   </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Glow */}
-            <div>
-              <h3 className="text-sm font-medium text-muted-foreground mb-4">
-                Glow Effects
-              </h3>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-                <div className="bg-card border border-primary/30 rounded-lg p-6 text-center glow-sm">
-                  <p className="font-medium">glow-sm</p>
-                </div>
-                <div className="bg-card border border-primary/30 rounded-lg p-6 text-center glow">
-                  <p className="font-medium">glow</p>
-                </div>
-                <div className="bg-card border border-primary/30 rounded-lg p-6 text-center glow-lg">
-                  <p className="font-medium">glow-lg</p>
+                  <div className="glass-card p-4 rounded-xl text-center">
+                    <p className="font-bold text-white">Card Glass</p>
+                    <p className="text-xs text-white/70">.glass-card</p>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Text glow */}
-            <div>
-              <h3 className="text-sm font-medium text-muted-foreground mb-4">
-                Text Effects
+            {/* Animations */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                Interactions
               </h3>
-              <div className="grid grid-cols-2 gap-6">
-                <div className="bg-card border border-border rounded-lg p-6">
-                  <p className="text-2xl font-semibold text-primary text-glow">
-                    Text Glow
-                  </p>
+              <div className="flex flex-col gap-4">
+                <div className="p-4 rounded-xl border border-border bg-card speed-effect cursor-pointer text-center">
+                  <p className="font-bold">Hover for Speed</p>
+                  <p className="text-xs text-muted-foreground">.speed-effect</p>
                 </div>
-                <div className="bg-card border border-border rounded-lg p-6">
-                  <p className="text-2xl font-semibold text-gradient-accent">
-                    Gradient Text
-                  </p>
+                <div className="p-4 rounded-xl border border-[var(--ring-gold)] bg-[var(--ring-gold)]/10 text-center animate-pulse">
+                  <p className="font-bold text-[var(--ring-gold)]">Pulse Animation</p>
+                  <p className="text-xs text-[var(--ring-gold)]/70">.animate-pulse</p>
                 </div>
-              </div>
-            </div>
-
-            {/* Glass */}
-            <div>
-              <h3 className="text-sm font-medium text-muted-foreground mb-4">
-                Glass Effect
-              </h3>
-              <div className="relative h-32 rounded-lg overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-r from-primary/30 via-purple-500/30 to-pink-500/30" />
-                <div className="absolute inset-4 glass rounded-lg flex items-center justify-center">
-                  <p className="font-medium">Glass (backdrop-blur)</p>
+                <div className="p-4 rounded-xl border border-border bg-card group cursor-pointer hover:border-[var(--primary)] transition-colors">
+                  <p className="font-bold group-hover:text-[var(--primary)] transition-colors">Hover Color</p>
+                  <p className="text-xs text-muted-foreground">Standard transition</p>
                 </div>
               </div>
             </div>
           </div>
         </section>
 
-        {/* Buttons Section */}
+        {/* UI Components */}
         <section>
           <SectionHeader
-            title="Buttons"
-            description="Interactive button components with multiple variants and sizes."
+            title="Interface Components"
+            description="Building blocks for the PolyAcca experience."
           />
 
-          <div className="space-y-8">
-            {/* Variants */}
+          <div className="space-y-12">
+            {/* Buttons */}
             <div>
-              <h3 className="text-sm font-medium text-muted-foreground mb-4">
-                Variants
+              <h3 className="text-sm font-medium text-muted-foreground mb-6 uppercase tracking-wider">
+                Buttons
               </h3>
-              <div className="flex flex-wrap gap-4">
-                <Button variant="primary">Primary</Button>
-                <Button variant="secondary">Secondary</Button>
-                <Button variant="outline">Outline</Button>
-                <Button variant="ghost">Ghost</Button>
-                <Button variant="destructive">Destructive</Button>
-              </div>
-            </div>
-
-            {/* Sizes */}
-            <div>
-              <h3 className="text-sm font-medium text-muted-foreground mb-4">
-                Sizes
-              </h3>
-              <div className="flex flex-wrap items-center gap-4">
-                <Button size="sm">Small</Button>
-                <Button size="md">Medium</Button>
-                <Button size="lg">Large</Button>
-              </div>
-            </div>
-
-            {/* States */}
-            <div>
-              <h3 className="text-sm font-medium text-muted-foreground mb-4">
-                States
-              </h3>
-              <div className="flex flex-wrap gap-4">
-                <Button>Default</Button>
-                <Button disabled>Disabled</Button>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Cards Section */}
-        <section>
-          <SectionHeader
-            title="Cards"
-            description="Container components for grouping related content."
-          />
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Default Card</CardTitle>
-                <CardDescription>
-                  Basic card with standard styling.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">
-                  Card content goes here.
-                </p>
-              </CardContent>
-              <CardFooter>
-                <Button size="sm" variant="outline">
-                  Action
+              <div className="flex flex-wrap gap-4 items-center">
+                <Button variant="primary" size="lg" className="shadow-[var(--glow)]">
+                  <Zap className="w-4 h-4 mr-2" />
+                  Primary Action
                 </Button>
-              </CardFooter>
-            </Card>
-
-            <Card variant="elevated">
-              <CardHeader>
-                <CardTitle>Elevated Card</CardTitle>
-                <CardDescription>With shadow elevation.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">
-                  Card content goes here.
-                </p>
-              </CardContent>
-              <CardFooter>
-                <Button size="sm">Action</Button>
-              </CardFooter>
-            </Card>
-
-            <Card variant="glow">
-              <CardHeader>
-                <CardTitle>Glow Card</CardTitle>
-                <CardDescription>With accent glow effect.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">
-                  Card content goes here.
-                </p>
-              </CardContent>
-              <CardFooter>
-                <Button size="sm">Action</Button>
-              </CardFooter>
-            </Card>
-          </div>
-
-          <div className="mt-6">
-            <h3 className="text-sm font-medium text-muted-foreground mb-4">
-              Hoverable Cards
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <Card hoverable>
-                <CardHeader>
-                  <CardTitle>Hover Me</CardTitle>
-                  <CardDescription>
-                    Card with hover interaction.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">
-                    Hover to see the effect.
-                  </p>
-                </CardContent>
-              </Card>
-              <Card hoverable>
-                <CardHeader>
-                  <CardTitle>Hover Me</CardTitle>
-                  <CardDescription>
-                    Card with hover interaction.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">
-                    Hover to see the effect.
-                  </p>
-                </CardContent>
-              </Card>
-              <Card hoverable>
-                <CardHeader>
-                  <CardTitle>Hover Me</CardTitle>
-                  <CardDescription>
-                    Card with hover interaction.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">
-                    Hover to see the effect.
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        </section>
-
-        {/* Inputs Section */}
-        <section>
-          <SectionHeader
-            title="Inputs"
-            description="Form controls for user input."
-          />
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="space-y-4">
-              <h3 className="text-sm font-medium text-muted-foreground">
-                Text Input
-              </h3>
-              <Input placeholder="Default input" />
-              <Input placeholder="Disabled input" disabled />
-              <Input placeholder="Error state" error />
+                <Button variant="secondary" size="lg" className="shadow-[var(--glow-gold-sm)]">
+                  <Trophy className="w-4 h-4 mr-2" />
+                  Secondary Action
+                </Button>
+                <Button variant="outline" size="lg">
+                  Outline Style
+                </Button>
+                <Button variant="ghost" size="lg">
+                  Ghost Button
+                </Button>
+                <Button variant="destructive" size="lg">
+                  Destructive
+                </Button>
+              </div>
             </div>
 
-            <div className="space-y-4">
-              <h3 className="text-sm font-medium text-muted-foreground">
-                Textarea
-              </h3>
-              <Textarea placeholder="Default textarea" />
-              <Textarea placeholder="Error state" error />
-            </div>
-          </div>
-        </section>
-
-        {/* Badges Section */}
-        <section>
-          <SectionHeader
-            title="Badges"
-            description="Small status indicators and labels."
-          />
-
-          <div className="space-y-4">
-            <div className="flex flex-wrap gap-3">
-              <Badge>Default</Badge>
-              <Badge variant="secondary">Secondary</Badge>
-              <Badge variant="outline">Outline</Badge>
-              <Badge variant="success">Success</Badge>
-              <Badge variant="warning">Warning</Badge>
-              <Badge variant="error">Error</Badge>
-            </div>
-
-            <div className="flex flex-wrap gap-3">
-              <Badge size="sm">Small</Badge>
-              <Badge size="md">Medium</Badge>
-            </div>
-          </div>
-        </section>
-
-        {/* Progress Bars Section */}
-        <section>
-          <SectionHeader
-            title="Progress Bars"
-            description="Visual indicators for betting odds and percentages."
-          />
-
-          <div className="space-y-6 max-w-md">
+            {/* Badges */}
             <div>
-              <div className="flex justify-between text-sm mb-2">
-                <span className="text-[#22c55e]">Yes 65%</span>
-                <span className="text-[#ef4444]">No 35%</span>
-              </div>
-              <div className="h-2 bg-secondary rounded-full overflow-hidden flex">
-                <div className="progress-yes" style={{ width: "65%" }} />
-                <div className="progress-no" style={{ width: "35%" }} />
+              <h3 className="text-sm font-medium text-muted-foreground mb-6 uppercase tracking-wider">
+                Badges
+              </h3>
+              <div className="flex flex-wrap gap-3">
+                <Badge variant="outline" className="text-[var(--primary)] border-[var(--primary)]/50 bg-[var(--primary)]/10">
+                  <Zap className="w-3 h-3 mr-1" />
+                  SONIC
+                </Badge>
+                <Badge variant="secondary" className="bg-[var(--ring-gold)]/20 text-[var(--ring-gold)] border border-[var(--ring-gold)]/50">
+                  <Trophy className="w-3 h-3 mr-1" />
+                  GOLD TIER
+                </Badge>
+                <Badge variant="success" className="bg-[var(--color-success)]/20 text-[var(--color-success)] border border-[var(--color-success)]/50">
+                  <Activity className="w-3 h-3 mr-1" />
+                  ACTIVE
+                </Badge>
+                <Badge variant="outline" className="font-pixel text-[10px] tracking-widest">
+                  RETRO BADGE
+                </Badge>
               </div>
             </div>
 
-            <div>
-              <div className="flex justify-between text-sm mb-2">
-                <span className="text-[#22c55e]">Yes 42%</span>
-                <span className="text-[#ef4444]">No 58%</span>
+            {/* Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div>
+                <h3 className="text-sm font-medium text-muted-foreground mb-6 uppercase tracking-wider">
+                  Market Card (Preview)
+                </h3>
+                <div className="glass-card rounded-xl p-5 border border-white/10 relative overflow-hidden group">
+                  <div className="absolute inset-0 opacity-10 grid-bg pointer-events-none" />
+                  
+                  <div className="flex items-center justify-between mb-4 relative z-10">
+                    <Badge variant="outline" className="border-[var(--color-accent)]/30 text-[var(--color-accent)] bg-[var(--color-accent)]/5">
+                      CRYPTO
+                    </Badge>
+                    <span className="text-xs font-mono text-muted-foreground">
+                      VOL: <span className="text-[var(--ring-gold)]">$2.4M</span>
+                    </span>
+                  </div>
+
+                  <h3 className="text-lg font-medium mb-5 text-foreground leading-snug relative z-10">
+                    Will Bitcoin hit $100k in 2025?
+                  </h3>
+
+                  <div className="relative h-3 bg-black/40 rounded-full overflow-hidden mb-5 border border-white/5 flex">
+                    <div className="progress-yes w-[65%]" />
+                    <div className="progress-no w-[35%]" />
+                    <div className="absolute top-0 bottom-0 left-1/2 w-0.5 bg-black/20 transform -translate-x-1/2 z-10" />
+                  </div>
+
+                  <div className="flex gap-3 relative z-10">
+                    <button className="flex-1 py-3 px-3 rounded-lg border border-[var(--color-success)]/40 bg-[var(--color-success)]/5 flex flex-col items-center gap-1">
+                      <span className="text-[10px] uppercase tracking-widest font-bold text-[var(--color-success)]">YES</span>
+                      <span className="text-xl font-mono font-bold text-[var(--color-success)]">65¢</span>
+                    </button>
+                    <button className="flex-1 py-3 px-3 rounded-lg border border-[var(--color-error)]/40 bg-[var(--color-error)]/5 flex flex-col items-center gap-1">
+                      <span className="text-[10px] uppercase tracking-widest font-bold text-[var(--color-error)]">NO</span>
+                      <span className="text-xl font-mono font-bold text-[var(--color-error)]">35¢</span>
+                    </button>
+                  </div>
+                </div>
               </div>
-              <div className="h-2 bg-secondary rounded-full overflow-hidden flex">
-                <div className="progress-yes" style={{ width: "42%" }} />
-                <div className="progress-no" style={{ width: "58%" }} />
+
+              <div>
+                <h3 className="text-sm font-medium text-muted-foreground mb-6 uppercase tracking-wider">
+                  Stats Card
+                </h3>
+                <div className="glass-card rounded-xl p-6 border border-white/10 flex items-center gap-4">
+                  <div className="p-3 rounded-lg bg-white/5">
+                    <Sparkles className="w-6 h-6 text-[var(--ring-gold)]" />
+                  </div>
+                  <div>
+                    <div className="text-3xl font-bold text-[var(--ring-gold)] font-mono text-glow-gold">
+                      $1,000,000
+                    </div>
+                    <div className="text-xs text-muted-foreground uppercase tracking-wider font-bold">
+                      Total Winnings
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -627,9 +418,9 @@ export function DesignPage() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-border py-8 mt-20">
-        <div className="max-w-6xl mx-auto px-6 text-center text-sm text-muted-foreground">
-          PolyAcca Design System &bull; Built with React + Tailwind CSS
+      <footer className="border-t border-border py-8 mt-20 bg-black/20">
+        <div className="max-w-6xl mx-auto px-6 text-center text-sm text-muted-foreground font-mono">
+          [SYSTEM.VERSION_2.0] &bull; READY PLAYER ONE
         </div>
       </footer>
     </div>
@@ -646,9 +437,12 @@ function SectionHeader({
   description: string;
 }) {
   return (
-    <div className="mb-8">
-      <h2 className="text-2xl font-semibold mb-2">{title}</h2>
-      <p className="text-muted-foreground">{description}</p>
+    <div className="mb-10 text-center md:text-left">
+      <h2 className="text-3xl font-bold mb-2 flex items-center gap-3">
+        {title}
+        <div className="h-1 flex-1 bg-gradient-to-r from-[var(--primary)]/50 to-transparent rounded-full opacity-50 hidden md:block" />
+      </h2>
+      <p className="text-muted-foreground text-lg">{description}</p>
     </div>
   );
 }
@@ -658,35 +452,22 @@ function ColorSwatch({
   value,
   variable,
   className,
-  dark = false,
 }: {
   name: string;
   value: string;
   variable: string;
   className: string;
-  dark?: boolean;
 }) {
   return (
-    <div className="space-y-2">
+    <div className="group">
       <div
-        className={`h-20 rounded-lg border border-border ${className}`}
+        className={`h-24 rounded-xl border border-white/10 shadow-lg mb-3 transition-transform group-hover:scale-105 ${className}`}
       />
       <div>
-        <p className={`text-sm font-medium ${dark ? "" : ""}`}>{name}</p>
-        <p className="text-xs text-muted-foreground font-mono">{value}</p>
-        <p className="text-xs text-muted-foreground/60 font-mono">{variable}</p>
+        <p className="font-bold text-sm text-white">{name}</p>
+        <p className="text-xs text-muted-foreground font-mono uppercase tracking-wide">{value}</p>
+        <p className="text-[10px] text-muted-foreground/50 font-mono mt-0.5">{variable}</p>
       </div>
-    </div>
-  );
-}
-
-function TypeSample({ size, label }: { size: string; label: string }) {
-  return (
-    <div className="flex items-baseline gap-4">
-      <span className="text-xs text-muted-foreground w-24 shrink-0 font-mono">
-        {label}
-      </span>
-      <p className={size}>The quick brown fox jumps over the lazy dog</p>
     </div>
   );
 }
