@@ -9,6 +9,7 @@ import { useMarkets } from "@/hooks/useMarkets";
 import { useRingAnimation } from "@/hooks/useRingAnimation";
 import type { Market as ApiMarket } from "@/types/market";
 import { Activity, BarChart3, Users } from "lucide-react";
+import { TypewriterText } from "@/components/ui/TypewriterText";
 
 const categories = [
   "All",
@@ -101,19 +102,19 @@ export function HomePage() {
     <div className="min-h-screen md:pr-80 relative bg-[var(--background)] overflow-x-hidden">
       {/* Dynamic Background Elements */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden -z-10">
-        <div className="absolute top-0 left-0 w-full h-[500px] bg-gradient-to-b from-[var(--sonic-blue)]/5 to-transparent" />
-        <div className="absolute -top-[200px] -right-[200px] w-[600px] h-[600px] bg-[var(--sonic-blue)]/10 rounded-full blur-[100px]" />
-        <div className="absolute top-[20%] left-[10%] w-[300px] h-[300px] bg-[var(--color-purple)]/5 rounded-full blur-[80px]" />
+        <div className="absolute top-0 left-0 w-full h-[500px] bg-gradient-to-b from-[var(--primary)]/5 to-transparent" />
+        <div className="absolute -top-[200px] -right-[200px] w-[600px] h-[600px] bg-[var(--primary)]/10 rounded-full blur-[100px]" />
+        <div className="absolute top-[20%] left-[10%] w-[300px] h-[300px] bg-[var(--primary-dark)]/5 rounded-full blur-[80px]" />
       </div>
 
       <Header />
 
       <main className="pb-32 md:pb-20">
         {/* Horizontal Scrolling Section - Immediate Markets */}
-        <section className="pt-6 pb-2 md:pt-8 md:pb-4">
-          <div className="max-w-6xl mx-auto px-4 md:px-6">
+        <section className="pt-8 pb-4 md:pt-12 md:pb-6">
+          <div className="w-full max-w-[1800px] ml-auto mr-0 px-4 md:pl-6 md:pr-8">
             <HorizontalMarketList
-              title="Trending Now"
+              title="TRENDING NOW"
               markets={transformedTrendingMarkets}
               onBetClick={handleBetClick}
               isLoading={isTrendingLoading}
@@ -123,7 +124,7 @@ export function HomePage() {
 
         {/* Stats Bar - Sleek & Integrated */}
         <section className="py-4 md:py-6 border-y border-white/5 bg-black/20 backdrop-blur-sm">
-          <div className="max-w-6xl mx-auto px-4 md:px-6">
+          <div className="w-full max-w-[1800px] ml-auto mr-0 px-4 md:pl-6 md:pr-8">
             <div className="grid grid-cols-3 gap-2 md:flex md:items-center md:gap-12">
               <StatBox 
                 icon={<BarChart3 className="w-4 h-4 md:w-5 md:h-5 text-[var(--color-gold)]" />}
@@ -138,7 +139,7 @@ export function HomePage() {
               />
               <div className="hidden md:block h-8 w-px bg-white/10" />
               <StatBox 
-                icon={<Users className="w-4 h-4 md:w-5 md:h-5 text-[var(--color-cyan)]" />}
+                icon={<Users className="w-4 h-4 md:w-5 md:h-5 text-[var(--color-info)]" />}
                 label="Traders" 
                 value="184K" 
               />
@@ -148,13 +149,13 @@ export function HomePage() {
 
         {/* Main Markets Grid Section */}
         <section className="py-6 md:py-10">
-          <div className="max-w-6xl mx-auto px-4 md:px-6">
+          <div className="w-full max-w-[1800px] ml-auto mr-0 px-4 md:pl-6 md:pr-8">
             {/* Filter Bar */}
-            <div className="sticky top-[64px] z-30 py-3 md:py-4 bg-[var(--background)]/80 backdrop-blur-xl mb-6 -mx-4 md:-mx-6 px-4 md:px-6 border-b border-white/5">
+            <div className="sticky top-[66px] z-30 py-3 md:py-4 bg-[var(--background)]/80 backdrop-blur-xl mb-6 -mx-4 md:-mx-6 px-4 md:px-6 border-b border-white/5">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <h2 className="text-lg md:text-xl font-bold text-foreground flex items-center gap-2">
+                <h2 className="text-lg md:text-xl font-bold text-foreground flex items-center gap-6 uppercase tracking-wide">
                   <span className="w-2 h-2 rounded-full bg-[var(--color-success)] animate-pulse" />
-                  Live Markets
+                  <TypewriterText text="LIVE MARKETS" delay={1000} hideCursorOnComplete />
                   {isFetching && !isLoading && (
                     <span className="ml-2 text-[10px] md:text-xs text-muted-foreground font-mono">
                       [UPDATING...]
@@ -162,15 +163,15 @@ export function HomePage() {
                   )}
                 </h2>
                 
-                <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
+                <div className="flex gap-2 overflow-x-auto py-2 scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
                   {categories.map((category) => (
                     <button
                       key={category}
                       onClick={() => handleCategoryChange(category)}
                       className={`
-                        px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 whitespace-nowrap border
+                        px-4 py-2 rounded-full text-xs font-medium transition-all duration-200 whitespace-nowrap border
                         ${selectedCategory === category
-                          ? "bg-[var(--primary)] text-white border-[var(--primary)] shadow-[0_0_15px_rgba(30,144,255,0.4)]"
+                          ? "bg-[var(--primary)] text-white border-[var(--primary)] shadow-glow-sm"
                           : "bg-white/5 border-white/5 text-muted-foreground hover:bg-white/10 hover:text-white"
                         }
                       `}
@@ -206,7 +207,7 @@ export function HomePage() {
 
             {/* Markets Grid */}
             {!isLoading && !error && markets.length > 0 && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
                 {markets.map((market) => (
                   <MarketCard
                     key={market.id}
@@ -245,7 +246,7 @@ export function HomePage() {
 
       {/* Footer */}
       <footer className="border-t border-white/5 py-8 mt-12 bg-black/20 mb-20 md:mb-0">
-        <div className="max-w-6xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6 text-center md:text-left">
+        <div className="w-full max-w-[1800px] ml-auto mr-0 px-4 md:pl-6 md:pr-8 flex flex-col md:flex-row justify-between items-center gap-6 text-center md:text-left">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-1 font-bold text-xl tracking-tighter">
               <span className="text-[var(--primary)]">POLY</span>

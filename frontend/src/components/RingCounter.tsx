@@ -65,8 +65,8 @@ export function RingCounter() {
             y2="20"
             gradientUnits="userSpaceOnUse"
           >
-            <stop stopColor="#FFD700" />
-            <stop offset="1" stopColor="#FFEA00" />
+            <stop stopColor="var(--color-gold)" />
+            <stop offset="1" stopColor="var(--color-gold-bright)" />
           </linearGradient>
           <linearGradient
             id="ring-gradient-inner"
@@ -76,8 +76,8 @@ export function RingCounter() {
             y2="17"
             gradientUnits="userSpaceOnUse"
           >
-            <stop stopColor="#FFEA00" />
-            <stop offset="1" stopColor="#FFD700" />
+            <stop stopColor="var(--color-gold-bright)" />
+            <stop offset="1" stopColor="var(--color-gold)" />
           </linearGradient>
         </defs>
       </svg>

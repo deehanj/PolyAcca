@@ -1,3 +1,5 @@
+import React from "react";
+
 interface RingParticleProps {
   startX: number;
   startY: number;
@@ -16,6 +18,7 @@ export function RingParticle({
   onComplete,
 }: RingParticleProps) {
   // Calculate the animation path using CSS variables
+  // We use a custom style object to bypass TypeScript checks for CSS variables
   const style = {
     "--start-x": `${startX}px`,
     "--start-y": `${startY}px`,
@@ -28,7 +31,7 @@ export function RingParticle({
 
   return (
     <div
-      className="ring-particle fixed z-[9999] w-6 h-6"
+      className="ring-particle fixed z-[9999] w-6 h-6 pointer-events-none"
       style={style}
       onAnimationEnd={onComplete}
     >
@@ -66,9 +69,9 @@ export function RingParticle({
             y2="20"
             gradientUnits="userSpaceOnUse"
           >
-            <stop stopColor="#FFD700" />
-            <stop offset="0.5" stopColor="#FFEA00" />
-            <stop offset="1" stopColor="#FFD700" />
+            <stop stopColor="var(--color-gold)" />
+            <stop offset="0.5" stopColor="var(--color-gold-bright)" />
+            <stop offset="1" stopColor="var(--color-gold)" />
           </linearGradient>
           <linearGradient
             id="ring-particle-inner"
@@ -78,8 +81,8 @@ export function RingParticle({
             y2="17"
             gradientUnits="userSpaceOnUse"
           >
-            <stop stopColor="#FFEA00" />
-            <stop offset="1" stopColor="#DAA520" />
+            <stop stopColor="var(--color-gold-bright)" />
+            <stop offset="1" stopColor="var(--color-gold-dark)" />
           </linearGradient>
         </defs>
       </svg>

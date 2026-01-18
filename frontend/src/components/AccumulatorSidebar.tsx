@@ -8,6 +8,8 @@ import type { Market } from "./MarketCard";
 import { Button } from "./ui/Button";
 import { Input } from "./ui/Input";
 import { Badge } from "./ui/Badge";
+import { AnimatedNumber } from "./ui/AnimatedNumber";
+import { triggerConfetti, triggerMoneyRain } from "../lib/confetti";
 import { Zap, Trash2, Trophy, ChevronDown, X } from "lucide-react";
 
 const API_URL = import.meta.env.VITE_API_URL || "";
@@ -134,6 +136,10 @@ export const AccumulatorSidebar = forwardRef<HTMLDivElement>(
       }
 
       // Success - clear bets and show success
+      triggerConfetti();
+      if (parseFloat(stake) >= 100) {
+        setTimeout(triggerMoneyRain, 500); // Double celebration for big bets
+      }
       clearBets();
       setStake("10");
       setIsMobileOpen(false);
@@ -154,7 +160,7 @@ export const AccumulatorSidebar = forwardRef<HTMLDivElement>(
         className={`
           w-full pointer-events-auto bg-[var(--background-elevated)]/90 backdrop-blur-xl border border-[var(--border)] 
           shadow-lg rounded-xl p-4 flex items-center justify-between transition-all duration-300
-          ${bets.length > 0 ? "border-[var(--color-gold)]/50 shadow-[0_-5px_20px_rgba(255,215,0,0.1)]" : ""}
+          ${bets.length > 0 ? "border-[var(--color-gold)]/50 shadow-glow-gold-sm" : ""}
         `}
       >
         <div className="flex items-center gap-3">
@@ -167,7 +173,7 @@ export const AccumulatorSidebar = forwardRef<HTMLDivElement>(
             </div>
             {bets.length > 0 && (
               <div className="text-xs font-mono text-[var(--color-gold)]">
-                {totalOdds.toFixed(2)}x Odds
+                <AnimatedNumber value={totalOdds} suffix="x Odds" />
               </div>
             )}
           </div>
@@ -271,7 +277,7 @@ export const AccumulatorSidebar = forwardRef<HTMLDivElement>(
                 multiplierPop ? "multiplier-pop" : ""
               }`}
             >
-              {totalOdds.toFixed(2)}x
+              <AnimatedNumber value={totalOdds} suffix="x" />
             </span>
           </div>
 
@@ -325,10 +331,10 @@ export const AccumulatorSidebar = forwardRef<HTMLDivElement>(
                 </span>
               </div>
               <div className="text-4xl font-bold text-[var(--color-gold)] text-glow-gold font-mono tracking-tight my-1">
-                ${payout.toFixed(2)}
+                <AnimatedNumber value={payout} prefix="$" />
               </div>
               <div className="text-[10px] text-[var(--color-success)] text-right font-mono font-bold">
-                +${(payout - stakeNum).toFixed(2)} PROFIT
+                +<AnimatedNumber value={payout - stakeNum} prefix="$" /> PROFIT
               </div>
             </div>
           </div>
@@ -342,7 +348,7 @@ export const AccumulatorSidebar = forwardRef<HTMLDivElement>(
 
           {/* Place Bet Button */}
           <Button
-            className="w-full bg-[var(--color-gold)] text-black hover:bg-[var(--color-gold-bright)] font-bold uppercase tracking-widest py-6 text-lg shadow-[0_0_20px_rgba(255,215,0,0.2)] hover:shadow-[0_0_30px_rgba(255,215,0,0.4)] transition-all active:scale-[0.98]"
+            className="w-full bg-[var(--color-gold)] text-black hover:bg-[var(--color-gold-bright)] font-bold uppercase tracking-widest py-6 text-lg shadow-glow-gold-sm hover:shadow-glow-gold transition-all active:scale-[0.98]"
             size="lg"
             onClick={handlePlaceBet}
             disabled={isSubmitting}
@@ -364,7 +370,7 @@ export const AccumulatorSidebar = forwardRef<HTMLDivElement>(
         className={`
           hidden md:flex fixed right-0 top-[65px] bottom-0 w-80 bg-background/80 backdrop-blur-xl border-l border-border
           flex-col z-40 transition-all duration-300 overflow-hidden
-          ${isDragOver ? "border-l-2 border-l-[var(--color-gold)] shadow-[var(--glow)]" : ""}
+          ${isDragOver ? "border-l-2 border-l-[var(--color-gold)] shadow-glow" : ""}
         `}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -397,7 +403,7 @@ function BetItem({
   const isYes = bet.selection === "yes";
 
   return (
-    <div className="glass-card rounded-lg p-3 relative group border-l-2 hover:border-l-[var(--color-gold)] transition-all">
+    <div className="glass-card rounded-lg p-3 relative group border-l-2 hover:border-l-[var(--color-gold)] transition-all animate-in slide-in-from-right-2 duration-300">
       {/* Remove Button */}
       <button
         onClick={() => onRemove(bet.market.id)}

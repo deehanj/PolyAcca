@@ -13,7 +13,7 @@ const Card = forwardRef<HTMLDivElement, CardProps>(
         ref={ref}
         className={cn(
           // Base styles
-          "rounded-lg border border-border bg-card text-card-foreground",
+          "rounded-md border border-border bg-card text-card-foreground", // Less rounded (rounded-md)
 
           // Variant styles
           {

@@ -13,7 +13,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
         ref={ref}
         className={cn(
           // Base styles
-          "flex h-10 w-full rounded-md border bg-transparent px-3 py-2",
+          "flex h-10 w-full rounded-sm border bg-transparent px-3 py-2", // Less rounded (rounded-sm)
           "text-sm text-foreground placeholder:text-muted-foreground",
           "transition-colors duration-[var(--duration-fast)] ease-[var(--ease-default)]",
 
@@ -54,7 +54,7 @@ const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
         ref={ref}
         className={cn(
           // Base styles
-          "flex min-h-[80px] w-full rounded-md border bg-transparent px-3 py-2",
+          "flex min-h-[80px] w-full rounded-sm border bg-transparent px-3 py-2", // Less rounded (rounded-sm)
           "text-sm text-foreground placeholder:text-muted-foreground",
           "transition-colors duration-[var(--duration-fast)] ease-[var(--ease-default)]",
 

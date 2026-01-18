@@ -61,7 +61,7 @@ export function MarketCard({ market, onBetClick }: MarketCardProps) {
         glass-card rounded-xl p-4 md:p-5 cursor-pointer group relative overflow-hidden
         flex flex-col h-full touch-manipulation
         transition-all duration-300 ease-[var(--ease-default)]
-        hover:border-[var(--color-gold)] hover:shadow-[var(--glow-gold-sm)] hover:-translate-y-1
+        hover:border-[var(--color-gold)] hover:shadow-glow-gold-sm hover:-translate-y-1
         ${inAccumulator ? "ring-2 ring-[var(--color-gold)]/50" : ""}
       `}
     >
@@ -132,7 +132,7 @@ export function MarketCard({ market, onBetClick }: MarketCardProps) {
               flex-1 py-3 md:py-3 px-2 md:px-3 rounded-lg border transition-all duration-200 speed-effect relative overflow-hidden active:scale-95
               ${
                 currentSelection === "yes"
-                  ? "border-[var(--color-success)] bg-[var(--color-success)]/20 shadow-[0_0_15px_rgba(34,197,94,0.4)]"
+                  ? "border-[var(--color-success)] bg-[var(--color-success)]/20 shadow-glow-success"
                   : "border-[var(--color-success)]/30 bg-[var(--color-success)]/5 hover:bg-[var(--color-success)]/15 hover:border-[var(--color-success)]"
               }
             `}
@@ -156,7 +156,7 @@ export function MarketCard({ market, onBetClick }: MarketCardProps) {
               flex-1 py-3 md:py-3 px-2 md:px-3 rounded-lg border transition-all duration-200 speed-effect relative overflow-hidden active:scale-95
               ${
                 currentSelection === "no"
-                  ? "border-[var(--color-error)] bg-[var(--color-error)]/20 shadow-[0_0_15px_rgba(255,68,68,0.4)]"
+                  ? "border-[var(--color-error)] bg-[var(--color-error)]/20 shadow-glow-destructive"
                   : "border-[var(--color-error)]/30 bg-[var(--color-error)]/5 hover:bg-[var(--color-error)]/15 hover:border-[var(--color-error)]"
               }
             `}

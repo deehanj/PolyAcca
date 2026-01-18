@@ -7,6 +7,7 @@ import { TradingBalance } from "./TradingBalance";
 import { useUserProfile } from "../hooks/useUserProfile";
 import { Button } from "./ui/Button";
 import logoImage from "../assets/coins_cropped.png";
+import { ThemeToggle } from "./ThemeToggle";
 
 export function Header() {
   const { isAdmin } = useUserProfile();
@@ -14,7 +15,7 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-xl">
-      <div className="mx-auto max-w-6xl px-6">
+      <div className="w-full max-w-[1800px] ml-auto mr-0 px-4 md:pl-6 md:pr-8">
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2 group">
@@ -58,12 +59,14 @@ export function Header() {
             <div className="h-6 w-px bg-border" />
             
             <TradingBalance />
+            <ThemeToggle />
             <AuthButton />
           </div>
 
           {/* Mobile Menu Button */}
           <div className="flex md:hidden items-center gap-4">
             <RingCounter />
+            <ThemeToggle />
             <Button
               variant="ghost"
               size="sm"
