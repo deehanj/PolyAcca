@@ -6,6 +6,7 @@ import { RingCounter } from "./RingCounter";
 import { TradingBalance } from "./TradingBalance";
 import { useUserProfile } from "../hooks/useUserProfile";
 import { Button } from "./ui/Button";
+import logoImage from "../assets/coins_cropped.png";
 
 export function Header() {
   const { isAdmin } = useUserProfile();
@@ -17,9 +18,11 @@ export function Header() {
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2 group">
-            <div className="relative flex items-center justify-center w-8 h-8 rounded-lg bg-[var(--primary)]/10 group-hover:bg-[var(--primary)]/20 transition-colors">
-              <div className="w-4 h-4 rounded bg-[var(--primary)] rotate-45 group-hover:rotate-90 transition-transform duration-500" />
-            </div>
+            <img
+              src={logoImage}
+              alt="PolyAcca"
+              className="h-8 w-8 object-contain group-hover:scale-110 transition-transform duration-300"
+            />
             <div className="flex flex-col -space-y-1">
               <span className="text-lg font-bold tracking-tight text-foreground font-pixel leading-none">
                 POLY
