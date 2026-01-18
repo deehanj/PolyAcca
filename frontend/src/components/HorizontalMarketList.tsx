@@ -1,8 +1,9 @@
 import { useRef } from "react";
 import { Badge } from "./ui/Badge";
 import type { Market } from "./MarketCard";
-import { ChevronLeft, ChevronRight, TrendingUp } from "lucide-react";
+import { ChevronLeft, ChevronRight, TrendingUp, Sparkles } from "lucide-react";
 import { Button } from "./ui/Button";
+import { useAccumulator } from "../context/AccumulatorContext";
 
 interface HorizontalMarketListProps {
   title: string;
@@ -93,11 +94,24 @@ function MiniMarketCard({
   market: Market;
   onBetClick?: (buttonElement: HTMLElement, selection: "yes" | "no") => void;
 }) {
+  const { addBet, isInAccumulator, getSelection } = useAccumulator();
   const yesPercentage = Math.round(market.yesPrice * 100);
   const noPercentage = Math.round(market.noPrice * 100);
+  const inAccumulator = isInAccumulator(market.id);
+  const currentSelection = getSelection(market.id);
+
+  const handleYesClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    onBetClick?.(e.currentTarget, "yes");
+    addBet(market, "yes");
+  };
+
+  const handleNoClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    onBetClick?.(e.currentTarget, "no");
+    addBet(market, "no");
+  };
 
   return (
-    <div className="min-w-[280px] w-[280px] glass-card rounded-xl p-4 relative group hover:border-[var(--color-gold)] transition-all duration-300 hover:-translate-y-1">
+    <div className={`min-w-[280px] w-[280px] glass-card rounded-xl p-4 relative group hover:border-[var(--color-gold)] transition-all duration-300 hover:-translate-y-1 ${inAccumulator ? "ring-2 ring-[var(--color-gold)]/50" : ""}`}>
       {/* Category Badge - Absolute positioned */}
       <div className="absolute -top-3 left-4">
         <Badge
@@ -107,6 +121,16 @@ function MiniMarketCard({
           {market.category}
         </Badge>
       </div>
+
+      {/* In Accumulator Badge */}
+      {inAccumulator && (
+        <div className="absolute -top-3 right-4">
+          <Badge size="sm" className="bg-[var(--color-gold)] text-black border-none text-[10px] px-2 py-0.5">
+            <Sparkles className="w-3 h-3 mr-1" />
+            IN ACCA
+          </Badge>
+        </div>
+      )}
 
       <div className="mt-2 mb-3">
         <h3 className="text-sm font-medium leading-snug line-clamp-2 h-[2.5rem] group-hover:text-[var(--color-gold)] transition-colors">
@@ -124,8 +148,12 @@ function MiniMarketCard({
       {/* Action Buttons */}
       <div className="grid grid-cols-2 gap-2">
         <button
-          onClick={(e) => onBetClick?.(e.currentTarget, "yes")}
-          className="flex flex-col items-center justify-center py-1.5 rounded-lg border border-[var(--color-success)]/30 bg-[var(--color-success)]/10 hover:bg-[var(--color-success)]/20 transition-all active:scale-95"
+          onClick={handleYesClick}
+          className={`flex flex-col items-center justify-center py-1.5 rounded-lg border transition-all active:scale-95 ${
+            currentSelection === "yes"
+              ? "border-[var(--color-success)] bg-[var(--color-success)]/20 shadow-glow-success"
+              : "border-[var(--color-success)]/30 bg-[var(--color-success)]/10 hover:bg-[var(--color-success)]/20"
+          }`}
         >
           <span className="text-[10px] uppercase text-[var(--color-success)] font-bold">
             Yes
@@ -135,8 +163,12 @@ function MiniMarketCard({
           </span>
         </button>
         <button
-          onClick={(e) => onBetClick?.(e.currentTarget, "no")}
-          className="flex flex-col items-center justify-center py-1.5 rounded-lg border border-destructive/30 bg-destructive/10 hover:bg-destructive/20 transition-all active:scale-95"
+          onClick={handleNoClick}
+          className={`flex flex-col items-center justify-center py-1.5 rounded-lg border transition-all active:scale-95 ${
+            currentSelection === "no"
+              ? "border-destructive bg-destructive/20 shadow-glow-destructive"
+              : "border-destructive/30 bg-destructive/10 hover:bg-destructive/20"
+          }`}
         >
           <span className="text-[10px] uppercase text-destructive font-bold">
             No
