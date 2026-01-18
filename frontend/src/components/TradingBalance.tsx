@@ -9,9 +9,8 @@
 
 import { useState, useEffect } from 'react';
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt, useAccount, useBalance, useSwitchChain } from 'wagmi';
-import { useAppKit } from '@reown/appkit/react';
 import { erc20Abi, parseUnits, formatUnits } from 'viem';
-import { Wallet, Loader2, Copy, Check, ArrowRight, Clock, RefreshCw, Send, ShoppingCart, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Wallet, Loader2, Copy, Check, ArrowRight, Clock, RefreshCw, Send, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { useAuth } from '../hooks/useAuth';
 import { Dialog, DialogTitle, DialogDescription } from './ui/Dialog';
@@ -43,7 +42,6 @@ function truncateAddress(address: string): string {
 export function TradingBalance() {
   const { isAuthenticated } = useAuth();
   const { address: connectedAddress } = useAccount();
-  const { open } = useAppKit();
   const { embeddedWalletAddress, isLoading: profileLoading } = useUserProfile();
   const [isDepositOpen, setIsDepositOpen] = useState(false);
   const [depositAmount, setDepositAmount] = useState('');
@@ -341,13 +339,16 @@ export function TradingBalance() {
     <>
       <button
         onClick={() => setIsDepositOpen(true)}
-        className="flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm hover:bg-muted transition-colors"
+        className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-card border border-border hover:bg-muted transition-colors"
         title={`Trading wallet: ${embeddedWalletAddress}`}
       >
-        <Wallet className="h-4 w-4 text-primary" />
-        <span className="font-medium">${formattedTradingBalance}</span>
-        <span className="text-muted-foreground">USDC</span>
-        <span className="text-xs text-primary font-medium">Deposit</span>
+        <img
+          src="https://assets.coingecko.com/coins/images/6319/small/usdc.png"
+          alt="USDC"
+          className="h-5 w-5 flex-shrink-0 rounded-full"
+        />
+        <span className="text-sm font-semibold">{formattedTradingBalance}</span>
+        <Wallet className="h-4 w-4 text-primary flex-shrink-0" />
       </button>
 
       <Dialog open={isDepositOpen} onClose={handleClose}>
@@ -396,14 +397,10 @@ export function TradingBalance() {
                     Can bridge
                   </span>
                 ) : parseFloat(baseUsdc) > 0 ? (
-                  <button
-                    onClick={() => open({ view: 'OnRampProviders' })}
-                    className="flex items-center gap-1 text-xs text-amber-500 hover:text-amber-400"
-                  >
+                  <span className="flex items-center gap-1 text-xs text-amber-500">
                     <AlertCircle className="h-3.5 w-3.5" />
                     Need ETH
-                    <ShoppingCart className="h-3 w-3" />
-                  </button>
+                  </span>
                 ) : null}
               </div>
             </div>
@@ -422,14 +419,10 @@ export function TradingBalance() {
                     Can bridge
                   </span>
                 ) : parseFloat(ethereumUsdc) > 0 ? (
-                  <button
-                    onClick={() => open({ view: 'OnRampProviders' })}
-                    className="flex items-center gap-1 text-xs text-amber-500 hover:text-amber-400"
-                  >
+                  <span className="flex items-center gap-1 text-xs text-amber-500">
                     <AlertCircle className="h-3.5 w-3.5" />
                     Need ETH
-                    <ShoppingCart className="h-3 w-3" />
-                  </button>
+                  </span>
                 ) : null}
               </div>
             </div>
@@ -590,7 +583,7 @@ export function TradingBalance() {
 
             {/* Expanded content for Bridge deposit */}
             {selectedMethod === 'bridge' && (
-              <div className="px-3 pb-3 pt-0 space-y-4 border-t border-border/50 mt-2">
+              <div className="px-3 pb-3 pt-0 space-y-4 border-t border-border/50 mt-2 max-h-[calc(90vh-400px)] overflow-y-auto">
                 {/* Loading state */}
                 {isLoadingAddresses && (
                   <div className="flex items-center justify-center py-6">
@@ -646,21 +639,11 @@ export function TradingBalance() {
                                     </div>
                                   </button>
                                   {!hasBaseEthForGas && (
-                                    <div className="mt-2 flex items-center justify-between">
+                                    <div className="mt-2">
                                       <span className="text-xs text-amber-500 inline-flex items-center gap-1">
                                         <AlertCircle className="h-3 w-3" />
                                         Need ETH for gas
                                       </span>
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          open({ view: 'OnRampProviders' });
-                                        }}
-                                        className="text-xs text-primary hover:text-primary/80 inline-flex items-center gap-1"
-                                      >
-                                        Buy ETH
-                                        <ShoppingCart className="h-3 w-3" />
-                                      </button>
                                     </div>
                                   )}
                                 </div>
@@ -683,21 +666,11 @@ export function TradingBalance() {
                                     </div>
                                   </button>
                                   {!hasEthereumEthForGas && (
-                                    <div className="mt-2 flex items-center justify-between">
+                                    <div className="mt-2">
                                       <span className="text-xs text-amber-500 inline-flex items-center gap-1">
                                         <AlertCircle className="h-3 w-3" />
                                         Need ETH for gas
                                       </span>
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          open({ view: 'OnRampProviders' });
-                                        }}
-                                        className="text-xs text-primary hover:text-primary/80 inline-flex items-center gap-1"
-                                      >
-                                        Buy ETH
-                                        <ShoppingCart className="h-3 w-3" />
-                                      </button>
                                     </div>
                                   )}
                                 </div>
@@ -752,19 +725,10 @@ export function TradingBalance() {
 
                               {!selectedChainHasGas() && selectedBridgeChain && (
                                 <div className="rounded-md bg-amber-500/10 border border-amber-500/20 px-3 py-2">
-                                  <div className="flex items-center justify-between">
-                                    <span className="text-sm text-amber-600 inline-flex items-center gap-1">
-                                      <AlertCircle className="h-4 w-4" />
-                                      You need ETH on {selectedBridgeChain === 'base' ? 'Base' : 'Ethereum'} for gas.
-                                    </span>
-                                    <button
-                                      onClick={() => open({ view: 'OnRampProviders' })}
-                                      className="text-sm text-primary hover:text-primary/80 font-medium inline-flex items-center gap-1"
-                                    >
-                                      Buy ETH
-                                      <ShoppingCart className="h-3 w-3" />
-                                    </button>
-                                  </div>
+                                  <span className="text-sm text-amber-600 inline-flex items-center gap-1">
+                                    <AlertCircle className="h-4 w-4" />
+                                    You need ETH on {selectedBridgeChain === 'base' ? 'Base' : 'Ethereum'} for gas.
+                                  </span>
                                 </div>
                               )}
 

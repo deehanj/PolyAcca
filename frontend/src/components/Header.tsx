@@ -1,7 +1,6 @@
 import { Link } from "react-router-dom";
 import { Shield } from "lucide-react";
 import { AuthButton } from "./AuthButton";
-import { RingCounter } from "./RingCounter";
 import { TradingBalance } from "./TradingBalance";
 import { useUserProfile } from "../hooks/useUserProfile";
 
@@ -24,13 +23,14 @@ export function Header() {
 
           {/* Actions */}
           <div className="flex items-center gap-4">
-            <RingCounter />
-            <Link
-              to="/design"
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Design
-            </Link>
+            {window.location.hostname === 'localhost' && (
+              <Link
+                to="/design"
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Design
+              </Link>
+            )}
             {isAdmin && (
               <Link
                 to="/admin"
