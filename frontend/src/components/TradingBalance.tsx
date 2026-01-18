@@ -9,8 +9,9 @@
 
 import { useState, useEffect } from 'react';
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt, useAccount, useBalance, useSwitchChain } from 'wagmi';
+import { useAppKit } from '@reown/appkit/react';
 import { erc20Abi, parseUnits, formatUnits } from 'viem';
-import { Wallet, Loader2, Copy, Check, ArrowRight, Clock, RefreshCw, Send } from 'lucide-react';
+import { Wallet, Loader2, Copy, Check, ArrowRight, Clock, RefreshCw, Send, ShoppingCart, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { useAuth } from '../hooks/useAuth';
 import { Dialog, DialogTitle, DialogDescription } from './ui/Dialog';
@@ -42,6 +43,7 @@ function truncateAddress(address: string): string {
 export function TradingBalance() {
   const { isAuthenticated } = useAuth();
   const { address: connectedAddress } = useAccount();
+  const { open } = useAppKit();
   const { embeddedWalletAddress, isLoading: profileLoading } = useUserProfile();
   const [isDepositOpen, setIsDepositOpen] = useState(false);
   const [depositAmount, setDepositAmount] = useState('');
@@ -349,44 +351,93 @@ export function TradingBalance() {
       </button>
 
       <Dialog open={isDepositOpen} onClose={handleClose}>
-        <DialogTitle>Deposit USDC</DialogTitle>
+        <DialogTitle>Fund Your Trading Wallet</DialogTitle>
         <DialogDescription>
-          Fund your trading wallet to place bets on Polymarket.
+          Your trading wallet needs USDC on Polygon to place bets.
         </DialogDescription>
 
-        {/* Your balances section */}
+        {/* Status-based balances section */}
         <div className="mb-4 rounded-md border border-border bg-muted/50 p-3">
-          <h3 className="text-sm font-medium text-foreground mb-2">Your Wallet Balances</h3>
-          <div className="space-y-1 text-sm">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Polygon:</span>
-              <span className={parseFloat(polygonUsdc) > 0 ? 'text-foreground' : 'text-muted-foreground'}>
-                ${polygonUsdc} USDC
-                {!hasPolForGas && parseFloat(polygonUsdc) > 0 && (
-                  <span className="text-amber-500 ml-1">(no POL for gas)</span>
-                )}
-              </span>
+          <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">Your USDC Balances</h3>
+          <div className="space-y-2 text-sm">
+            {/* Polygon */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-5 h-5 rounded-full bg-purple-500 flex items-center justify-center text-white text-[10px] font-bold">P</div>
+                <span className="font-medium">Polygon</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={parseFloat(polygonUsdc) > 0 ? 'font-medium' : 'text-muted-foreground'}>${polygonUsdc}</span>
+                {parseFloat(polygonUsdc) > 0 && hasPolForGas ? (
+                  <span className="flex items-center gap-1 text-xs text-green-500">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    Ready
+                  </span>
+                ) : parseFloat(polygonUsdc) > 0 ? (
+                  <span className="flex items-center gap-1 text-xs text-amber-500">
+                    <AlertCircle className="h-3.5 w-3.5" />
+                    Need POL
+                  </span>
+                ) : null}
+              </div>
             </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Base:</span>
-              <span className={parseFloat(baseUsdc) > 0 ? 'text-foreground' : 'text-muted-foreground'}>
-                ${baseUsdc} USDC
-                {!hasBaseEthForGas && parseFloat(baseUsdc) > 0 && (
-                  <span className="text-amber-500 ml-1">(no ETH for gas)</span>
-                )}
-              </span>
+
+            {/* Base */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center text-white text-[10px] font-bold">B</div>
+                <span className="font-medium">Base</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={parseFloat(baseUsdc) > 0 ? 'font-medium' : 'text-muted-foreground'}>${baseUsdc}</span>
+                {parseFloat(baseUsdc) > 0 && hasBaseEthForGas ? (
+                  <span className="flex items-center gap-1 text-xs text-green-500">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    Can bridge
+                  </span>
+                ) : parseFloat(baseUsdc) > 0 ? (
+                  <button
+                    onClick={() => open({ view: 'OnRampProviders' })}
+                    className="flex items-center gap-1 text-xs text-amber-500 hover:text-amber-400"
+                  >
+                    <AlertCircle className="h-3.5 w-3.5" />
+                    Need ETH
+                    <ShoppingCart className="h-3 w-3" />
+                  </button>
+                ) : null}
+              </div>
             </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Ethereum:</span>
-              <span className={parseFloat(ethereumUsdc) > 0 ? 'text-foreground' : 'text-muted-foreground'}>
-                ${ethereumUsdc} USDC
-                {!hasEthereumEthForGas && parseFloat(ethereumUsdc) > 0 && (
-                  <span className="text-amber-500 ml-1">(no ETH for gas)</span>
-                )}
-              </span>
+
+            {/* Ethereum */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-5 h-5 rounded-full bg-slate-700 flex items-center justify-center text-white text-[10px] font-bold">Ξ</div>
+                <span className="font-medium">Ethereum</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={parseFloat(ethereumUsdc) > 0 ? 'font-medium' : 'text-muted-foreground'}>${ethereumUsdc}</span>
+                {parseFloat(ethereumUsdc) > 0 && hasEthereumEthForGas ? (
+                  <span className="flex items-center gap-1 text-xs text-green-500">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    Can bridge
+                  </span>
+                ) : parseFloat(ethereumUsdc) > 0 ? (
+                  <button
+                    onClick={() => open({ view: 'OnRampProviders' })}
+                    className="flex items-center gap-1 text-xs text-amber-500 hover:text-amber-400"
+                  >
+                    <AlertCircle className="h-3.5 w-3.5" />
+                    Need ETH
+                    <ShoppingCart className="h-3 w-3" />
+                  </button>
+                ) : null}
+              </div>
             </div>
           </div>
         </div>
+
+        {/* Deposit options header */}
+        <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">Deposit Options</h3>
 
         {/* Deposit options */}
         <div className="space-y-3">
@@ -396,30 +447,37 @@ export function TradingBalance() {
               selectedMethod === 'polygon'
                 ? 'border-primary bg-primary/5'
                 : canDepositDirect
-                ? 'border-border hover:border-primary/50'
-                : 'border-border opacity-50'
+                ? 'border-green-500/50 hover:border-green-500'
+                : 'border-border'
             }`}
           >
             <button
-              onClick={() => setSelectedMethod(selectedMethod === 'polygon' ? null : 'polygon')}
-              disabled={!canDepositDirect}
-              className="w-full text-left p-3 disabled:cursor-not-allowed"
+              onClick={() => canDepositDirect && setSelectedMethod(selectedMethod === 'polygon' ? null : 'polygon')}
+              className={`w-full text-left p-3 ${!canDepositDirect ? 'cursor-default' : ''}`}
             >
               <div className="flex items-center justify-between">
                 <div>
                   <div className="font-medium text-sm flex items-center gap-2">
                     <ArrowRight className="h-4 w-4 text-primary" />
-                    Instant Deposit
+                    Instant Deposit from Polygon
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Transfer from Polygon wallet (requires POL for gas)
+                    Direct transfer, no bridging required
                   </p>
                 </div>
                 {canDepositDirect ? (
-                  <span className="text-xs text-green-500 font-medium">Available</span>
+                  <span className="flex items-center gap-1 text-xs text-green-500 font-medium">
+                    <CheckCircle2 className="h-4 w-4" />
+                    Ready
+                  </span>
+                ) : parseFloat(polygonUsdc) > 0 ? (
+                  <span className="flex items-center gap-1 text-xs text-amber-500">
+                    <AlertCircle className="h-4 w-4" />
+                    Need POL for gas
+                  </span>
                 ) : (
                   <span className="text-xs text-muted-foreground">
-                    {parseFloat(polygonUsdc) > 0 ? 'Need POL for gas' : 'No USDC found on Polygon'}
+                    No USDC on Polygon
                   </span>
                 )}
               </div>
@@ -484,6 +542,8 @@ export function TradingBalance() {
             className={`rounded-md border transition-colors ${
               selectedMethod === 'bridge'
                 ? 'border-primary bg-primary/5'
+                : hasOtherChainUsdc && (hasBaseEthForGas || hasEthereumEthForGas)
+                ? 'border-green-500/50 hover:border-green-500'
                 : 'border-border hover:border-primary/50'
             }`}
           >
@@ -495,20 +555,36 @@ export function TradingBalance() {
                 <div>
                   <div className="font-medium text-sm flex items-center gap-2">
                     <Clock className="h-4 w-4 text-primary" />
-                    Bridge Deposit (5-30 min)
+                    Bridge to Polygon (5-30 min)
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Send from any chain or exchange - auto-bridges to Polygon
+                    Send USDC from Base, Ethereum, or any exchange
                   </p>
                 </div>
-                {hasOtherChainUsdc && (
-                  <span className="text-xs text-green-500 font-medium">
-                    USDC found on {[
-                      parseFloat(baseUsdc) > 0 && 'Base',
-                      parseFloat(ethereumUsdc) > 0 && 'Ethereum'
-                    ].filter(Boolean).join(', ')}
-                  </span>
-                )}
+                <div className="text-right">
+                  {hasOtherChainUsdc ? (
+                    <>
+                      <p className="text-xs font-medium">
+                        ${(parseFloat(baseUsdc) + parseFloat(ethereumUsdc)).toFixed(2)} available
+                      </p>
+                      {(parseFloat(baseUsdc) > 0 && hasBaseEthForGas) || (parseFloat(ethereumUsdc) > 0 && hasEthereumEthForGas) ? (
+                        <span className="flex items-center justify-end gap-1 text-xs text-green-500 mt-0.5">
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          Ready to bridge
+                        </span>
+                      ) : (
+                        <span className="flex items-center justify-end gap-1 text-xs text-amber-500 mt-0.5">
+                          <AlertCircle className="h-3.5 w-3.5" />
+                          Need ETH for gas
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">
+                      No USDC on other chains
+                    </span>
+                  )}
+                </div>
               </div>
             </button>
 
@@ -553,48 +629,78 @@ export function TradingBalance() {
                           {!selectedBridgeChain ? (
                             <div className="space-y-2">
                               {parseFloat(baseUsdc) > 0 && (
-                                <button
-                                  onClick={() => setSelectedBridgeChain('base')}
-                                  className={`w-full flex items-center justify-between rounded-md border border-border p-2 hover:border-primary/50 transition-colors ${!hasBaseEthForGas ? 'opacity-60' : ''}`}
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-bold">
-                                      B
-                                    </div>
-                                    <div>
+                                <div className="w-full rounded-md border border-border p-2">
+                                  <button
+                                    onClick={() => setSelectedBridgeChain('base')}
+                                    className={`w-full flex items-center justify-between hover:opacity-80 transition-colors ${!hasBaseEthForGas ? 'opacity-60' : ''}`}
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-bold">
+                                        B
+                                      </div>
                                       <span className="text-sm font-medium">Base</span>
-                                      {!hasBaseEthForGas && (
-                                        <p className="text-xs text-amber-500">No ETH for gas</p>
-                                      )}
                                     </div>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-sm text-muted-foreground">${baseUsdc} USDC</span>
-                                    <Send className="h-4 w-4 text-primary" />
-                                  </div>
-                                </button>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-sm text-muted-foreground">${baseUsdc} USDC</span>
+                                      <Send className="h-4 w-4 text-primary" />
+                                    </div>
+                                  </button>
+                                  {!hasBaseEthForGas && (
+                                    <div className="mt-2 flex items-center justify-between">
+                                      <span className="text-xs text-amber-500 inline-flex items-center gap-1">
+                                        <AlertCircle className="h-3 w-3" />
+                                        Need ETH for gas
+                                      </span>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          open({ view: 'OnRampProviders' });
+                                        }}
+                                        className="text-xs text-primary hover:text-primary/80 inline-flex items-center gap-1"
+                                      >
+                                        Buy ETH
+                                        <ShoppingCart className="h-3 w-3" />
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
                               )}
                               {parseFloat(ethereumUsdc) > 0 && (
-                                <button
-                                  onClick={() => setSelectedBridgeChain('ethereum')}
-                                  className={`w-full flex items-center justify-between rounded-md border border-border p-2 hover:border-primary/50 transition-colors ${!hasEthereumEthForGas ? 'opacity-60' : ''}`}
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <div className="w-6 h-6 rounded-full bg-slate-700 flex items-center justify-center text-white text-xs font-bold">
-                                      Ξ
-                                    </div>
-                                    <div>
+                                <div className="w-full rounded-md border border-border p-2">
+                                  <button
+                                    onClick={() => setSelectedBridgeChain('ethereum')}
+                                    className={`w-full flex items-center justify-between hover:opacity-80 transition-colors ${!hasEthereumEthForGas ? 'opacity-60' : ''}`}
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-6 h-6 rounded-full bg-slate-700 flex items-center justify-center text-white text-xs font-bold">
+                                        Ξ
+                                      </div>
                                       <span className="text-sm font-medium">Ethereum</span>
-                                      {!hasEthereumEthForGas && (
-                                        <p className="text-xs text-amber-500">No ETH for gas</p>
-                                      )}
                                     </div>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-sm text-muted-foreground">${ethereumUsdc} USDC</span>
-                                    <Send className="h-4 w-4 text-primary" />
-                                  </div>
-                                </button>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-sm text-muted-foreground">${ethereumUsdc} USDC</span>
+                                      <Send className="h-4 w-4 text-primary" />
+                                    </div>
+                                  </button>
+                                  {!hasEthereumEthForGas && (
+                                    <div className="mt-2 flex items-center justify-between">
+                                      <span className="text-xs text-amber-500 inline-flex items-center gap-1">
+                                        <AlertCircle className="h-3 w-3" />
+                                        Need ETH for gas
+                                      </span>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          open({ view: 'OnRampProviders' });
+                                        }}
+                                        className="text-xs text-primary hover:text-primary/80 inline-flex items-center gap-1"
+                                      >
+                                        Buy ETH
+                                        <ShoppingCart className="h-3 w-3" />
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
                               )}
                             </div>
                           ) : (
@@ -644,9 +750,21 @@ export function TradingBalance() {
                                 </div>
                               </div>
 
-                              {!selectedChainHasGas() && (
-                                <div className="rounded-md bg-amber-500/10 border border-amber-500/20 px-3 py-2 text-sm text-amber-600">
-                                  You need ETH on {selectedBridgeChain === 'base' ? 'Base' : 'Ethereum'} to pay for gas fees.
+                              {!selectedChainHasGas() && selectedBridgeChain && (
+                                <div className="rounded-md bg-amber-500/10 border border-amber-500/20 px-3 py-2">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-sm text-amber-600 inline-flex items-center gap-1">
+                                      <AlertCircle className="h-4 w-4" />
+                                      You need ETH on {selectedBridgeChain === 'base' ? 'Base' : 'Ethereum'} for gas.
+                                    </span>
+                                    <button
+                                      onClick={() => open({ view: 'OnRampProviders' })}
+                                      className="text-sm text-primary hover:text-primary/80 font-medium inline-flex items-center gap-1"
+                                    >
+                                      Buy ETH
+                                      <ShoppingCart className="h-3 w-3" />
+                                    </button>
+                                  </div>
                                 </div>
                               )}
 
@@ -687,7 +805,7 @@ export function TradingBalance() {
 
                       {/* Manual deposit addresses section */}
                       <h4 className="text-sm font-medium text-foreground mb-3">
-                        Send from {hasOtherChainUsdc ? 'another wallet or exchange' : 'any wallet or exchange'}:
+                        Send USDC to your trading account via {hasOtherChainUsdc ? 'another wallet or exchange' : 'any wallet or exchange'}:
                       </h4>
                       <div className="divide-y divide-border">
                         {renderAddressRow('EVM', 'Ethereum, Base, Arbitrum, etc.', depositAddresses.evm)}

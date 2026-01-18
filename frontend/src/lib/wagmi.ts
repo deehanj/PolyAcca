@@ -1,12 +1,21 @@
-import { getDefaultConfig } from '@rainbow-me/rainbowkit';
-import { polygon, base, mainnet } from 'wagmi/chains';
+import { WagmiAdapter } from '@reown/appkit-adapter-wagmi';
+import { polygon, base, mainnet, type AppKitNetwork } from '@reown/appkit/networks';
 
-export const config = getDefaultConfig({
-  appName: 'PolyAcca',
-  projectId: import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || '8e2aabca7fd0c359bd0e27b3d9f6c220',
-  chains: [polygon, base, mainnet],
+// WalletConnect project ID
+export const projectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || '8e2aabca7fd0c359bd0e27b3d9f6c220';
+
+// Supported networks for AppKit
+export const networks: [AppKitNetwork, ...AppKitNetwork[]] = [polygon, base, mainnet];
+
+// Create WagmiAdapter for AppKit
+export const wagmiAdapter = new WagmiAdapter({
+  networks,
+  projectId,
   ssr: false,
 });
+
+// Export wagmi config for hooks
+export const config = wagmiAdapter.wagmiConfig;
 
 // Chain configurations for balance queries
 export const SUPPORTED_CHAINS = {

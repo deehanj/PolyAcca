@@ -40,7 +40,7 @@ export function Dialog({ open, onClose, children }: DialogProps) {
     >
       <div
         ref={dialogRef}
-        className="relative mx-auto w-full max-w-md rounded-lg border border-border bg-background p-6 shadow-lg"
+        className="relative mx-auto w-full max-w-lg rounded-lg border border-border bg-background p-6 shadow-lg"
         role="dialog"
         aria-modal="true"
       >
