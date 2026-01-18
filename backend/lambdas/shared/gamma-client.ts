@@ -90,6 +90,11 @@ function buildQueryString(params: MarketsQueryParams): string {
   const endDateMin = new Date().toISOString();
   searchParams.set('end_date_min', endDateMin);
 
+  // Always exclude closed markets (unless explicitly requested)
+  if (params.closed === undefined) {
+    searchParams.set('closed', 'false');
+  }
+
   // Note: Gamma API may not support category filter directly
   // We filter client-side after fetching
 
