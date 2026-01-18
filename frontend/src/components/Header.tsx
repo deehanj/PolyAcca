@@ -1,16 +1,18 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Shield, Menu, X } from "lucide-react";
+import { Shield, Menu, X, Layers } from "lucide-react";
 import { AuthButton } from "./AuthButton";
 import { RingCounter } from "./RingCounter";
 import { TradingBalance } from "./TradingBalance";
 import { useUserProfile } from "../hooks/useUserProfile";
+import { useAuth } from "../hooks/useAuth";
 import { Button } from "./ui/Button";
 import logoImage from "../assets/coins_cropped.png";
 import { ThemeToggle } from "./ThemeToggle";
 
 export function Header() {
   const { isAdmin } = useUserProfile();
+  const { isAuthenticated } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   return (
@@ -39,6 +41,15 @@ export function Header() {
             <RingCounter />
             
             <nav className="flex items-center gap-6">
+              {isAuthenticated && (
+                <Link
+                  to="/my-chains"
+                  className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <Layers className="h-3.5 w-3.5" />
+                  My Accas
+                </Link>
+              )}
               <Link
                 to="/design"
                 className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
@@ -83,6 +94,16 @@ export function Header() {
       {isMenuOpen && (
         <div className="md:hidden absolute top-16 left-0 w-full bg-background/95 backdrop-blur-xl border-b border-border p-6 flex flex-col gap-6 animate-in slide-in-from-top-2">
           <div className="flex flex-col gap-4">
+            {isAuthenticated && (
+              <Link
+                to="/my-chains"
+                onClick={() => setIsMenuOpen(false)}
+                className="text-lg font-medium text-foreground py-2 border-b border-white/5 flex items-center gap-2"
+              >
+                <Layers className="h-4 w-4" />
+                My Accumulators
+              </Link>
+            )}
             <Link
               to="/design"
               onClick={() => setIsMenuOpen(false)}

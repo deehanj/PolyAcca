@@ -7,6 +7,7 @@ import { useBetNotifications } from "./hooks/useBetNotifications";
 import { HomePage } from "./pages/Home";
 import { DesignPage } from "./pages/Design";
 import { AdminPage } from "./pages/Admin";
+import { MyChainsPage } from "./pages/MyChains";
 
 function AppContent() {
   // Initialize WebSocket connection for bet notifications
@@ -17,6 +18,7 @@ function AppContent() {
       <Route path="/" element={<HomePage />} />
       <Route path="/design" element={<DesignPage />} />
       <Route path="/admin" element={<AdminPage />} />
+      <Route path="/my-chains" element={<MyChainsPage />} />
     </Routes>
   );
 }
