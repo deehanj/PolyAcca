@@ -112,7 +112,7 @@ export function AccumulatorProvider({ children }: { children: ReactNode }) {
         tokenId: isYes ? bet.market.yesTokenId : bet.market.noTokenId,
         marketQuestion: bet.market.question,
         side: isYes ? "YES" : "NO",
-        targetPrice: price.toFixed(2),
+        targetPrice: price.toFixed(4),
         // Market storage fields
         questionId: bet.market.id, // market.id is the questionId
         yesTokenId: bet.market.yesTokenId,
