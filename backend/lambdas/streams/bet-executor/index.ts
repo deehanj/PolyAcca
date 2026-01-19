@@ -565,8 +565,9 @@ async function skipClosedMarketAndContinue(
 
 /**
  * Execute a bet - place order on Polymarket using embedded wallet
+ * @internal Exported for testing only
  */
-async function executeBet(bet: BetEntity): Promise<void> {
+export async function executeBet(bet: BetEntity): Promise<void> {
   log.info('Executing bet', {
     betId: bet.betId,
     chainId: bet.chainId,
