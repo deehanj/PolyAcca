@@ -202,8 +202,9 @@ export type BetStatus =
   | 'QUEUED' // Waiting for previous bet to complete
   | 'READY' // Ready to execute (previous bet won)
   | 'EXECUTING' // Order being placed
-  | 'PLACED' // Order placed, waiting for fill
+  | 'PLACED' // Order placed, waiting for fill (kept for backwards compat)
   | 'FILLED' // Order filled, waiting for market resolution
+  | 'UNFILLED' // FAK got zero fills
   | 'SETTLED' // Market resolved
 
   // Terminal - User action
@@ -217,6 +218,7 @@ export type BetStatus =
   | 'NO_CREDENTIALS' // Missing/invalid Polymarket credentials
   | 'ORDER_REJECTED' // Polymarket rejected the order
   | 'MARKET_CLOSED' // Market closed/suspended/resolved
+  | 'MARKET_CLOSING_SOON' // <24h to resolution
   | 'EXECUTION_ERROR' // Known technical failure (timeout, network, etc.)
   | 'UNKNOWN_FAILURE'; // Unexpected/unclassified failure
 
