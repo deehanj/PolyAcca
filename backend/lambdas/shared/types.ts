@@ -184,6 +184,13 @@ export interface BetEntity extends BaseEntity {
   outcome?: 'WON' | 'LOST';
   actualPayout?: string; // Actual payout received (verified from on-chain transfer)
   redemptionTxHash?: string; // Transaction hash of the redemption/payout transfer
+  // Slippage fields
+  maxPrice?: string; // targetPrice * (1 + slippage)
+  maxSlippage?: string; // User's slippage setting (e.g., "0.025")
+  requestedStake?: string; // What user intended to bet
+  actualStake?: string; // What actually filled (may be less)
+  fillPercentage?: string; // e.g., "0.85" for 85%
+  priceImpact?: string; // Actual vs target price difference
 }
 
 export type BetStatus =
