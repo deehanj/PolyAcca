@@ -4,6 +4,7 @@
  * Routes requests to appropriate handlers:
  * - GET /chains - List user's chains
  * - POST /chains - Create user chain
+ * - POST /chains/estimate - Calculate price impact estimates
  * - GET /chains/{id} - Get user chain details
  * - PUT /chains/{id} - Update chain customization (name, description, image)
  * - GET /chains/{id}/users - Get all users on a chain
@@ -17,6 +18,7 @@ import { listUserChains, getUserChainById, getChainUsers, listTrendingChains } f
 import { createUserChain } from './post';
 import { updateChain } from './put';
 import { cancelUserChain } from './delete';
+import { estimateChain } from './estimate';
 
 export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
   try {
@@ -24,11 +26,17 @@ export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayPr
     const chainId = event.pathParameters?.chainId;
     const isUsersRoute = event.path.endsWith('/users');
     const isTrendingRoute = event.path.endsWith('/trending');
+    const isEstimateRoute = event.path.endsWith('/estimate');
 
     // Public endpoint: GET /chains/trending (no auth required)
     if (isTrendingRoute && method === 'GET') {
       const limit = parseInt(event.queryStringParameters?.limit || '10', 10);
       return listTrendingChains(Math.min(limit, 50)); // Cap at 50
+    }
+
+    // POST /chains/estimate - Calculate price impact estimates
+    if (isEstimateRoute && method === 'POST') {
+      return estimateChain(event.body);
     }
 
     // All other routes require authentication
