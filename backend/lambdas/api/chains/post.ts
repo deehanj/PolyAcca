@@ -29,9 +29,13 @@ import { fetchMarketByConditionId } from '../../shared/gamma-client';
 
 async function hydrateLegsFromGamma(legs: CreateLegInput[]): Promise<CreateLegInput[]> {
   const uniqueConditionIds = Array.from(new Set(legs.map((leg) => leg.conditionId)));
+  console.log('Hydrating legs from Gamma API', { uniqueConditionIds });
+
   const markets = await Promise.all(
     uniqueConditionIds.map(async (conditionId) => {
+      console.log('Fetching market for conditionId:', conditionId);
       const market = await fetchMarketByConditionId(conditionId);
+      console.log('Market fetched for conditionId:', conditionId, market ? 'found' : 'not found');
       return { conditionId, market };
     })
   );
@@ -159,13 +163,27 @@ export async function createUserChain(
 
   let validatedLegs: CreateLegInput[];
   try {
+    console.log('Starting market validation for', request.legs.length, 'legs');
     validatedLegs = await hydrateLegsFromGamma(request.legs);
+    console.log('Market validation completed successfully');
   } catch (error) {
-    console.error('Market validation failed:', error);
-    const message = (error as Error).message || 'Market validation failed';
-    const statusCode = message.includes('Gamma API') ? 502 : 400;
-    return errorResponse(statusCode, message);
+    const err = error as Error;
+    console.error('Market validation failed:', {
+      message: err.message,
+      name: err.name,
+      stack: err.stack,
+    });
+    const message = err.message || 'Market validation failed';
+    const isGammaError = message.includes('Gamma API') || message.includes('timeout');
+    return errorResponse(isGammaError ? 502 : 400, message);
   }
+
+  // Sort legs by market end date so they resolve in chronological order
+  validatedLegs.sort((a, b) => {
+    const dateA = new Date(a.endDate).getTime();
+    const dateB = new Date(b.endDate).getTime();
+    return dateA - dateB;
+  });
 
   const now = new Date().toISOString();
 
