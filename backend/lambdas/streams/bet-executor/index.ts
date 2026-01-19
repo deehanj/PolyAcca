@@ -24,6 +24,7 @@ import {
   updateUserChainStatus,
   getUser,
   getBet,
+  getChain,
 } from '../../shared/dynamo-client';
 import {
   getEmbeddedWalletCredentials,
@@ -44,6 +45,7 @@ import { createLogger } from '../../shared/logger';
 import { toMicroUsdc, fromMicroUsdc, calculateShares } from '../../shared/usdc-math';
 import { JsonRpcProvider } from 'ethers';
 import type { BetEntity, BetStatus, BuilderCredentials } from '../../shared/types';
+import { fetchMarketByConditionId } from '../../shared/gamma-client';
 
 const log = createLogger('bet-executor');
 
@@ -162,6 +164,57 @@ function classifyError(error: unknown): BetStatus {
 
   // Unknown failure
   return 'UNKNOWN_FAILURE';
+}
+
+/**
+ * Check if a market is still active and accepting orders
+ * This prevents attempting to place bets on markets that have already closed or resolved
+ *
+ * @returns Object with isActive flag and reason if not active
+ */
+async function checkMarketIsActive(
+  conditionId: string
+): Promise<{ isActive: boolean; reason?: string }> {
+  try {
+    const market = await fetchMarketByConditionId(conditionId);
+
+    if (!market) {
+      log.warn('Market not found in Gamma API', { conditionId });
+      // If we can't find the market, assume it might be closed
+      return { isActive: false, reason: 'Market not found' };
+    }
+
+    // Check if market is closed
+    if (market.closed) {
+      log.info('Market is closed', { conditionId, question: market.question });
+      return { isActive: false, reason: 'Market is closed' };
+    }
+
+    // Check if market is not active (some markets may be suspended)
+    if (!market.active) {
+      log.info('Market is not active', { conditionId, question: market.question });
+      return { isActive: false, reason: 'Market is not active' };
+    }
+
+    // Check if end date has passed
+    const endDate = new Date(market.endDate);
+    const now = new Date();
+    if (endDate <= now) {
+      log.info('Market end date has passed', {
+        conditionId,
+        endDate: market.endDate,
+        question: market.question,
+      });
+      return { isActive: false, reason: 'Market end date has passed' };
+    }
+
+    return { isActive: true };
+  } catch (error) {
+    log.errorWithStack('Failed to check market status', error, { conditionId });
+    // On error checking market status, proceed with bet placement
+    // The order will fail if the market is truly closed
+    return { isActive: true };
+  }
 }
 
 /**
@@ -393,6 +446,83 @@ async function executeBetWithEmbeddedWallet(
 }
 
 /**
+ * Skip a closed market and advance to the next bet in the chain
+ * Returns true if there was a next bet to advance to, false if this was the last bet
+ */
+async function skipClosedMarketAndContinue(
+  bet: BetEntity,
+  reason: string
+): Promise<boolean> {
+  log.info('Skipping closed market and checking for next bet', {
+    betId: bet.betId,
+    chainId: bet.chainId,
+    sequence: bet.sequence,
+    reason,
+  });
+
+  // Mark this bet as SKIPPED (market was closed)
+  await updateBetStatus(bet.chainId, bet.walletAddress, bet.sequence, 'MARKET_CLOSED');
+
+  // Get the chain to know total legs
+  const chain = await getChain(bet.chainId);
+  if (!chain) {
+    log.error('Chain not found when trying to skip bet', { chainId: bet.chainId });
+    await updateUserChainStatus(bet.chainId, bet.walletAddress, 'FAILED', {
+      completedLegs: bet.sequence - 1,
+    });
+    return false;
+  }
+
+  const isLastBet = bet.sequence === chain.legs.length;
+
+  if (isLastBet) {
+    // No more bets - chain completes but this bet was skipped
+    // Mark as FAILED since we couldn't place the final bet
+    log.info('Last bet in chain was skipped due to closed market', {
+      chainId: bet.chainId,
+      walletAddress: bet.walletAddress,
+    });
+    await updateUserChainStatus(bet.chainId, bet.walletAddress, 'FAILED', {
+      completedLegs: bet.sequence - 1,
+    });
+    return false;
+  }
+
+  // There are more bets - mark the next one as READY
+  const nextSequence = bet.sequence + 1;
+  const nextBet = await getBet(bet.chainId, bet.walletAddress, nextSequence);
+
+  if (!nextBet) {
+    log.error('Next bet not found when trying to skip', {
+      chainId: bet.chainId,
+      walletAddress: bet.walletAddress,
+      nextSequence,
+    });
+    await updateUserChainStatus(bet.chainId, bet.walletAddress, 'FAILED', {
+      completedLegs: bet.sequence - 1,
+    });
+    return false;
+  }
+
+  // Update user chain to reflect we're moving to the next leg
+  await updateUserChainStatus(bet.chainId, bet.walletAddress, 'ACTIVE', {
+    completedLegs: bet.sequence, // Count the skipped bet as "completed" (skipped)
+    currentLegSequence: nextSequence,
+  });
+
+  // Mark next bet as READY - the stream will trigger execution
+  await updateBetStatus(bet.chainId, bet.walletAddress, nextSequence, 'READY');
+
+  log.info('Skipped closed market, advanced to next bet', {
+    chainId: bet.chainId,
+    skippedSequence: bet.sequence,
+    nextSequence,
+  });
+
+  return true;
+}
+
+/**
  * Execute a bet - place order on Polymarket using embedded wallet
  */
 async function executeBet(bet: BetEntity): Promise<void> {
@@ -407,6 +537,20 @@ async function executeBet(bet: BetEntity): Promise<void> {
   });
 
   try {
+    // Check if market is still active before attempting to place order
+    // This prevents wasted API calls and provides better error handling
+    const marketCheck = await checkMarketIsActive(bet.conditionId);
+    if (!marketCheck.isActive) {
+      log.warn('Market is not active, cannot place bet', {
+        betId: bet.betId,
+        conditionId: bet.conditionId,
+        reason: marketCheck.reason,
+      });
+      // Skip this bet and try to continue with the next one in the chain
+      await skipClosedMarketAndContinue(bet, marketCheck.reason ?? 'Market closed');
+      return; // Don't throw - we've handled it by skipping
+    }
+
     // Mark bet as EXECUTING
     await updateBetStatus(bet.chainId, bet.walletAddress, bet.sequence, 'EXECUTING');
 

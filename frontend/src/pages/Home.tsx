@@ -34,7 +34,10 @@ const categories = [
 ];
 
 // Format volume for display (e.g., 2400000 -> "$2.4M")
-function formatVolume(volumeNum: number): string {
+function formatVolume(volumeNum: number | undefined): string {
+  if (volumeNum == null || isNaN(volumeNum)) {
+    return "$0";
+  }
   if (volumeNum >= 1_000_000) {
     return `$${(volumeNum / 1_000_000).toFixed(1)}M`;
   }

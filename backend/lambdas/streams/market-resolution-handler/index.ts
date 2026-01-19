@@ -24,6 +24,7 @@ import {
 import { createLogger } from '../../shared/logger';
 import { collectPlatformFee } from '../../shared/platform-fee';
 import { toMicroUsdc, fromMicroUsdc, calculateShares } from '../../shared/usdc-math';
+import { fetchMarketByConditionId } from '../../shared/gamma-client';
 import type { MarketEntity, BetEntity } from '../../shared/types';
 
 const log = createLogger('market-resolution-handler');
@@ -382,35 +383,134 @@ async function handleUserChainAfterSettlement(
     // More bets to go - update user chain and mark next bet as READY
     const nextSequence = bet.sequence + 1;
 
-    log.info('Bet won, marking next bet as READY', {
+    log.info('Bet won, preparing to mark next bet as READY', {
       chainId: bet.chainId,
       walletAddress: bet.walletAddress,
       nextSequence,
       newStake: payout,
     });
 
-    // Update user chain with new current value and progress
-    await updateUserChainStatus(bet.chainId, bet.walletAddress, 'ACTIVE', {
-      currentValue: payout,
-      completedLegs: bet.sequence,
-      currentLegSequence: nextSequence,
-    });
-
-    // Get next bet and mark it as READY
+    // Get next bet to check its market status
     const nextBet = await getBet(bet.chainId, bet.walletAddress, nextSequence);
 
-    if (nextBet) {
-      // Mark next bet as READY - the stream will trigger BetExecutor
-      await updateBetStatus(bet.chainId, bet.walletAddress, nextSequence, 'READY');
-
-      log.debug('Next bet marked as READY, BetExecutor will pick it up');
-    } else {
+    if (!nextBet) {
       log.error('Next bet not found', {
         chainId: bet.chainId,
         walletAddress: bet.walletAddress,
         nextSequence,
       });
+      return;
     }
+
+    // Find the next available bet (skipping any that have closed markets)
+    let currentSequence = nextSequence;
+    let currentBet = nextBet;
+    let foundActiveBet = false;
+
+    while (currentSequence <= chain.legs.length) {
+      // Check if the market is still active
+      try {
+        const market = await fetchMarketByConditionId(currentBet.conditionId);
+
+        if (!market) {
+          log.warn('Market not found in Gamma API, skipping bet', {
+            chainId: bet.chainId,
+            conditionId: currentBet.conditionId,
+            sequence: currentSequence,
+          });
+          // Mark this bet as MARKET_CLOSED and try the next one
+          await updateBetStatus(bet.chainId, bet.walletAddress, currentSequence, 'MARKET_CLOSED');
+        } else if (market.closed) {
+          log.warn('Market has already closed, skipping bet', {
+            chainId: bet.chainId,
+            conditionId: currentBet.conditionId,
+            question: market.question,
+            sequence: currentSequence,
+          });
+          // Mark this bet as MARKET_CLOSED and try the next one
+          await updateBetStatus(bet.chainId, bet.walletAddress, currentSequence, 'MARKET_CLOSED');
+        } else if (!market.active) {
+          log.warn('Market is not active, skipping bet', {
+            chainId: bet.chainId,
+            conditionId: currentBet.conditionId,
+            question: market.question,
+            sequence: currentSequence,
+          });
+          // Mark this bet as MARKET_CLOSED and try the next one
+          await updateBetStatus(bet.chainId, bet.walletAddress, currentSequence, 'MARKET_CLOSED');
+        } else {
+          // Market is active - this is the bet we want to execute
+          const endDate = new Date(market.endDate);
+          const now = new Date();
+          if (endDate <= now) {
+            log.warn('Market end date has passed but not closed yet, proceeding', {
+              chainId: bet.chainId,
+              conditionId: currentBet.conditionId,
+              endDate: market.endDate,
+              sequence: currentSequence,
+            });
+          }
+          foundActiveBet = true;
+          break;
+        }
+      } catch (error) {
+        log.errorWithStack('Failed to check market status, proceeding with bet', error, {
+          chainId: bet.chainId,
+          conditionId: currentBet.conditionId,
+          sequence: currentSequence,
+        });
+        // On error, assume market is active and try to place the bet
+        // The bet-executor will do its own check
+        foundActiveBet = true;
+        break;
+      }
+
+      // Move to the next bet
+      currentSequence++;
+      if (currentSequence <= chain.legs.length) {
+        const nextBetInChain = await getBet(bet.chainId, bet.walletAddress, currentSequence);
+        if (!nextBetInChain) {
+          log.error('Bet not found while scanning for active market', {
+            chainId: bet.chainId,
+            walletAddress: bet.walletAddress,
+            sequence: currentSequence,
+          });
+          break;
+        }
+        currentBet = nextBetInChain;
+      }
+    }
+
+    if (!foundActiveBet) {
+      // All remaining bets have closed markets - mark chain as FAILED
+      log.warn('All remaining markets are closed, chain cannot continue', {
+        chainId: bet.chainId,
+        walletAddress: bet.walletAddress,
+        lastCheckedSequence: currentSequence - 1,
+      });
+      await updateUserChainStatus(bet.chainId, bet.walletAddress, 'FAILED', {
+        currentValue: payout,
+        completedLegs: currentSequence - 1,
+      });
+      return;
+    }
+
+    // Update user chain with new current value and progress
+    await updateUserChainStatus(bet.chainId, bet.walletAddress, 'ACTIVE', {
+      currentValue: payout,
+      completedLegs: currentSequence - 1, // All bets before this one are done (settled or skipped)
+      currentLegSequence: currentSequence,
+    });
+
+    // Mark the active bet as READY - the stream will trigger BetExecutor
+    await updateBetStatus(bet.chainId, bet.walletAddress, currentSequence, 'READY');
+
+    log.info('Next active bet marked as READY', {
+      chainId: bet.chainId,
+      walletAddress: bet.walletAddress,
+      sequence: currentSequence,
+      skippedBets: currentSequence - nextSequence,
+    });
   }
 }
 

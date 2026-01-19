@@ -81,8 +81,10 @@ export const AccumulatorSidebar = forwardRef<HTMLDivElement>(
         market: Market;
         selection: "yes" | "no";
       };
-      addBet(market, selection);
-      setIsMobileOpen(true); // Open on drop for mobile
+      const result = addBet(market, selection);
+      if (result.success) {
+        setIsMobileOpen(true); // Open on drop for mobile
+      }
     } catch (err) {
       console.error("Failed to parse drop data", err);
     }

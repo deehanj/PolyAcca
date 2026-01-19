@@ -42,17 +42,17 @@ export function MarketCard({ market, onBetClick }: MarketCardProps) {
   };
 
   const handleYesClick = () => {
-    if (onBetClick && yesButtonRef.current) {
+    const result = addBet(market, "yes");
+    if (result.success && onBetClick && yesButtonRef.current) {
       onBetClick(yesButtonRef.current, "yes");
     }
-    addBet(market, "yes");
   };
 
   const handleNoClick = () => {
-    if (onBetClick && noButtonRef.current) {
+    const result = addBet(market, "no");
+    if (result.success && onBetClick && noButtonRef.current) {
       onBetClick(noButtonRef.current, "no");
     }
-    addBet(market, "no");
   };
 
   return (

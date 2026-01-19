@@ -5,6 +5,7 @@ import {
   useRef,
   type ReactNode,
 } from "react";
+import { toast } from "sonner";
 import type { Market } from "../components/MarketCard";
 
 export interface AccumulatorBet {
@@ -30,9 +31,16 @@ export interface CreateLegInput {
   category?: string;
 }
 
+export interface AddBetResult {
+  success: boolean;
+  error?: string;
+  warning?: string;
+  conflictingMarket?: string;
+}
+
 interface AccumulatorContextType {
   bets: AccumulatorBet[];
-  addBet: (market: Market, selection: "yes" | "no") => void;
+  addBet: (market: Market, selection: "yes" | "no") => AddBetResult;
   removeBet: (marketId: string) => void;
   clearBets: () => void;
   totalOdds: number;
@@ -44,6 +52,8 @@ interface AccumulatorContextType {
   ) => void;
   /** Convert bets to API format for chain creation */
   getLegsForApi: () => CreateLegInput[];
+  /** Check if a market can be added (no conflicting end dates) */
+  canAddMarket: (market: Market) => AddBetResult;
 }
 
 const AccumulatorContext = createContext<AccumulatorContextType | null>(null);
@@ -60,13 +70,69 @@ export function AccumulatorProvider({ children }: { children: ReactNode }) {
     onBetAddedRef.current = callback;
   };
 
-  const addBet = (market: Market, selection: "yes" | "no") => {
+  /**
+   * Check if two end dates are on the same calendar day
+   */
+  const isSameDay = (date1: string, date2: string): boolean => {
+    const d1 = new Date(date1);
+    const d2 = new Date(date2);
+    return (
+      d1.getUTCFullYear() === d2.getUTCFullYear() &&
+      d1.getUTCMonth() === d2.getUTCMonth() &&
+      d1.getUTCDate() === d2.getUTCDate()
+    );
+  };
+
+  /**
+   * Check if a market can be added to the accumulator
+   * Returns warning if there's a same-day end date conflict
+   */
+  const canAddMarket = (market: Market): AddBetResult => {
+    // Check if any existing bet has an end date on the same day
+    const sameDayBet = bets.find(
+      (b) =>
+        b.market.id !== market.id &&
+        isSameDay(b.market.endDateISO, market.endDateISO)
+    );
+
+    if (sameDayBet) {
+      return {
+        success: true,
+        warning: "These markets may resolve on the same day. If they resolve simultaneously, the chain may not execute as expected.",
+        conflictingMarket: sameDayBet.market.question,
+      };
+    }
+
+    return { success: true };
+  };
+
+  const addBet = (market: Market, selection: "yes" | "no"): AddBetResult => {
+    // If already in accumulator with same selection, just return success (no-op)
+    const existingBet = bets.find((b) => b.market.id === market.id);
+    if (existingBet && existingBet.selection === selection) {
+      return { success: true };
+    }
+
+    // Check for same-day end dates only for new bets
+    let result: AddBetResult = { success: true };
+    if (!existingBet) {
+      result = canAddMarket(market);
+      // Show warning toast if there's a same-day conflict
+      if (result.warning) {
+        toast.warning(result.warning, {
+          description: result.conflictingMarket
+            ? `Same day as: "${result.conflictingMarket.slice(0, 50)}${result.conflictingMarket.length > 50 ? '...' : ''}"`
+            : undefined,
+        });
+      }
+    }
+
     // Trigger animation callback before state update
     if (onBetAddedRef.current) {
       onBetAddedRef.current(market, selection);
     }
 
-    // Remove existing bet on same market if exists
+    // Remove existing bet on same market if exists, then add new bet
     setBets((prev) => {
       const filtered = prev.filter((b) => b.market.id !== market.id);
       const odds = selection === "yes" ? market.yesPrice : market.noPrice;
@@ -74,6 +140,8 @@ export function AccumulatorProvider({ children }: { children: ReactNode }) {
       const decimalOdds = 1 / odds;
       return [...filtered, { market, selection, odds: decimalOdds }];
     });
+
+    return result;
   };
 
   const removeBet = (marketId: string) => {
@@ -137,6 +205,7 @@ export function AccumulatorProvider({ children }: { children: ReactNode }) {
         getSelection,
         setOnBetAdded,
         getLegsForApi,
+        canAddMarket,
       }}
     >
       {children}
