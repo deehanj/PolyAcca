@@ -13,6 +13,25 @@ const logger = createLogger('gamma-client');
 const GAMMA_API_BASE = 'https://gamma-api.polymarket.com';
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
+const FETCH_TIMEOUT_MS = 10000; // 10 second timeout for API calls
+
+/**
+ * Fetch with timeout to prevent Lambda from hanging
+ */
+async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = FETCH_TIMEOUT_MS): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    return response;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
 
 /**
  * Browser-like headers to help bypass Cloudflare bot protection
@@ -125,7 +144,7 @@ export async function fetchMarkets(
   logger.info('Fetching markets from Gamma API', { url, params });
 
   try {
-    const response = await fetch(url, {
+    const response = await fetchWithTimeout(url, {
       method: 'GET',
       headers: BROWSER_HEADERS,
     });
@@ -206,7 +225,7 @@ export async function fetchMarketById(marketId: string): Promise<GammaMarket | n
   logger.info('Fetching market from Gamma API', { marketId });
 
   try {
-    const response = await fetch(url, {
+    const response = await fetchWithTimeout(url, {
       method: 'GET',
       headers: BROWSER_HEADERS,
     });
@@ -235,23 +254,40 @@ export async function fetchMarketByConditionId(
 ): Promise<GammaMarket | null> {
   const url = `${GAMMA_API_BASE}/markets?condition_ids=${conditionId}&limit=1`;
 
+  logger.info('Fetching market by condition ID', { conditionId, url });
+
   try {
-    const response = await fetch(url, {
+    const response = await fetchWithTimeout(url, {
       method: 'GET',
       headers: BROWSER_HEADERS,
     });
+
+    logger.info('Gamma API response received', { conditionId, status: response.status });
+
     if (!response.ok) {
+      const text = await response.text().catch(() => '');
+      logger.error('Gamma API error response', { conditionId, status: response.status, body: text.slice(0, 500) });
       throw new Error(`Gamma API error: ${response.status}`);
     }
 
     const rawMarkets = (await response.json()) as GammaApiMarket[];
     if (rawMarkets.length === 0) {
+      logger.warn('No market found for condition ID', { conditionId });
       return null;
     }
 
     return transformMarket(rawMarkets[0]);
   } catch (error) {
-    logger.errorWithStack('Failed to fetch market by condition ID', error, { conditionId });
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const isTimeout = errorMessage.includes('aborted') || errorMessage.includes('timeout');
+    logger.errorWithStack('Failed to fetch market by condition ID', error, {
+      conditionId,
+      isTimeout,
+      errorType: error instanceof Error ? error.name : typeof error
+    });
+    if (isTimeout) {
+      throw new Error(`Gamma API timeout for conditionId: ${conditionId}`);
+    }
     throw error;
   }
 }
