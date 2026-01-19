@@ -20,9 +20,12 @@ lambdas/
 │   ├── users/           # User profile & credentials
 │   ├── chains/          # Chain CRUD
 │   └── bets/            # Bet management
-└── streams/
-    ├── bet-executor/    # Polymarket order execution
-    └── market-resolution-handler/  # Market settlement
+├── streams/
+│   ├── bet-executor/    # Polymarket order execution
+│   ├── market-resolution-handler/  # Market settlement
+│   └── position-termination-handler/ # Cleanup on chain termination
+└── webhooks/
+    └── alchemy/         # Market resolution detection
 ```
 
 ## Authentication Flow
@@ -35,26 +38,393 @@ lambdas/
 6. Backend issues JWT with wallet address as subject
 7. All protected routes require JWT in Authorization header
 
-## Chain Flow
+---
 
-1. User creates chain with ordered list of bets
-2. First bet marked as READY, others as QUEUED
-3. Stream handler detects READY bet, invokes bet executor
-4. Bet executor places order on Polymarket CLOB
-5. When bet settles (external process updates status):
-   - WON: Calculate payout, mark next bet as READY
-   - LOST: Mark chain as LOST, cancel remaining bets
-6. Repeat until all bets complete or one loses
+# BET CHAIN FLOWS & SCENARIOS
 
-## Polymarket Integration
+## 1. CHAIN CREATION FLOW
 
-Uses L2 API credentials (apiKey, secret, passphrase) stored per-user.
-Credentials are encrypted with KMS before storage in DynamoDB.
+### Frontend Flow (AccumulatorContext.tsx)
 
-The @polymarket/clob-client package is used for order placement:
-- createAndPostOrder() for placing bets
-- GTC (Good Till Cancelled) order type
-- Market orders execute at target price
+**User Actions:**
+1. User adds bets to accumulator via `addBet(market, selection)`
+2. System validates same-day end date conflicts (warns but allows)
+3. User submits accumulator with initial stake
+
+**Same-Day Warning:**
+- If two markets have end dates on the same calendar day, a warning toast is shown
+- The bet is still added (warn, not block)
+- Warning: "These markets may resolve on the same day. If they resolve simultaneously, the chain may not execute as expected."
+
+**Data Transformation:**
+- Frontend converts bets to `CreateLegInput[]` via `getLegsForApi()`
+- Each leg includes: conditionId, tokenId, marketQuestion, side (YES/NO), targetPrice, questionId, yesTokenId, noTokenId, endDate, description, category
+
+### Backend Flow (POST /chains)
+
+**Chain Creation Steps:**
+
+1. **Request Validation:**
+   - Validates JSON body structure
+   - Minimum 1 leg, maximum 10 legs per chain
+   - Initial stake must be valid number > 0
+   - Each leg requires: conditionId, tokenId, marketQuestion, side, targetPrice
+   - Side must be "YES" or "NO"
+   - Target price must be between 0 and 1
+
+2. **Market Validation (hydrateLegsFromGamma):**
+   - Fetches each unique market from Gamma API
+   - Validates market is active (not closed, active=true)
+   - Validates end date is in the future
+   - Returns 502 if Gamma API fails/times out
+   - Returns 400 if market validation fails
+
+3. **Leg Sorting:**
+   - Sorts legs by market end date (chronological order)
+   - Ensures chain resolves in proper sequence
+
+4. **Chain ID Generation:**
+   - Deterministic hash: `sha256(conditionId1:side1|conditionId2:side2|...)`
+   - Same chain definition always produces same ID (idempotent)
+
+5. **Existing Position Check:**
+   - Checks if user already has position on this chain
+   - **If PENDING:** Increases stake (adds to existing position)
+   - **If FAILED/CANCELLED:** Allows retry (deletes old, creates new)
+   - **If ACTIVE/WON/LOST:** Returns 400 error
+
+6. **Entity Creation:**
+   - **ChainEntity:** Chain definition with legs, categories, first market end date
+   - **MarketEntities:** Upserts each unique market to DynamoDB
+   - **UserChainEntity:** User's position with initialStake, status=PENDING
+   - **BetEntities:** One per leg with calculated stakes using bigint arithmetic
+     - Sequence 1: stake = initialStake, status = READY
+     - Sequence 2+: stake = previous bet's potentialPayout, status = QUEUED
+     - potentialPayout = stake / targetPrice (using micro-USDC precision)
+
+7. **Atomic Transaction:**
+   - Uses DynamoDB TransactWrite to create all entities atomically
+
+---
+
+## 1.5. INCREASE POSITION STAKE FLOW
+
+**When:** User calls POST /chains with same chain definition while position is PENDING
+
+**Conditions:**
+- User must have existing position on the chain
+- Position status must be PENDING (first bet not yet executed)
+- Once first bet starts executing (ACTIVE), stake cannot be increased
+
+**Steps:**
+
+1. **Calculate New Total:**
+   - newTotalStake = existingStake + additionalStake
+
+2. **Recalculate All Bets:**
+   - Recalculates stake and potentialPayout for each leg
+   - Uses same bigint arithmetic as creation
+
+3. **Atomic Update (increaseUserChainStake):**
+   - Updates Chain.totalValue += additionalStake
+   - Updates UserChain.initialStake = newTotalStake (with PENDING condition)
+   - Updates UserChain.currentValue = newTotalStake
+   - Updates all Bet.stake and Bet.potentialPayout
+
+4. **Return:** Updated position details (HTTP 200)
+
+**Error Cases:**
+- Chain no longer PENDING: Returns 400 "Cannot increase stake - chain is no longer pending"
+- Transaction fails: Rolls back all changes (atomic)
+
+---
+
+## 2. BET EXECUTION FLOW (bet-executor)
+
+### Trigger
+**DynamoDB Stream Event:** Bet entity with status=READY
+- INSERT: First bet (created with READY status)
+- MODIFY: Subsequent bets (status changed from QUEUED to READY)
+
+### Execution Steps
+
+1. **Market Status Check (checkMarketIsActive):**
+   - Fetches market from Gamma API
+   - Validates: market exists, not closed, active=true, end date in future
+   - If market closed: calls `skipClosedMarketAndContinue()` instead of failing
+   - If check fails (API error): proceeds with execution anyway
+
+2. **Skip/Continue Logic for Closed Markets (skipClosedMarketAndContinue):**
+   - Marks current bet as MARKET_CLOSED
+   - Gets chain to check total legs
+   - If last bet: marks UserChain as FAILED
+   - If not last bet:
+     - Finds next bet in sequence
+     - Updates UserChain: completedLegs++, currentLegSequence = nextSequence
+     - Marks next bet as READY (triggers new execution)
+
+3. **Status Update to EXECUTING:**
+   - Updates bet status to EXECUTING before placing order
+
+4. **Credentials Management:**
+   - Checks for cached embedded wallet credentials
+   - If cached: decrypts and uses existing credentials
+   - If not cached: derives credentials from Polymarket using Turnkey signer
+   - Caches encrypted credentials for future use
+
+5. **Stake Determination (determineActualStake):**
+   - Sequence 1: uses pre-calculated stake (initialStake)
+   - Sequence 2+:
+     - Fetches previous bet's actualPayout
+     - Validates previous bet is SETTLED with outcome=WON
+     - Uses actual payout as current stake
+
+6. **Order Placement:**
+   - Calculates order size: shares = stake / targetPrice (using bigint)
+   - Places order on Polymarket CLOB
+   - Returns orderId
+
+7. **Fill Confirmation:**
+   - Polls order status up to 3 times
+   - Captures: fillPrice, sharesAcquired, fillBlockNumber
+
+8. **Status Updates:**
+   - Updates bet to PLACED with orderId and executedAt
+   - If filled: updates to FILLED with fillPrice, sharesAcquired, fillBlockNumber
+
+### Error Classification (classifyError)
+
+| Error Type | Triggers |
+|------------|----------|
+| NO_CREDENTIALS | Missing credentials, embedded wallet not found, Turnkey errors |
+| INSUFFICIENT_LIQUIDITY | Liquidity issues, insufficient funds/balance |
+| MARKET_CLOSED | Market closed/suspended, trading halted |
+| ORDER_REJECTED | Order rejected by exchange |
+| EXECUTION_ERROR | Cloudflare blocking, timeout, network errors, rate limits |
+| UNKNOWN_FAILURE | All other unclassified errors |
+
+---
+
+## 3. MARKET RESOLUTION FLOW (market-resolution-handler)
+
+### Trigger
+**DynamoDB Stream Event:** Market status changed to RESOLVED
+
+### Resolution Trigger Source
+**Alchemy Webhook:**
+- Listens for ConditionResolution events from Polymarket CTF contracts
+- Updates market status to RESOLVED in DynamoDB
+- This triggers the market-resolution-handler via stream
+
+### Resolution Steps
+
+1. **Find Bets to Settle:**
+   - Queries all bets by conditionId (GSI2)
+   - Filters to only FILLED status bets
+
+2. **Bet Settlement (settleBet):**
+
+   **For Losing Bets:**
+   - Updates bet: status=SETTLED, outcome=LOST, actualPayout="0"
+
+   **For Winning Bets:**
+   - Calculates payout (sharesAcquired or stake/fillPrice)
+   - Verifies redemption on-chain if fillBlockNumber available
+   - Updates bet: status=SETTLED, outcome=WON, actualPayout
+
+3. **User Chain Handling (handleUserChainAfterSettlement):**
+
+   **If Bet Lost:**
+   - Marks UserChain as LOST
+   - position-termination-handler voids remaining bets
+
+   **If Bet Won - Last Bet:**
+   - Collects platform fee (2% of profit, only for multi-leg chains)
+   - Marks UserChain as WON
+
+   **If Bet Won - More Bets Remaining:**
+   - **Skip/Continue Logic:** Scans forward to find next active market
+   - For each bet in sequence:
+     - If market closed/not found/inactive: marks bet as MARKET_CLOSED, continues
+     - If market active: breaks (found next bet to execute)
+   - If no active markets found: marks UserChain as FAILED
+   - Updates UserChain progress and marks next active bet as READY
+
+---
+
+## 4. POSITION TERMINATION FLOW (position-termination-handler)
+
+### Trigger
+**DynamoDB Stream Event:** UserChain status changed to terminal (LOST/CANCELLED/FAILED)
+
+### Cleanup Steps
+
+1. **Void Remaining Bets:**
+   - Finds all bets with status=QUEUED
+   - Updates each to status=VOIDED
+
+2. **Cancel Active Orders:**
+   - Finds all bets with status=PLACED or EXECUTING
+   - Cancels orders on Polymarket
+   - Updates bet to status=CANCELLED
+
+3. **Decrement Chain Value:**
+   - For CANCELLED and FAILED statuses only (not LOST)
+   - Decrements totalValue by user's initialStake
+
+---
+
+## 5. BET STATUS TRANSITIONS
+
+### Status Lifecycle
+
+```
+QUEUED (waiting for previous bet)
+  ↓
+READY (previous bet won, ready to execute)
+  ↓
+EXECUTING (order being placed)
+  ↓
+PLACED (order placed, waiting for fill)
+  ↓
+FILLED (order filled, waiting for market resolution)
+  ↓
+SETTLED (market resolved, outcome=WON or LOST)
+```
+
+### Terminal Statuses
+
+| Status | Description |
+|--------|-------------|
+| SETTLED | Market resolved (outcome=WON or LOST) |
+| CANCELLED | User cancelled chain or bet |
+| VOIDED | Earlier bet lost/failed, remaining bets voided |
+| INSUFFICIENT_LIQUIDITY | Market lacks liquidity at target price |
+| NO_CREDENTIALS | Missing/invalid Polymarket credentials |
+| ORDER_REJECTED | Polymarket rejected the order |
+| MARKET_CLOSED | Market closed before bet placed |
+| EXECUTION_ERROR | Technical failure |
+| UNKNOWN_FAILURE | Unclassified failure |
+
+---
+
+## 6. USER CHAIN STATUS TRANSITIONS
+
+```
+PENDING (created, waiting for first bet)
+  ↓
+ACTIVE (bets executing)
+  ↓
+WON (all bets won) - TERMINAL
+or
+LOST (a bet lost) - TERMINAL
+or
+CANCELLED (user cancelled) - TERMINAL
+or
+FAILED (execution failed) - TERMINAL
+```
+
+### Retry Policy
+- Can retry if previous status was FAILED or CANCELLED
+- Deletes old position and creates new one
+- Cannot retry LOST or WON (these are final outcomes)
+
+---
+
+## 7. SKIP/CONTINUE LOGIC FOR CLOSED MARKETS
+
+**Purpose:** Allows chain to continue even if intermediate markets close early
+
+**Implemented in TWO places:**
+
+### bet-executor (skipClosedMarketAndContinue)
+- Called when market check finds closed market BEFORE execution
+- Marks current bet as MARKET_CLOSED
+- Finds next bet and marks as READY
+- If last bet: marks UserChain as FAILED
+
+### market-resolution-handler (handleUserChainAfterSettlement)
+- Called when bet WON and checking next market
+- Scans forward to find next active market
+- Marks closed market bets as MARKET_CLOSED
+- Advances to next active bet or fails chain if all remaining closed
+
+---
+
+## 8. PLATFORM FEE COLLECTION
+
+**When Applied:**
+- Only on WON chains
+- Only for multi-leg chains (2+ legs)
+- Single-leg chains have no commission
+
+**Calculation:**
+- Fee = 2% of profit
+- Profit = payout - initialStake
+- Minimum fee: 0.01 USDC (skips if less)
+
+**Implementation:**
+- Uses EIP-2612 permit signature
+- Platform wallet pays gas fees (not user)
+- Non-fatal if fails (logs warning, continues)
+
+---
+
+## 9. ERROR SCENARIOS
+
+### Chain Creation Errors
+
+| Error | HTTP | Cause |
+|-------|------|-------|
+| 400 | Invalid JSON body, missing/invalid legs |
+| 400 | Market validation failures (inactive, closed) |
+| 400 | Duplicate active position |
+| 502 | Gamma API timeout/failure |
+
+### Bet Execution Errors
+
+| Scenario | Handling |
+|----------|----------|
+| Market closed | Skip to next bet, or fail if last |
+| No credentials | Fail chain |
+| Insufficient liquidity | Fail chain |
+| Order rejected | Fail chain |
+| Cloudflare blocking | Fail chain (EXECUTION_ERROR) |
+| Network timeout | Fail chain (EXECUTION_ERROR) |
+
+### Resolution Errors
+
+| Scenario | Handling |
+|----------|----------|
+| All remaining markets closed | Fail chain |
+| Platform fee fails | Log warning, continue |
+| Redemption verification fails | Use expected payout |
+
+---
+
+## 10. DATA FLOW SUMMARY
+
+```
+1. USER CREATES CHAIN
+   Frontend: addBet() → getLegsForApi()
+   Backend: POST /chains → Validate → Create entities
+   Result: Chain, UserChain (PENDING), Bets (1 READY, rest QUEUED)
+
+2. BET EXECUTION (DynamoDB Stream: Bet READY)
+   bet-executor: Check market → Place order
+   Status: READY → EXECUTING → PLACED → FILLED
+
+3. MARKET RESOLUTION (Alchemy webhook → Stream)
+   market-resolution-handler: Settle FILLED bets
+   If WON + last: Collect fee → UserChain=WON
+   If WON + more: Check next market → Mark READY (loop to 2)
+   If LOST: UserChain=LOST → Void remaining
+
+4. POSITION TERMINATION (Stream: UserChain terminal)
+   position-termination-handler: Void QUEUED, cancel PLACED
+```
+
+---
 
 ## Environment Variables
 
@@ -64,11 +434,12 @@ All Lambdas receive:
 - JWT_SECRET_ARN: For token signing/verification
 - NODE_OPTIONS: --enable-source-maps
 
-Stream Handler also receives:
-- BET_EXECUTOR_FUNCTION_ARN: For async invocation
+Stream Handlers also receive:
+- Various function ARNs for async invocation
 
 ## Error Handling
 
 - API errors return { success: false, error: string }
 - Processor errors logged but don't fail the batch
-- Bet execution errors mark chain as LOST
+- Bet execution errors mark chain with specific failure status
+- Skip/continue logic allows chains to proceed past closed markets

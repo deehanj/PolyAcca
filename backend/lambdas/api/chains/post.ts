@@ -11,6 +11,7 @@ import {
   upsertMarket,
   createUserChainPosition,
   deleteUserChainPosition,
+  increaseUserChainStake,
   keys,
   gsiKeys,
 } from '../../shared/dynamo-client';
@@ -98,6 +99,90 @@ async function hydrateLegsFromGamma(legs: CreateLegInput[]): Promise<CreateLegIn
       tokenId: expectedTokenId,
     };
   });
+}
+
+/**
+ * Increase stake on an existing PENDING position
+ *
+ * Adds additional stake to the position and recalculates all bet stakes/payouts.
+ * Only allowed when the chain is still PENDING (first bet not yet executed).
+ */
+async function increasePositionStake(
+  existingUserChain: UserChainEntity,
+  additionalStake: string,
+  validatedLegs: CreateLegInput[],
+  walletAddress: string
+): Promise<APIGatewayProxyResult> {
+  const { chainId } = existingUserChain;
+  const now = new Date().toISOString();
+
+  // Calculate new total stake
+  const existingStakeMicro = toMicroUsdc(existingUserChain.initialStake);
+  const additionalStakeMicro = toMicroUsdc(additionalStake);
+  const newTotalStakeMicro = existingStakeMicro + additionalStakeMicro;
+  const newTotalStake = fromMicroUsdc(newTotalStakeMicro);
+
+  console.log('Increasing position stake', {
+    chainId,
+    walletAddress,
+    existingStake: existingUserChain.initialStake,
+    additionalStake,
+    newTotalStake,
+  });
+
+  // Recalculate all bet stakes with the new total
+  let currentStakeMicro = newTotalStakeMicro;
+  const betUpdates: Array<{
+    sequence: number;
+    stake: string;
+    potentialPayout: string;
+  }> = [];
+
+  for (let i = 0; i < validatedLegs.length; i++) {
+    const legInput = validatedLegs[i];
+    const sequence = i + 1;
+
+    // Calculate potential payout: stake / price (using bigint arithmetic)
+    const priceMicro = toMicroUsdc(legInput.targetPrice);
+    const potentialPayoutMicro = calculatePotentialPayout(currentStakeMicro, priceMicro);
+
+    betUpdates.push({
+      sequence,
+      stake: fromMicroUsdc(currentStakeMicro),
+      potentialPayout: fromMicroUsdc(potentialPayoutMicro),
+    });
+
+    // Next bet's stake is this bet's potential payout
+    currentStakeMicro = potentialPayoutMicro;
+  }
+
+  try {
+    await increaseUserChainStake(
+      chainId,
+      walletAddress,
+      additionalStake,
+      newTotalStake,
+      betUpdates,
+      now
+    );
+  } catch (error) {
+    const err = error as Error;
+    console.error('Failed to increase position stake:', err);
+    // If condition check fails, the chain may no longer be PENDING
+    if (err.name === 'ConditionalCheckFailedException') {
+      return errorResponse(400, 'Cannot increase stake - chain is no longer pending');
+    }
+    throw error;
+  }
+
+  // Fetch updated user chain and return
+  const updatedUserChain = await getUserChain(chainId, walletAddress);
+  if (!updatedUserChain) {
+    return errorResponse(500, 'Failed to fetch updated position');
+  }
+
+  const detail = await getUserChainDetail(updatedUserChain);
+  return successResponse(detail, 200);
 }
 
 /**
@@ -194,6 +279,16 @@ export async function createUserChain(
   // Check if user already has a position on this chain
   const existingUserChain = await getUserChain(chainId, walletAddress);
   if (existingUserChain) {
+    // Allow increasing stake if chain is still PENDING (not yet started)
+    if (existingUserChain.status === 'PENDING') {
+      return increasePositionStake(
+        existingUserChain,
+        request.initialStake,
+        validatedLegs,
+        walletAddress
+      );
+    }
+
     // Allow retry if previous attempt failed or was cancelled
     const terminalFailedStatuses = ['FAILED', 'CANCELLED'];
     if (!terminalFailedStatuses.includes(existingUserChain.status)) {

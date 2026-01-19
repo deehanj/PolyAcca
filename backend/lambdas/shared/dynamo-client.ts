@@ -549,6 +549,82 @@ export async function deleteUserChainPosition(
 }
 
 /**
+ * Increase stake on a PENDING user chain position
+ *
+ * Atomically:
+ * 1. Updates UserChain with new stake (only if still PENDING)
+ * 2. Updates all bet stakes and potential payouts
+ * 3. Increments chain totalValue
+ *
+ * Throws ConditionalCheckFailedException if chain is no longer PENDING
+ */
+export async function increaseUserChainStake(
+  chainId: string,
+  walletAddress: string,
+  additionalStake: string,
+  newTotalStake: string,
+  betUpdates: Array<{ sequence: number; stake: string; potentialPayout: string }>,
+  timestamp: string
+): Promise<void> {
+  const chainKeys = keys.chain(chainId);
+  const userChainKeys = keys.userChain(chainId, walletAddress);
+
+  const transactItems = [
+    // Update chain totalValue
+    {
+      Update: {
+        TableName: MONOTABLE_NAME,
+        Key: { PK: chainKeys.PK, SK: chainKeys.SK },
+        UpdateExpression: 'SET totalValue = totalValue + :additionalStake, updatedAt = :now',
+        ExpressionAttributeValues: {
+          ':additionalStake': parseFloat(additionalStake),
+          ':now': timestamp,
+        },
+      },
+    },
+    // Update user chain with new stake (only if still PENDING)
+    {
+      Update: {
+        TableName: MONOTABLE_NAME,
+        Key: { PK: userChainKeys.PK, SK: userChainKeys.SK },
+        UpdateExpression: 'SET initialStake = :newStake, currentValue = :newStake, updatedAt = :now',
+        ConditionExpression: '#status = :pending',
+        ExpressionAttributeValues: {
+          ':newStake': newTotalStake,
+          ':now': timestamp,
+          ':pending': 'PENDING',
+        },
+        ExpressionAttributeNames: {
+          '#status': 'status',
+        },
+      },
+    },
+    // Update each bet's stake and potential payout
+    ...betUpdates.map((bet) => {
+      const betKeys = keys.bet(chainId, walletAddress, bet.sequence);
+      return {
+        Update: {
+          TableName: MONOTABLE_NAME,
+          Key: { PK: betKeys.PK, SK: betKeys.SK },
+          UpdateExpression: 'SET stake = :stake, potentialPayout = :payout, updatedAt = :now',
+          ExpressionAttributeValues: {
+            ':stake': bet.stake,
+            ':payout': bet.potentialPayout,
+            ':now': timestamp,
+          },
+        },
+      };
+    }),
+  ];
+
+  await docClient.send(
+    new TransactWriteCommand({
+      TransactItems: transactItems,
+    })
+  );
+}
+
+/**
  * Decrement chain totalValue (used when user cancels their position)
  */
 export async function decrementChainTotalValue(
