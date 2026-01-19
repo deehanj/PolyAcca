@@ -118,6 +118,7 @@ export interface OrderParams {
   price: number;
   size: number;
   tickSize?: TickSize;
+  orderType?: 'GTC' | 'FOK' | 'FAK';  // default GTC
 }
 
 export interface OrderStatusResult {
@@ -299,24 +300,50 @@ export async function placeOrder(
 ): Promise<string> {
   const client = createClientWithSigner(signer, credentials, PolymarketSignatureType.EOA);
 
+  // Map order type string to CLOB client OrderType enum
+  const orderTypeMap: Record<string, OrderType> = {
+    'GTC': OrderType.GTC,
+    'FOK': OrderType.FOK,
+    'FAK': OrderType.FAK,
+  };
+  const orderType = orderTypeMap[params.orderType || 'GTC'];
+
   logger.info('Placing order', {
     tokenId: params.tokenId,
     side: params.side,
     price: params.price,
     size: params.size,
+    orderType: params.orderType || 'GTC',
   });
 
   try {
-    const order = await client.createAndPostOrder(
-      {
-        tokenID: params.tokenId,
-        price: params.price,
-        side: params.side === 'BUY' ? Side.BUY : Side.SELL,
-        size: params.size,
-      },
-      { tickSize: params.tickSize ?? '0.01' },
-      OrderType.GTC
-    );
+    let order;
+
+    // FAK and FOK are market order types that use createAndPostMarketOrder
+    // GTC (and GTD) are limit order types that use createAndPostOrder
+    if (orderType === OrderType.FAK || orderType === OrderType.FOK) {
+      order = await client.createAndPostMarketOrder(
+        {
+          tokenID: params.tokenId,
+          price: params.price,
+          side: params.side === 'BUY' ? Side.BUY : Side.SELL,
+          amount: params.size, // UserMarketOrder uses 'amount' instead of 'size'
+        },
+        { tickSize: params.tickSize ?? '0.01' },
+        orderType
+      );
+    } else {
+      order = await client.createAndPostOrder(
+        {
+          tokenID: params.tokenId,
+          price: params.price,
+          side: params.side === 'BUY' ? Side.BUY : Side.SELL,
+          size: params.size,
+        },
+        { tickSize: params.tickSize ?? '0.01' },
+        orderType
+      );
+    }
 
     const orderId = order.id ?? order.orderID ?? order.order_id;
     logger.info('Order placed', { orderId, tokenId: params.tokenId });
