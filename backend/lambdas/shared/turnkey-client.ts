@@ -8,7 +8,11 @@
 import { TurnkeyClient } from '@turnkey/http';
 import { ApiKeyStamper } from '@turnkey/api-key-stamper';
 import { TurnkeySigner } from '@turnkey/ethers';
-import { ethers } from 'ethers';
+import { ethers, Signer } from 'ethers';
+import type { Provider } from '@ethersproject/providers';
+
+// ethers v5 helpers
+const { JsonRpcProvider } = ethers.providers;
 import {
   SecretsManagerClient,
   GetSecretValueCommand,
@@ -185,13 +189,13 @@ export async function getWalletAccounts(walletId: string): Promise<string[]> {
  * @param walletAddress - The Ethereum address of the Turnkey wallet
  * @returns An ethers-compatible Signer
  */
-export async function createSigner(walletAddress: string): Promise<ethers.Signer> {
+export async function createSigner(walletAddress: string): Promise<Signer> {
   const client = await getTurnkeyClient();
 
   logger.debug('Creating signer for wallet', { walletAddress });
 
   // Create a provider for Polygon (required for EIP-712 domain separator)
-  const provider = new ethers.JsonRpcProvider(POLYGON_RPC_URL);
+  const provider = new JsonRpcProvider(POLYGON_RPC_URL);
 
   // Create the Turnkey signer
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -204,7 +208,7 @@ export async function createSigner(walletAddress: string): Promise<ethers.Signer
     provider
   );
 
-  return signer as unknown as ethers.Signer;
+  return signer as unknown as Signer;
 }
 
 /**
@@ -212,8 +216,8 @@ export async function createSigner(walletAddress: string): Promise<ethers.Signer
  */
 export async function createSignerWithProvider(
   walletAddress: string,
-  provider: ethers.Provider
-): Promise<ethers.Signer> {
+  provider: Provider
+): Promise<Signer> {
   const client = await getTurnkeyClient();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -226,7 +230,7 @@ export async function createSignerWithProvider(
     provider
   );
 
-  return signer as unknown as ethers.Signer;
+  return signer as unknown as Signer;
 }
 
 // =============================================================================

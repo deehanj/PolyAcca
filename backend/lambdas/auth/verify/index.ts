@@ -13,6 +13,9 @@
 
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { ethers } from 'ethers';
+
+// ethers v5 helpers
+const { verifyMessage } = ethers.utils;
 import { getNonce, deleteNonce, getOrCreateUser, updateUserEmbeddedWallet, updateUserHasCredentials } from '../../shared/dynamo-client';
 import { createToken } from '../../shared/jwt';
 import { createWallet, createSigner } from '../../shared/turnkey-client';
@@ -65,7 +68,7 @@ export async function handler(
     // Verify the signature
     let recoveredAddress: string;
     try {
-      recoveredAddress = ethers.verifyMessage(message, request.signature);
+      recoveredAddress = verifyMessage(message, request.signature);
     } catch {
       return errorResponse(401, 'Invalid signature');
     }

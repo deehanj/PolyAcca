@@ -26,6 +26,7 @@ import {
 } from '../../shared/types';
 import { errorResponse, getUserChainDetail, successResponse } from './utils';
 import { fetchMarketByConditionId } from '../../shared/gamma-client';
+import { toMicroUsdc, fromMicroUsdc, calculatePotentialPayout } from '../../shared/usdc-math';
 
 async function hydrateLegsFromGamma(legs: CreateLegInput[]): Promise<CreateLegInput[]> {
   const uniqueConditionIds = Array.from(new Set(legs.map((leg) => leg.conditionId)));
@@ -293,8 +294,8 @@ export async function createUserChain(
     updatedAt: now,
   };
 
-  // Create bet entities for each leg
-  let currentStake = initialStakeValue;
+  // Create bet entities for each leg using bigint arithmetic for precision
+  let currentStakeMicro = toMicroUsdc(request.initialStake);
   const bets: BetEntity[] = [];
 
   for (let i = 0; i < validatedLegs.length; i++) {
@@ -306,9 +307,9 @@ export async function createUserChain(
     const betGsi1 = gsiKeys.betByStatus(sequence === 1 ? 'READY' : 'QUEUED', now);
     const betGsi2 = gsiKeys.betByCondition(legInput.conditionId, betId);
 
-    // Calculate potential payout: stake / price
-    const price = parseFloat(legInput.targetPrice);
-    const potentialPayout = (currentStake / price).toFixed(2);
+    // Calculate potential payout: stake / price (using bigint arithmetic)
+    const priceMicro = toMicroUsdc(legInput.targetPrice);
+    const potentialPayoutMicro = calculatePotentialPayout(currentStakeMicro, priceMicro);
 
     const bet: BetEntity = {
       ...betKeys,
@@ -324,8 +325,8 @@ export async function createUserChain(
       marketQuestion: legInput.marketQuestion,
       side: legInput.side,
       targetPrice: legInput.targetPrice,
-      stake: currentStake.toFixed(2),
-      potentialPayout,
+      stake: fromMicroUsdc(currentStakeMicro),
+      potentialPayout: fromMicroUsdc(potentialPayoutMicro),
       status: sequence === 1 ? 'READY' : 'QUEUED',
       createdAt: now,
       updatedAt: now,
@@ -334,7 +335,7 @@ export async function createUserChain(
     bets.push(bet);
 
     // Next bet's stake is this bet's potential payout
-    currentStake = parseFloat(potentialPayout);
+    currentStakeMicro = potentialPayoutMicro;
   }
 
   try {

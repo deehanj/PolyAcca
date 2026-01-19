@@ -123,6 +123,9 @@ export interface OrderParams {
 export interface OrderStatusResult {
   status?: string;
   filled: boolean;
+  // Fill details (available when order is filled)
+  fillPrice?: string; // Average fill price
+  filledSize?: string; // Number of shares filled
 }
 
 function parseOrderStatus(order: any): OrderStatusResult {
@@ -136,9 +139,20 @@ function parseOrderStatus(order: any): OrderStatusResult {
     ? filledSize >= totalSize
     : false;
 
+  const isFilled = (normalized ? filledStatuses.has(normalized) : false) || sizeMatches;
+
+  // Extract fill price - try various field names used by Polymarket API
+  const fillPrice = order?.averagePrice ?? order?.average_price ?? order?.avgPrice ??
+                    order?.fillPrice ?? order?.fill_price ?? order?.price;
+
+  // Extract filled size as string for precision
+  const filledSizeStr = order?.filledSize ?? order?.filled_size ?? order?.sizeFilled ?? order?.filled;
+
   return {
     status: normalized,
-    filled: (normalized ? filledStatuses.has(normalized) : false) || sizeMatches,
+    filled: isFilled,
+    fillPrice: fillPrice != null ? String(fillPrice) : undefined,
+    filledSize: filledSizeStr != null ? String(filledSizeStr) : undefined,
   };
 }
 

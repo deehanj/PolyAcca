@@ -7,43 +7,35 @@
  * Security: Uses signature-based auth (not JWT) for sensitive operations.
  * User must sign a message containing the exact withdraw amount and a fresh nonce.
  *
- * Gas Funding: Before executing a withdrawal, checks if the embedded wallet has
- * sufficient POL for gas. If not, funds it from the platform wallet.
+ * Gas: Uses EIP-2612 permit so the platform wallet pays gas fees,
+ * not the user's embedded wallet.
  */
 
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { ethers } from 'ethers';
+
+// ethers v5 helpers
+const { verifyMessage } = ethers.utils;
 import { getNonce, deleteNonce, getUser } from '../../shared/dynamo-client';
-import { createSignerWithProvider } from '../../shared/turnkey-client';
 import { buildWithdrawMessage, isValidAddress } from '../../shared/auth-utils';
 import { errorResponse, successResponse } from '../../shared/api-utils';
 import { createLogger } from '../../shared/logger';
-import { fundWalletWithGas } from '../../shared/gas-funder';
-import { requireEnvVar } from '../../utils/envVars';
+import { transferUsdcWithPlatformGas } from '../../shared/usdc-permit';
 import type { WithdrawRequest, WithdrawResponse } from '../../shared/types';
 
 const logger = createLogger('wallet');
 
-// Polygon configuration
-const POLYGON_RPC_URL = 'https://polygon-rpc.com';
-const POLYGON_CHAIN_ID = 137;
-const USDC_ADDRESS = '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174'; // USDC.e on Polygon
-const USDC_DECIMALS = 6;
-
-// ERC20 ABI (only transfer function)
-const ERC20_ABI = [
-  'function transfer(address to, uint256 amount) returns (bool)',
-  'function balanceOf(address account) view returns (uint256)',
-];
-
 /**
  * POST /wallet/withdraw - Withdraw USDC to connected wallet
  *
- * Requires signature-based auth:
+ * Uses EIP-2612 permit for gasless withdrawals:
  * 1. Frontend calls /auth/nonce to get a fresh nonce
  * 2. User signs message: "Withdraw {amount} USDC from PolyAcca\n\nNonce: {nonce}"
  * 3. Frontend calls this endpoint with amount, walletAddress, and signature
- * 4. Backend verifies signature and executes transfer
+ * 4. Backend verifies signature
+ * 5. Embedded wallet signs permit (off-chain via Turnkey)
+ * 6. Platform wallet submits permit + transferFrom (pays gas)
+ * 7. USDC transferred from embedded wallet to user's connected wallet
  */
 async function handleWithdraw(
   body: string | null
@@ -86,7 +78,7 @@ async function handleWithdraw(
   // Verify signature
   let recoveredAddress: string;
   try {
-    recoveredAddress = ethers.verifyMessage(message, signature);
+    recoveredAddress = verifyMessage(message, signature);
   } catch {
     return errorResponse(401, 'Invalid signature');
   }
@@ -108,99 +100,49 @@ async function handleWithdraw(
     return errorResponse(400, 'No embedded wallet found. Please re-authenticate.');
   }
 
-  logger.info('Processing withdraw', {
+  logger.info('Processing withdraw with permit', {
     walletAddress,
     embeddedWalletAddress: user.embeddedWalletAddress,
     amount,
     destination: walletAddress,
   });
 
-  try {
-    // Create provider for Polygon
-    const provider = new ethers.JsonRpcProvider(POLYGON_RPC_URL, POLYGON_CHAIN_ID);
+  // Execute transfer using permit (platform wallet pays gas)
+  const result = await transferUsdcWithPlatformGas(
+    user.embeddedWalletAddress,
+    walletAddress, // Destination is user's connected wallet
+    amount
+  );
 
-    // Check if embedded wallet needs gas funding
-    const embeddedBalance = await provider.getBalance(user.embeddedWalletAddress);
-    const minGasBalance = ethers.parseEther('0.01'); // Need at least 0.01 POL for gas
-
-    if (embeddedBalance < minGasBalance) {
-      logger.info('Embedded wallet needs gas funding', {
-        embeddedWalletAddress: user.embeddedWalletAddress,
-        currentBalance: ethers.formatEther(embeddedBalance),
-      });
-
-      const platformWalletAddress = requireEnvVar('PLATFORM_WALLET_ADDRESS');
-      const gasTxHash = await fundWalletWithGas(platformWalletAddress, user.embeddedWalletAddress);
-
-      if (gasTxHash) {
-        logger.info('Funded embedded wallet with gas', {
-          embeddedWalletAddress: user.embeddedWalletAddress,
-          gasTxHash,
-        });
-      } else {
-        logger.warn('Gas funding failed or was skipped', {
-          embeddedWalletAddress: user.embeddedWalletAddress,
-        });
-        return errorResponse(500, 'Failed to fund wallet for gas. Please try again.');
-      }
-    }
-
-    // Create signer for embedded wallet
-    const signer = await createSignerWithProvider(user.embeddedWalletAddress, provider);
-
-    // Create USDC contract instance
-    const usdcContract = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, signer);
-
-    // Check balance
-    const balance = await usdcContract.balanceOf(user.embeddedWalletAddress);
-    const amountWei = ethers.parseUnits(amount, USDC_DECIMALS);
-
-    if (balance < amountWei) {
-      const balanceFormatted = ethers.formatUnits(balance, USDC_DECIMALS);
-      return errorResponse(400, `Insufficient balance. Available: ${balanceFormatted} USDC`);
-    }
-
-    // Execute transfer to connected wallet
-    const tx = await usdcContract.transfer(walletAddress, amountWei);
-
-    logger.info('Withdraw transaction sent', {
-      txHash: tx.hash,
-      walletAddress,
-      amount,
-    });
-
-    // Wait for confirmation
-    const receipt = await tx.wait(1);
-
-    logger.info('Withdraw transaction confirmed', {
-      txHash: receipt?.hash,
-      blockNumber: receipt?.blockNumber,
-      gasUsed: receipt?.gasUsed.toString(),
-    });
-
-    const response: WithdrawResponse = {
-      txHash: receipt?.hash ?? '',
-      amount,
-      destination: walletAddress,
-    };
-
-    return successResponse(response);
-  } catch (error) {
-    logger.errorWithStack('Withdraw failed', error, {
+  if (!result.success) {
+    logger.error('Withdraw failed', {
       walletAddress,
       embeddedWalletAddress: user.embeddedWalletAddress,
       amount,
+      error: result.error,
     });
 
-    // Check for specific error types
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-
-    if (errorMessage.includes('insufficient funds for gas')) {
-      return errorResponse(400, 'Embedded wallet has insufficient POL for gas fees');
+    // Return user-friendly error messages
+    if (result.error?.includes('Insufficient balance')) {
+      return errorResponse(400, result.error);
     }
 
     return errorResponse(500, 'Withdraw failed. Please try again.');
   }
+
+  logger.info('Withdraw completed', {
+    txHash: result.txHash,
+    walletAddress,
+    amount,
+  });
+
+  const response: WithdrawResponse = {
+    txHash: result.txHash ?? '',
+    amount,
+    destination: walletAddress,
+  };
+
+  return successResponse(response);
 }
 
 export async function handler(

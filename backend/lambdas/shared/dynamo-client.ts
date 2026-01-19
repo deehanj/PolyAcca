@@ -659,7 +659,7 @@ export async function updateUserChainStatus(
   const expressionValues: Record<string, unknown> = { ':status': status, ':now': now };
   const updateExpression = appendUpdates(
     updates,
-    ['currentValue', 'completedLegs', 'currentLegSequence'],
+    ['currentValue', 'completedLegs', 'currentLegSequence', 'platformFee', 'platformFeeTxHash'],
     'SET #status = :status, updatedAt = :now',
     expressionValues
   );
@@ -719,7 +719,7 @@ export async function updateBetStatus(
   };
   const updateExpression = appendUpdates(
     updates,
-    ['orderId', 'executedAt', 'settledAt', 'outcome', 'actualPayout'],
+    ['orderId', 'executedAt', 'settledAt', 'outcome', 'actualPayout', 'fillPrice', 'sharesAcquired', 'fillBlockNumber', 'redemptionTxHash'],
     'SET #status = :status, updatedAt = :now, GSI1PK = :gsi1pk, GSI1SK = :gsi1sk',
     expressionValues
   );

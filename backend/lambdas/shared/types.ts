@@ -133,6 +133,9 @@ export interface UserChainEntity extends BaseEntity {
   completedLegs: number; // How many legs have settled
   currentLegSequence: number; // Which leg is currently active
   status: UserChainStatus;
+  // Platform fee fields (populated when status = WON)
+  platformFee?: string; // Fee amount collected (2% of profit)
+  platformFeeTxHash?: string; // Transaction hash of fee transfer
 }
 
 export type UserChainStatus =
@@ -164,13 +167,19 @@ export interface BetEntity extends BaseEntity {
   side: 'YES' | 'NO';
   targetPrice: string; // Price to buy at
   stake: string; // Amount to bet (USDC)
-  potentialPayout: string; // If win
+  potentialPayout: string; // If win (projected at creation time)
   status: BetStatus;
   orderId?: string; // Polymarket order ID once placed
   executedAt?: string;
+  // Fill tracking (set when order fills)
+  fillPrice?: string; // Actual price the order filled at
+  sharesAcquired?: string; // Actual shares received (stake / fillPrice)
+  fillBlockNumber?: number; // Block number when fill was confirmed (for timeboxing redemption lookup)
+  // Settlement (set when market resolves)
   settledAt?: string;
   outcome?: 'WON' | 'LOST';
-  actualPayout?: string;
+  actualPayout?: string; // Actual payout received (verified from on-chain transfer)
+  redemptionTxHash?: string; // Transaction hash of the redemption/payout transfer
 }
 
 export type BetStatus =

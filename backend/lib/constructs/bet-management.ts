@@ -28,6 +28,11 @@ export interface BetManagementConstructProps {
    */
   turnkeyOrganizationId: string;
   /**
+   * Commission wallet address for collecting fees on winning accumulators
+   * This cold wallet receives the 2% platform fee when users win
+   */
+  commissionWalletAddress: string;
+  /**
    * WebSocket construct for granting notification permissions
    */
   websocket?: WebSocketConstruct;
@@ -65,7 +70,7 @@ export class BetManagementConstruct extends Construct {
   constructor(scope: Construct, id: string, props: BetManagementConstructProps) {
     super(scope, id);
 
-    const { table, credentialsTable, secrets, turnkeyOrganizationId, websocket, adminWebsocket } = props;
+    const { table, credentialsTable, secrets, turnkeyOrganizationId, commissionWalletAddress, websocket, adminWebsocket } = props;
 
     // Shared Lambda config
     const lambdaConfig = {
@@ -114,12 +119,22 @@ export class BetManagementConstruct extends Construct {
 
     // =========================================================================
     // Market Resolution Handler - Triggers on market status → RESOLVED
+    // Collects platform fees on winning accumulators via Turnkey signing
     // =========================================================================
     this.marketResolutionHandler = new nodejs.NodejsFunction(this, 'MarketResolutionHandler', {
       ...lambdaConfig,
       entry: path.join(__dirname, '../../lambdas/streams/market-resolution-handler/index.ts'),
       handler: 'handler',
-      description: 'Handles market resolution, settles bets, triggers next actions',
+      timeout: cdk.Duration.seconds(120), // Longer timeout for fee collection tx
+      description: 'Handles market resolution, settles bets, collects platform fees',
+      environment: {
+        ...lambdaConfig.environment,
+        // Turnkey for signing fee transfers from embedded wallets
+        TURNKEY_SECRET_ARN: secrets.turnkeySecretArn,
+        TURNKEY_ORGANIZATION_ID: turnkeyOrganizationId,
+        // Commission wallet to receive fees (2% of profit on winning accas)
+        COMMISSION_WALLET_ADDRESS: commissionWalletAddress,
+      },
     });
 
     // =========================================================================
@@ -198,6 +213,7 @@ export class BetManagementConstruct extends Construct {
 
     // Turnkey secret access (for embedded wallet signing)
     secrets.grantTurnkeySecretRead(this.betExecutor);
+    secrets.grantTurnkeySecretRead(this.marketResolutionHandler); // For fee collection
 
     // WebSocket permission for notification handler
     if (websocket) {

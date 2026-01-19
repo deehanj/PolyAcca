@@ -11,6 +11,7 @@
 import type { DynamoDBStreamEvent, DynamoDBRecord } from 'aws-lambda';
 import { unmarshall } from '@aws-sdk/util-dynamodb';
 import type { AttributeValue } from '@aws-sdk/client-dynamodb';
+import { ethers, Contract } from 'ethers';
 import {
   getBetsByCondition,
   getChain,
@@ -18,11 +19,32 @@ import {
   updateBetStatus,
   updateUserChainStatus,
   getBet,
+  getUser,
 } from '../../shared/dynamo-client';
 import { createLogger } from '../../shared/logger';
+import { collectPlatformFee } from '../../shared/platform-fee';
+import { toMicroUsdc, fromMicroUsdc, calculateShares } from '../../shared/usdc-math';
 import type { MarketEntity, BetEntity } from '../../shared/types';
 
 const log = createLogger('market-resolution-handler');
+
+// Polygon configuration for redemption verification
+const POLYGON_RPC_URL = 'https://polygon-rpc.com';
+const POLYGON_CHAIN_ID = 137;
+const USDC_CONTRACT_ADDRESS = '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174'; // USDC.e on Polygon
+
+// Polymarket contracts that send redemption payouts
+const CTF_CONTRACT_ADDRESS = '0x4D97DCd97eC945f40cF65F87097ACe5EA0476045';
+const EXCHANGE_CONTRACT_ADDRESS = '0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E';
+
+// ERC20 Transfer event ABI
+const ERC20_ABI = [
+  'event Transfer(address indexed from, address indexed to, uint256 value)',
+];
+
+// ethers v5 helpers
+const { JsonRpcProvider } = ethers.providers;
+const { formatUnits } = ethers.utils;
 
 /**
  * Determine if a bet won based on market outcome and bet side
@@ -34,44 +56,220 @@ function didBetWin(bet: BetEntity, marketOutcome: 'YES' | 'NO'): boolean {
 /**
  * Calculate actual payout for a winning bet
  * Winner gets $1 per share held
+ *
+ * Uses sharesAcquired if available (actual fill data from bet execution),
+ * otherwise falls back to calculating from stake/targetPrice
  */
-function calculatePayout(bet: BetEntity): string {
-  // Shares owned = stake / price
-  // Payout = shares * $1 = stake / price
-  const price = parseFloat(bet.targetPrice);
-  const stake = parseFloat(bet.stake);
-  const shares = stake / price;
-  return shares.toFixed(2);
+function calculateExpectedPayout(bet: BetEntity): string {
+  // If we have actual shares acquired from the fill, use that
+  // Each share = $1 on win
+  if (bet.sharesAcquired) {
+    log.debug('Using sharesAcquired for payout', {
+      betId: bet.betId,
+      sharesAcquired: bet.sharesAcquired,
+    });
+    return bet.sharesAcquired;
+  }
+
+  // Fallback: calculate from stake / fillPrice (or targetPrice)
+  const price = bet.fillPrice ?? bet.targetPrice;
+  const stakeMicro = toMicroUsdc(bet.stake);
+  const priceMicro = toMicroUsdc(price);
+  const sharesMicro = calculateShares(stakeMicro, priceMicro);
+
+  log.debug('Calculated payout from stake/price', {
+    betId: bet.betId,
+    stake: bet.stake,
+    price,
+    calculatedShares: fromMicroUsdc(sharesMicro),
+  });
+
+  return fromMicroUsdc(sharesMicro);
+}
+
+/**
+ * Verify redemption payout by checking for USDC transfers from CTF/Exchange
+ * to the embedded wallet within a block range (timeboxed lookup)
+ *
+ * @returns The verified payout amount, or null if no matching transfer found
+ */
+async function verifyRedemptionPayout(
+  embeddedWalletAddress: string,
+  fromBlock: number,
+  expectedPayout: string
+): Promise<{ verified: boolean; actualPayout?: string; txHash?: string }> {
+  try {
+    const provider = new JsonRpcProvider(POLYGON_RPC_URL, POLYGON_CHAIN_ID);
+    const currentBlock = await provider.getBlockNumber();
+
+    // Search from fillBlockNumber to current block
+    // Add some buffer blocks in case of reorgs
+    const searchFromBlock = Math.max(0, fromBlock - 10);
+
+    log.info('Verifying redemption payout', {
+      embeddedWalletAddress,
+      fromBlock: searchFromBlock,
+      toBlock: currentBlock,
+      expectedPayout,
+    });
+
+    const usdcContract = new Contract(USDC_CONTRACT_ADDRESS, ERC20_ABI, provider);
+
+    // Query Transfer events TO the embedded wallet FROM CTF or Exchange contracts
+    const filter = usdcContract.filters.Transfer(
+      null, // from any (we'll filter below)
+      embeddedWalletAddress // to embedded wallet
+    );
+
+    const events = await usdcContract.queryFilter(filter, searchFromBlock, currentBlock);
+
+    // Filter to only transfers from CTF or Exchange contracts
+    const redemptionSources = new Set([
+      CTF_CONTRACT_ADDRESS.toLowerCase(),
+      EXCHANGE_CONTRACT_ADDRESS.toLowerCase(),
+    ]);
+
+    const redemptionEvents = events.filter((event) => {
+      const from = event.args?.from?.toLowerCase();
+      return from && redemptionSources.has(from);
+    });
+
+    if (redemptionEvents.length === 0) {
+      log.warn('No redemption transfer found', {
+        embeddedWalletAddress,
+        fromBlock: searchFromBlock,
+        toBlock: currentBlock,
+      });
+      return { verified: false };
+    }
+
+    // Sum all redemption transfers (in case of multiple)
+    let totalPayoutWei = ethers.BigNumber.from(0);
+    let latestTxHash: string | undefined;
+
+    for (const event of redemptionEvents) {
+      const value = event.args?.value;
+      if (value) {
+        totalPayoutWei = totalPayoutWei.add(value);
+        latestTxHash = event.transactionHash;
+      }
+    }
+
+    const actualPayout = formatUnits(totalPayoutWei, 6); // USDC has 6 decimals
+
+    log.info('Redemption transfer verified', {
+      embeddedWalletAddress,
+      expectedPayout,
+      actualPayout,
+      txHash: latestTxHash,
+      transferCount: redemptionEvents.length,
+    });
+
+    // Check if actual matches expected (with some tolerance for rounding)
+    const expectedMicro = toMicroUsdc(expectedPayout);
+    const actualMicro = toMicroUsdc(actualPayout);
+    const difference = expectedMicro > actualMicro
+      ? expectedMicro - actualMicro
+      : actualMicro - expectedMicro;
+
+    // Allow 0.01 USDC tolerance for rounding differences
+    const tolerance = 10000n; // 0.01 USDC in micro
+    if (difference > tolerance) {
+      log.warn('Payout mismatch detected', {
+        embeddedWalletAddress,
+        expectedPayout,
+        actualPayout,
+        difference: fromMicroUsdc(difference),
+      });
+    }
+
+    return {
+      verified: true,
+      actualPayout,
+      txHash: latestTxHash,
+    };
+  } catch (error) {
+    log.errorWithStack('Failed to verify redemption payout', error, {
+      embeddedWalletAddress,
+      fromBlock,
+    });
+    // Non-fatal - return unverified and use expected payout
+    return { verified: false };
+  }
 }
 
 /**
  * Process a single bet settlement
+ *
+ * For winning bets:
+ * 1. Calculate expected payout from shares
+ * 2. If fillBlockNumber available, verify redemption transfer on-chain
+ * 3. Use verified payout if available, otherwise use expected payout
  */
 async function settleBet(
   bet: BetEntity,
-  marketOutcome: 'YES' | 'NO'
-): Promise<{ won: boolean; payout: string }> {
+  marketOutcome: 'YES' | 'NO',
+  embeddedWalletAddress?: string
+): Promise<{ won: boolean; payout: string; redemptionTxHash?: string }> {
   const won = didBetWin(bet, marketOutcome);
-  const payout = won ? calculatePayout(bet) : '0';
   const now = new Date().toISOString();
 
-  // Update bet status to SETTLED
+  if (!won) {
+    // Lost bet - no payout
+    await updateBetStatus(bet.chainId, bet.walletAddress, bet.sequence, 'SETTLED', {
+      outcome: 'LOST',
+      actualPayout: '0',
+      settledAt: now,
+    });
+
+    log.info('Bet settled (lost)', {
+      betId: bet.betId,
+      walletAddress: bet.walletAddress,
+      side: bet.side,
+      marketOutcome,
+    });
+
+    return { won: false, payout: '0' };
+  }
+
+  // Won bet - calculate and verify payout
+  const expectedPayout = calculateExpectedPayout(bet);
+  let actualPayout = expectedPayout;
+  let redemptionTxHash: string | undefined;
+
+  // Verify redemption on-chain if we have the fill block number and embedded wallet
+  if (bet.fillBlockNumber && embeddedWalletAddress) {
+    const verification = await verifyRedemptionPayout(
+      embeddedWalletAddress,
+      bet.fillBlockNumber,
+      expectedPayout
+    );
+
+    if (verification.verified && verification.actualPayout) {
+      actualPayout = verification.actualPayout;
+      redemptionTxHash = verification.txHash;
+    }
+  }
+
+  // Update bet status to SETTLED with payout details
   await updateBetStatus(bet.chainId, bet.walletAddress, bet.sequence, 'SETTLED', {
-    outcome: won ? 'WON' : 'LOST',
-    actualPayout: payout,
+    outcome: 'WON',
+    actualPayout,
     settledAt: now,
+    redemptionTxHash,
   });
 
-  log.info('Bet settled', {
+  log.info('Bet settled (won)', {
     betId: bet.betId,
     walletAddress: bet.walletAddress,
     side: bet.side,
     marketOutcome,
-    won,
-    payout,
+    expectedPayout,
+    actualPayout,
+    redemptionTxHash,
   });
 
-  return { won, payout };
+  return { won: true, payout: actualPayout, redemptionTxHash };
 }
 
 /**
@@ -124,13 +322,64 @@ async function handleUserChainAfterSettlement(
       payout,
     });
 
+    // Collect platform fee (2% of profit) - only for multi-leg accumulators
+    // Single-leg chains are just regular bets, no commission applies
+    let platformFee = '0';
+    let platformFeeTxHash: string | undefined;
+
+    if (chain.legs.length > 1) {
+      try {
+        // Get user to find embedded wallet address
+        const user = await getUser(bet.walletAddress);
+
+        if (user?.embeddedWalletAddress) {
+          const feeResult = await collectPlatformFee(
+            user.embeddedWalletAddress,
+            payout,
+            userChain.initialStake
+          );
+
+          if (feeResult.success) {
+            platformFee = feeResult.feeAmount;
+            platformFeeTxHash = feeResult.txHash;
+            log.info('Platform fee collected', {
+              chainId: bet.chainId,
+              walletAddress: bet.walletAddress,
+              feeAmount: platformFee,
+              txHash: platformFeeTxHash,
+            });
+          } else {
+            log.warn('Platform fee collection failed', {
+              chainId: bet.chainId,
+              walletAddress: bet.walletAddress,
+              error: feeResult.error,
+            });
+          }
+        } else {
+          log.warn('User has no embedded wallet, skipping fee collection', {
+            walletAddress: bet.walletAddress,
+          });
+        }
+      } catch (error) {
+        // Log but don't fail the resolution - fee collection is not critical
+        log.errorWithStack('Error collecting platform fee', error, {
+          chainId: bet.chainId,
+          walletAddress: bet.walletAddress,
+        });
+      }
+    } else {
+      log.info('Single-leg chain, no platform fee applies', {
+        chainId: bet.chainId,
+        walletAddress: bet.walletAddress,
+      });
+    }
+
     await updateUserChainStatus(bet.chainId, bet.walletAddress, 'WON', {
       currentValue: payout,
       completedLegs: bet.sequence,
+      platformFee,
+      platformFeeTxHash,
     });
-
-    // TODO: Trigger payout to user's wallet
-    log.warn('Payout not yet implemented', { payout, walletAddress: bet.walletAddress });
   } else {
     // More bets to go - update user chain and mark next bet as READY
     const nextSequence = bet.sequence + 1;
@@ -203,7 +452,11 @@ async function processMarketResolution(record: DynamoDBRecord): Promise<void> {
   // Settle each bet
   for (const bet of filledBets) {
     try {
-      const { won, payout } = await settleBet(bet, market.outcome);
+      // Get user's embedded wallet address for redemption verification
+      const user = await getUser(bet.walletAddress);
+      const embeddedWalletAddress = user?.embeddedWalletAddress;
+
+      const { won, payout } = await settleBet(bet, market.outcome, embeddedWalletAddress);
       await handleUserChainAfterSettlement(bet, won, payout);
     } catch (error) {
       log.errorWithStack('Error settling bet', error, { betId: bet.betId });

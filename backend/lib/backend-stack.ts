@@ -54,6 +54,12 @@ export class BackendStack extends cdk.Stack {
       throw new Error('TURNKEY_ORG_ID_NOT_SET: TURNKEY_ORGANIZATION_ID environment variable is required');
     }
 
+    // Commission wallet address (cold wallet for receiving platform fees)
+    const commissionWalletAddress = process.env.COMMISSION_WALLET_ADDRESS;
+    if (!commissionWalletAddress) {
+      throw new Error('COMMISSION_WALLET_ADDRESS environment variable is required');
+    }
+
     // ==========================================================================
     // Alerts (must be created first so aspects can reference the topic)
     // ==========================================================================
@@ -141,6 +147,7 @@ export class BackendStack extends cdk.Stack {
       credentialsTable: this.credentialsTable,
       secrets: this.secrets,
       turnkeyOrganizationId,
+      commissionWalletAddress,
       websocket: this.websocket,
       adminWebsocket: this.adminWebsocket,
     });

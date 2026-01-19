@@ -23,6 +23,7 @@ import {
   updateBetStatus,
   updateUserChainStatus,
   getUser,
+  getBet,
 } from '../../shared/dynamo-client';
 import {
   getEmbeddedWalletCredentials,
@@ -40,9 +41,15 @@ import {
 } from '../../shared/polymarket-client';
 import { createSigner } from '../../shared/turnkey-client';
 import { createLogger } from '../../shared/logger';
+import { toMicroUsdc, fromMicroUsdc, calculateShares } from '../../shared/usdc-math';
+import { ethers } from 'ethers';
 import type { BetEntity, BetStatus, BuilderCredentials } from '../../shared/types';
 
 const log = createLogger('bet-executor');
+
+// Polygon RPC for getting block numbers
+const POLYGON_RPC_URL = 'https://polygon-rpc.com';
+const { JsonRpcProvider } = ethers.providers;
 
 // Secrets Manager client
 const secretsClient = new SecretsManagerClient({});
@@ -184,6 +191,90 @@ async function handleExecutionFailure(
 }
 
 /**
+ * Fill details returned when an order is executed and filled
+ */
+interface FillDetails {
+  orderId: string;
+  filled: boolean;
+  fillPrice?: string; // Actual fill price
+  sharesAcquired?: string; // Actual shares received
+  fillBlockNumber?: number; // Block number for timeboxing redemption lookups
+}
+
+/**
+ * Determine the actual stake for a bet
+ *
+ * For the first leg (sequence 1), use the pre-calculated stake.
+ * For subsequent legs, use the actual payout from the previous bet.
+ * Logs a warning if the actual differs significantly from pre-calculated.
+ */
+async function determineActualStake(bet: BetEntity): Promise<string> {
+  // First leg uses the initial stake
+  if (bet.sequence === 1) {
+    return bet.stake;
+  }
+
+  // Subsequent legs: fetch previous bet's actual payout
+  const previousBet = await getBet(bet.chainId, bet.walletAddress, bet.sequence - 1);
+
+  if (!previousBet) {
+    log.error('Previous bet not found', {
+      chainId: bet.chainId,
+      walletAddress: bet.walletAddress,
+      previousSequence: bet.sequence - 1,
+    });
+    throw new Error(`Previous bet (sequence ${bet.sequence - 1}) not found`);
+  }
+
+  if (previousBet.status !== 'SETTLED' || previousBet.outcome !== 'WON') {
+    log.error('Previous bet not settled as won', {
+      betId: previousBet.betId,
+      status: previousBet.status,
+      outcome: previousBet.outcome,
+    });
+    throw new Error(`Previous bet not settled as won (status: ${previousBet.status}, outcome: ${previousBet.outcome})`);
+  }
+
+  const actualPayout = previousBet.actualPayout;
+  if (!actualPayout) {
+    log.error('Previous bet has no actualPayout', { betId: previousBet.betId });
+    throw new Error('Previous bet has no actualPayout');
+  }
+
+  // Compare actual vs pre-calculated stake for verification
+  const preCalculatedMicro = toMicroUsdc(bet.stake);
+  const actualMicro = toMicroUsdc(actualPayout);
+  const difference = preCalculatedMicro > actualMicro
+    ? preCalculatedMicro - actualMicro
+    : actualMicro - preCalculatedMicro;
+
+  // Calculate percentage difference
+  const percentDiff = preCalculatedMicro > 0n
+    ? Number((difference * 10000n) / preCalculatedMicro) / 100
+    : 0;
+
+  if (percentDiff > 1) {
+    // More than 1% difference - log warning
+    log.warn('Stake mismatch between pre-calculated and actual', {
+      betId: bet.betId,
+      preCalculatedStake: bet.stake,
+      actualPayout,
+      difference: fromMicroUsdc(difference),
+      percentDiff: `${percentDiff.toFixed(2)}%`,
+    });
+  } else {
+    log.info('Stake verified against previous payout', {
+      betId: bet.betId,
+      preCalculatedStake: bet.stake,
+      actualPayout,
+      percentDiff: `${percentDiff.toFixed(2)}%`,
+    });
+  }
+
+  return actualPayout;
+}
+
+/**
  * Execute a bet using embedded wallet (Turnkey signer)
  *
  * Credentials are stored in CREDENTIALS_TABLE_NAME (the dedicated credentials table).
@@ -192,7 +283,7 @@ async function handleExecutionFailure(
 async function executeBetWithEmbeddedWallet(
   bet: BetEntity,
   embeddedWalletAddress: string
-): Promise<{ orderId: string; filled: boolean }> {
+): Promise<FillDetails> {
   log.info('Executing bet with embedded wallet', {
     betId: bet.betId,
     embeddedWalletAddress,
@@ -237,20 +328,49 @@ async function executeBetWithEmbeddedWallet(
     log.info('Cached derived embedded wallet credentials');
   }
 
+  // Determine actual stake (uses previous bet's payout for subsequent legs)
+  const actualStake = await determineActualStake(bet);
+
+  // Calculate order size using bigint arithmetic for precision
+  // size = stake / price (number of shares to buy)
+  const stakeMicro = toMicroUsdc(actualStake);
+  const priceMicro = toMicroUsdc(bet.targetPrice);
+  const sharesMicro = calculateShares(stakeMicro, priceMicro);
+  const size = parseFloat(fromMicroUsdc(sharesMicro, 6)); // Use 6 decimals for precision
+
+  log.info('Calculated order size', {
+    betId: bet.betId,
+    actualStake,
+    targetPrice: bet.targetPrice,
+    size,
+  });
+
   // Place order using Turnkey signer
   const orderId = await placeOrder(signer, credentials, {
     tokenId: bet.tokenId,
     side: 'BUY',
     price: parseFloat(bet.targetPrice),
-    size: parseFloat(bet.stake) / parseFloat(bet.targetPrice),
+    size,
   });
 
+  // Poll for fill confirmation and capture fill details
   const maxAttempts = 3;
   let filled = false;
+  let fillPrice: string | undefined;
+  let sharesAcquired: string | undefined;
+
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const status = await fetchOrderStatus(credentials, orderId);
     if (status.filled) {
       filled = true;
+      fillPrice = status.fillPrice;
+      sharesAcquired = status.filledSize;
+      log.info('Order filled', {
+        betId: bet.betId,
+        orderId,
+        fillPrice,
+        sharesAcquired,
+      });
       break;
     }
     if (attempt < maxAttempts) {
@@ -258,7 +378,19 @@ async function executeBetWithEmbeddedWallet(
     }
   }
 
-  return { orderId, filled };
+  // Get current block number for timeboxing redemption lookups later
+  let fillBlockNumber: number | undefined;
+  if (filled) {
+    try {
+      const provider = new JsonRpcProvider(POLYGON_RPC_URL);
+      fillBlockNumber = await provider.getBlockNumber();
+    } catch (error) {
+      log.warn('Failed to get block number for fill', { betId: bet.betId, error });
+      // Non-fatal - we can still proceed without it
+    }
+  }
+
+  return { orderId, filled, fillPrice, sharesAcquired, fillBlockNumber };
 }
 
 /**
@@ -287,7 +419,8 @@ async function executeBet(bet: BetEntity): Promise<void> {
     }
 
     // Execute using embedded wallet
-    const { orderId, filled } = await executeBetWithEmbeddedWallet(bet, user.embeddedWalletAddress);
+    const fillDetails = await executeBetWithEmbeddedWallet(bet, user.embeddedWalletAddress);
+    const { orderId, filled, fillPrice, sharesAcquired, fillBlockNumber } = fillDetails;
 
     log.info('Order placed', { betId: bet.betId, orderId });
 
@@ -299,7 +432,19 @@ async function executeBet(bet: BetEntity): Promise<void> {
     });
 
     if (filled) {
-      await updateBetStatus(bet.chainId, bet.walletAddress, bet.sequence, 'FILLED');
+      // Store fill details for accurate payout calculation during resolution
+      await updateBetStatus(bet.chainId, bet.walletAddress, bet.sequence, 'FILLED', {
+        fillPrice: fillPrice ?? bet.targetPrice, // Fallback to target if fill price unavailable
+        sharesAcquired: sharesAcquired ?? bet.potentialPayout, // Fallback to projected shares
+        fillBlockNumber,
+      });
+
+      log.info('Bet filled with details', {
+        betId: bet.betId,
+        fillPrice: fillPrice ?? bet.targetPrice,
+        sharesAcquired: sharesAcquired ?? bet.potentialPayout,
+        fillBlockNumber,
+      });
     } else {
       log.warn('Order not confirmed filled yet; leaving status PLACED', {
         betId: bet.betId,

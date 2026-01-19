@@ -10,6 +10,10 @@ import { createSignerWithProvider } from './turnkey-client';
 import { createLogger } from './logger';
 import { optionalEnvVar } from '../utils/envVars';
 
+// ethers v5 helpers
+const { JsonRpcProvider } = ethers.providers;
+const { parseEther, formatEther } = ethers.utils;
+
 const logger = createLogger('gas-funder');
 
 // Polygon configuration
@@ -48,30 +52,30 @@ export async function fundWalletWithGas(
 
   try {
     // Create provider for Polygon
-    const provider = new ethers.JsonRpcProvider(POLYGON_RPC_URL, POLYGON_CHAIN_ID);
+    const provider = new JsonRpcProvider(POLYGON_RPC_URL, POLYGON_CHAIN_ID);
 
     // Check platform wallet balance first
     const platformBalance = await provider.getBalance(platformWalletAddress);
-    const fundingAmountWei = ethers.parseEther(fundingAmount);
+    const fundingAmountWei = parseEther(fundingAmount);
 
     // Need some buffer for gas costs of the transfer itself
-    const minRequired = fundingAmountWei + ethers.parseEther('0.01');
+    const minRequired = fundingAmountWei.add(parseEther('0.01'));
 
-    if (platformBalance < minRequired) {
+    if (platformBalance.lt(minRequired)) {
       logger.warn('Platform wallet has insufficient POL balance', {
         platformWalletAddress,
-        balance: ethers.formatEther(platformBalance),
-        required: ethers.formatEther(minRequired),
+        balance: formatEther(platformBalance),
+        required: formatEther(minRequired),
       });
       return null;
     }
 
     // Check if destination already has some POL (avoid double-funding)
     const destBalance = await provider.getBalance(destinationAddress);
-    if (destBalance > ethers.parseEther('0.01')) {
+    if (destBalance.gt(parseEther('0.01'))) {
       logger.info('Destination wallet already has POL, skipping funding', {
         destinationAddress,
-        balance: ethers.formatEther(destBalance),
+        balance: formatEther(destBalance),
       });
       return null;
     }
@@ -95,12 +99,12 @@ export async function fundWalletWithGas(
     const receipt = await tx.wait(1);
 
     logger.info('Gas funding transaction confirmed', {
-      txHash: receipt?.hash,
+      txHash: receipt?.transactionHash,
       blockNumber: receipt?.blockNumber,
       gasUsed: receipt?.gasUsed.toString(),
     });
 
-    return receipt?.hash ?? null;
+    return receipt?.transactionHash ?? null;
   } catch (error) {
     logger.errorWithStack('Failed to fund wallet with gas', error, {
       platformWalletAddress,
