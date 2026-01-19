@@ -90,7 +90,7 @@ export class BackendStack extends cdk.Stack {
     });
 
     // ==========================================================================
-    // Platform Wallet (for funding new embedded wallets with POL)
+    // Platform Wallet (pays gas for permit-based USDC transfers)
     // Created via Turnkey custom resource - fund this wallet with POL after deploy
     // ==========================================================================
     this.platformWallet = new PlatformWalletConstruct(this, 'PlatformWallet', {
@@ -148,6 +148,7 @@ export class BackendStack extends cdk.Stack {
       secrets: this.secrets,
       turnkeyOrganizationId,
       commissionWalletAddress,
+      platformWalletAddress: this.platformWallet.walletAddress,
       websocket: this.websocket,
       adminWebsocket: this.adminWebsocket,
     });

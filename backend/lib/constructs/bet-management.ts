@@ -33,6 +33,10 @@ export interface BetManagementConstructProps {
    */
   commissionWalletAddress: string;
   /**
+   * Platform wallet address for paying gas on permit-based USDC transfers
+   */
+  platformWalletAddress: string;
+  /**
    * WebSocket construct for granting notification permissions
    */
   websocket?: WebSocketConstruct;
@@ -70,7 +74,7 @@ export class BetManagementConstruct extends Construct {
   constructor(scope: Construct, id: string, props: BetManagementConstructProps) {
     super(scope, id);
 
-    const { table, credentialsTable, secrets, turnkeyOrganizationId, commissionWalletAddress, websocket, adminWebsocket } = props;
+    const { table, credentialsTable, secrets, turnkeyOrganizationId, commissionWalletAddress, platformWalletAddress, websocket, adminWebsocket } = props;
 
     // Shared Lambda config
     const lambdaConfig = {
@@ -134,6 +138,8 @@ export class BetManagementConstruct extends Construct {
         TURNKEY_ORGANIZATION_ID: turnkeyOrganizationId,
         // Commission wallet to receive fees (2% of profit on winning accas)
         COMMISSION_WALLET_ADDRESS: commissionWalletAddress,
+        // Platform wallet for paying gas on permit+transferFrom
+        PLATFORM_WALLET_ADDRESS: platformWalletAddress,
       },
     });
 
