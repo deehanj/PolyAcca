@@ -14,13 +14,25 @@ async function fetchMarketsFromApi(
 
   const searchParams = new URLSearchParams();
 
+  // Pagination
   if (params.limit) searchParams.set('limit', String(params.limit));
   if (params.offset) searchParams.set('offset', String(params.offset));
+
+  // Status filters
   if (params.active !== undefined) searchParams.set('active', String(params.active));
   if (params.closed !== undefined) searchParams.set('closed', String(params.closed));
-  if (params.category && params.category.toLowerCase() !== 'all') {
-    searchParams.set('category', params.category);
-  }
+
+  // Range filters
+  if (params.liquidityMin !== undefined) searchParams.set('liquidityMin', String(params.liquidityMin));
+  if (params.liquidityMax !== undefined) searchParams.set('liquidityMax', String(params.liquidityMax));
+  if (params.volumeMin !== undefined) searchParams.set('volumeMin', String(params.volumeMin));
+  if (params.volumeMax !== undefined) searchParams.set('volumeMax', String(params.volumeMax));
+
+  // Date filters
+  if (params.endDateMin) searchParams.set('endDateMin', params.endDateMin);
+  if (params.endDateMax) searchParams.set('endDateMax', params.endDateMax);
+
+  // Sorting
   if (params.order) searchParams.set('order', params.order);
   if (params.ascending !== undefined) searchParams.set('ascending', String(params.ascending));
 

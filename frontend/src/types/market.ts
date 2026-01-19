@@ -36,11 +36,39 @@ export interface MarketsResponse {
 }
 
 export interface MarketsQueryParams {
+  // Pagination
   limit?: number;
   offset?: number;
+  // Status filters
   active?: boolean;
   closed?: boolean;
-  category?: string;
-  order?: 'volume' | 'liquidity' | 'endDate';
+  // Range filters
+  liquidityMin?: number;
+  liquidityMax?: number;
+  volumeMin?: number;
+  volumeMax?: number;
+  // Date filters
+  endDateMin?: string;
+  endDateMax?: string;
+  // Sorting
+  order?: 'volume' | 'liquidity' | 'endDate' | 'volume24hr';
   ascending?: boolean;
 }
+
+// Sort option for UI
+export interface SortOption {
+  value: MarketsQueryParams['order'];
+  label: string;
+  ascending?: boolean;
+}
+
+// Available sort options
+export const SORT_OPTIONS: SortOption[] = [
+  { value: 'volume', label: 'Highest Volume' },
+  { value: 'volume', label: 'Lowest Volume', ascending: true },
+  { value: 'liquidity', label: 'Most Liquid' },
+  { value: 'liquidity', label: 'Least Liquid', ascending: true },
+  { value: 'endDate', label: 'Ending Soon', ascending: true },
+  { value: 'endDate', label: 'Ending Later' },
+  { value: 'volume24hr', label: 'Trending (24h)' },
+];

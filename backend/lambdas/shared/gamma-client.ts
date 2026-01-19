@@ -96,7 +96,28 @@ export function transformMarket(raw: GammaApiMarket): GammaMarket {
 }
 
 /**
+ * Map our order field names to Gamma API field names
+ */
+function mapOrderField(order: MarketsQueryParams['order']): string {
+  switch (order) {
+    case 'volume':
+      return 'volumeNum';
+    case 'liquidity':
+      return 'liquidityNum';
+    case 'endDate':
+      return 'endDate';
+    case 'startDate':
+      return 'startDate';
+    case 'volume24hr':
+      return 'volume24hr';
+    default:
+      return 'volumeNum';
+  }
+}
+
+/**
  * Build query string from parameters
+ * Uses Gamma API's native filtering and sorting capabilities
  */
 function buildQueryString(params: MarketsQueryParams): string {
   const searchParams = new URLSearchParams();
@@ -109,25 +130,48 @@ function buildQueryString(params: MarketsQueryParams): string {
     searchParams.set('offset', String(params.offset));
   }
 
-  // Filters
+  // Status filters
   if (params.active !== undefined) {
     searchParams.set('active', String(params.active));
   }
   if (params.closed !== undefined) {
     searchParams.set('closed', String(params.closed));
-  }
-
-  // Filter out markets that have already ended (server-side)
-  const endDateMin = new Date().toISOString();
-  searchParams.set('end_date_min', endDateMin);
-
-  // Always exclude closed markets (unless explicitly requested)
-  if (params.closed === undefined) {
+  } else {
+    // Default: exclude closed markets
     searchParams.set('closed', 'false');
   }
 
-  // Note: Gamma API may not support category filter directly
-  // We filter client-side after fetching
+  // Range filters
+  if (params.liquidityMin !== undefined) {
+    searchParams.set('liquidity_num_min', String(params.liquidityMin));
+  }
+  if (params.liquidityMax !== undefined) {
+    searchParams.set('liquidity_num_max', String(params.liquidityMax));
+  }
+  if (params.volumeMin !== undefined) {
+    searchParams.set('volume_num_min', String(params.volumeMin));
+  }
+  if (params.volumeMax !== undefined) {
+    searchParams.set('volume_num_max', String(params.volumeMax));
+  }
+
+  // Date filters - default to excluding already-ended markets
+  const endDateMin = params.endDateMin ?? new Date().toISOString();
+  searchParams.set('end_date_min', endDateMin);
+  if (params.endDateMax) {
+    searchParams.set('end_date_max', params.endDateMax);
+  }
+
+  // Tag filter (category)
+  if (params.tagId !== undefined) {
+    searchParams.set('tag_id', String(params.tagId));
+  }
+
+  // Server-side sorting
+  if (params.order) {
+    searchParams.set('order', mapOrderField(params.order));
+    searchParams.set('ascending', String(params.ascending ?? false));
+  }
 
   return searchParams.toString();
 }
@@ -161,53 +205,24 @@ export async function fetchMarkets(
 
     logger.info('Fetched markets from Gamma API', { count: rawMarkets.length });
 
-    // Transform and optionally filter
+    // Transform markets
     let markets = rawMarkets.map(transformMarket);
 
-    // Filter out markets that have already ended
+    // Safety check: filter out any markets that slipped through with past end dates
     const now = new Date();
     const beforeFilterCount = markets.length;
     markets = markets.filter((m) => new Date(m.endDate) > now);
 
-    logger.info('Market endDate filter applied', {
-      beforeFilter: beforeFilterCount,
-      afterFilter: markets.length,
-      filtered: beforeFilterCount - markets.length,
-      now: now.toISOString(),
-      sampleEndDates: rawMarkets.slice(0, 5).map((m) => ({
-        id: m.id,
-        question: m.question?.substring(0, 50),
-        endDate: m.endDate,
-        parsed: new Date(m.endDate).toISOString(),
-        isInFuture: new Date(m.endDate) > now,
-      })),
-    });
-
-    // Client-side category filter if needed
-    if (params.category && params.category.toLowerCase() !== 'all') {
-      markets = markets.filter(
-        (m) => m.category.toLowerCase() === params.category!.toLowerCase()
-      );
-    }
-
-    // Client-side sorting if needed
-    if (params.order) {
-      markets.sort((a, b) => {
-        let comparison = 0;
-        switch (params.order) {
-          case 'volume':
-            comparison = b.volumeNum - a.volumeNum;
-            break;
-          case 'liquidity':
-            comparison = b.liquidityNum - a.liquidityNum;
-            break;
-          case 'endDate':
-            comparison = new Date(a.endDate).getTime() - new Date(b.endDate).getTime();
-            break;
-        }
-        return params.ascending ? -comparison : comparison;
+    if (beforeFilterCount !== markets.length) {
+      logger.debug('Filtered out expired markets', {
+        beforeFilter: beforeFilterCount,
+        afterFilter: markets.length,
+        filtered: beforeFilterCount - markets.length,
       });
     }
+
+    // Note: Sorting is done server-side by Gamma API via the 'order' parameter
+    // No client-side sorting needed
 
     return { markets, rawCount: rawMarkets.length };
   } catch (error) {

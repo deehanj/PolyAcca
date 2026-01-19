@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Header } from "@/components/Header";
 import { MarketCard, type Market } from "@/components/MarketCard";
 import { AccumulatorSidebar } from "@/components/AccumulatorSidebar";
@@ -7,10 +7,22 @@ import { Button } from "@/components/ui/Button";
 import { RingCollectionEffect } from "@/components/RingCollectionEffect";
 import { useMarkets } from "@/hooks/useMarkets";
 import { useRingAnimation } from "@/hooks/useRingAnimation";
-import type { Market as ApiMarket } from "@/types/market";
+import type { Market as ApiMarket, MarketsQueryParams } from "@/types/market";
 import { StatsTicker } from "@/components/StatsTicker";
 import { TrendingAccas } from "@/components/TrendingAccas";
 import { TypewriterText } from "@/components/ui/TypewriterText";
+import { TrendingUp, TrendingDown, Droplets, Clock, Flame, ChevronDown, Check } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+
+// Sort options with their display labels and icons
+const sortOptions: { value: string; label: string; order: MarketsQueryParams['order']; ascending?: boolean; icon: LucideIcon }[] = [
+  { value: 'volume-desc', label: 'Highest Volume', order: 'volume', ascending: false, icon: TrendingUp },
+  { value: 'volume-asc', label: 'Lowest Volume', order: 'volume', ascending: true, icon: TrendingDown },
+  { value: 'liquidity-desc', label: 'Most Liquid', order: 'liquidity', ascending: false, icon: Droplets },
+  { value: 'endDate-asc', label: 'Ending Soon', order: 'endDate', ascending: true, icon: Clock },
+  { value: 'endDate-desc', label: 'Ending Later', order: 'endDate', ascending: false, icon: Clock },
+  { value: 'volume24hr-desc', label: 'Trending (24h)', order: 'volume24hr', ascending: false, icon: Flame },
+];
 
 const categories = [
   "All",
@@ -57,18 +69,35 @@ function transformMarketForCard(market: ApiMarket): Market {
 
 export function HomePage() {
   const [selectedCategory, setSelectedCategory] = useState("All");
+  const [selectedSort, setSelectedSort] = useState("volume-desc");
+  const [isSortOpen, setIsSortOpen] = useState(false);
   const [offset, setOffset] = useState(0);
   const limit = 12;
   const sidebarRef = useRef<HTMLDivElement>(null);
+  const sortDropdownRef = useRef<HTMLDivElement>(null);
   const { animations, triggerAnimation } = useRingAnimation();
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (sortDropdownRef.current && !sortDropdownRef.current.contains(event.target as Node)) {
+        setIsSortOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Get current sort configuration
+  const currentSort = sortOptions.find(s => s.value === selectedSort) || sortOptions[0];
 
   // Fetch main markets list
   const { markets, isLoading, error, isFetching } = useMarkets({
     limit,
     offset,
     active: true,
-    category: selectedCategory === "All" ? undefined : selectedCategory,
-    order: "volume",
+    order: currentSort.order,
+    ascending: currentSort.ascending,
   });
 
   // Fetch trending/recent markets for the horizontal list (fetch separately or reuse)
@@ -84,6 +113,12 @@ export function HomePage() {
   const handleCategoryChange = (category: string) => {
     setSelectedCategory(category);
     setOffset(0); // Reset pagination on category change
+  };
+
+  const handleSortChange = (sortValue: string) => {
+    setSelectedSort(sortValue);
+    setIsSortOpen(false);
+    setOffset(0); // Reset pagination on sort change
   };
 
   const handleLoadMore = () => {
@@ -146,23 +181,63 @@ export function HomePage() {
                     </span>
                   )}
                 </h2>
-                
-                <div className="flex gap-2 overflow-x-auto py-2 scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
-                  {categories.map((category) => (
+
+                <div className="flex flex-col md:flex-row items-start md:items-center gap-3 md:gap-4">
+                  {/* Sort Dropdown */}
+                  <div className="relative" ref={sortDropdownRef}>
                     <button
-                      key={category}
-                      onClick={() => handleCategoryChange(category)}
-                      className={`
-                        px-4 py-2 rounded-full text-xs font-medium transition-all duration-200 whitespace-nowrap border
-                        ${selectedCategory === category
-                          ? "bg-[var(--primary)] text-white border-[var(--primary)] shadow-glow-sm"
-                          : "bg-white/5 border-white/5 text-muted-foreground hover:bg-white/10 hover:text-white"
-                        }
-                      `}
+                      onClick={() => setIsSortOpen(!isSortOpen)}
+                      className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 transition-all group"
                     >
-                      {category}
+                      <currentSort.icon className="w-4 h-4 text-[var(--primary)]" />
+                      <span className="text-xs font-medium text-white">{currentSort.label}</span>
+                      <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${isSortOpen ? 'rotate-180' : ''}`} />
                     </button>
-                  ))}
+
+                    {/* Dropdown Menu */}
+                    {isSortOpen && (
+                      <div className="absolute top-full left-0 mt-2 w-48 py-1 rounded-xl bg-[#1a1a2e] border border-white/10 shadow-xl shadow-black/50 z-50 overflow-hidden">
+                        {sortOptions.map((option) => {
+                          const Icon = option.icon;
+                          const isSelected = selectedSort === option.value;
+                          return (
+                            <button
+                              key={option.value}
+                              onClick={() => handleSortChange(option.value)}
+                              className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-all ${
+                                isSelected
+                                  ? 'bg-[var(--primary)]/20 text-white'
+                                  : 'text-muted-foreground hover:bg-white/5 hover:text-white'
+                              }`}
+                            >
+                              <Icon className={`w-4 h-4 ${isSelected ? 'text-[var(--primary)]' : ''}`} />
+                              <span className="text-xs font-medium flex-1">{option.label}</span>
+                              {isSelected && <Check className="w-4 h-4 text-[var(--primary)]" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Category Filters */}
+                  <div className="flex gap-2 overflow-x-auto py-2 scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
+                    {categories.map((category) => (
+                      <button
+                        key={category}
+                        onClick={() => handleCategoryChange(category)}
+                        className={`
+                          px-4 py-2 rounded-full text-xs font-medium transition-all duration-200 whitespace-nowrap border
+                          ${selectedCategory === category
+                            ? "bg-[var(--primary)] text-white border-[var(--primary)] shadow-glow-sm"
+                            : "bg-white/5 border-white/5 text-muted-foreground hover:bg-white/10 hover:text-white"
+                          }
+                        `}
+                      >
+                        {category}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>

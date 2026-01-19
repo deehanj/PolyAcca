@@ -530,13 +530,26 @@ export interface MarketsListResponse {
 
 /**
  * Query parameters for market listing
+ * Supports server-side filtering and sorting via Gamma API
  */
 export interface MarketsQueryParams {
+  // Pagination
   limit?: number;
   offset?: number;
+  // Status filters
   active?: boolean;
   closed?: boolean;
-  category?: string;
-  order?: 'volume' | 'liquidity' | 'endDate' | 'created';
+  // Range filters
+  liquidityMin?: number;
+  liquidityMax?: number;
+  volumeMin?: number;
+  volumeMax?: number;
+  // Date filters
+  endDateMin?: string; // ISO date string
+  endDateMax?: string; // ISO date string
+  // Sorting - maps to Gamma API field names
+  order?: 'volume' | 'liquidity' | 'endDate' | 'startDate' | 'volume24hr';
   ascending?: boolean;
+  // Tag filter (server-side category)
+  tagId?: number;
 }

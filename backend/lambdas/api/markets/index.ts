@@ -27,13 +27,25 @@ export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayPr
     const queryParams = event.queryStringParameters || {};
 
     return listMarkets({
+      // Pagination
       limit: queryParams.limit ? parseInt(queryParams.limit, 10) : undefined,
       offset: queryParams.offset ? parseInt(queryParams.offset, 10) : undefined,
+      // Status filters
       active: queryParams.active ? queryParams.active === 'true' : undefined,
       closed: queryParams.closed ? queryParams.closed === 'true' : undefined,
-      category: queryParams.category,
-      order: queryParams.order as 'volume' | 'liquidity' | 'endDate' | undefined,
+      // Range filters
+      liquidityMin: queryParams.liquidityMin ? parseFloat(queryParams.liquidityMin) : undefined,
+      liquidityMax: queryParams.liquidityMax ? parseFloat(queryParams.liquidityMax) : undefined,
+      volumeMin: queryParams.volumeMin ? parseFloat(queryParams.volumeMin) : undefined,
+      volumeMax: queryParams.volumeMax ? parseFloat(queryParams.volumeMax) : undefined,
+      // Date filters
+      endDateMin: queryParams.endDateMin,
+      endDateMax: queryParams.endDateMax,
+      // Sorting
+      order: queryParams.order as 'volume' | 'liquidity' | 'endDate' | 'startDate' | 'volume24hr' | undefined,
       ascending: queryParams.ascending === 'true',
+      // Tag filter
+      tagId: queryParams.tagId ? parseInt(queryParams.tagId, 10) : undefined,
     });
   } catch (error) {
     console.error('Markets handler error:', error);
