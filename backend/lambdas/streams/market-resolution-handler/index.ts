@@ -11,7 +11,7 @@
 import type { DynamoDBStreamEvent, DynamoDBRecord } from 'aws-lambda';
 import { unmarshall } from '@aws-sdk/util-dynamodb';
 import type { AttributeValue } from '@aws-sdk/client-dynamodb';
-import { ethers, Contract } from 'ethers';
+import { JsonRpcProvider, Contract, formatUnits, EventLog } from 'ethers';
 import {
   getBetsByCondition,
   getChain,
@@ -41,10 +41,6 @@ const EXCHANGE_CONTRACT_ADDRESS = '0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E';
 const ERC20_ABI = [
   'event Transfer(address indexed from, address indexed to, uint256 value)',
 ];
-
-// ethers v5 helpers
-const { JsonRpcProvider } = ethers.providers;
-const { formatUnits } = ethers.utils;
 
 /**
  * Determine if a bet won based on market outcome and bet side
@@ -99,7 +95,7 @@ async function verifyRedemptionPayout(
   expectedPayout: string
 ): Promise<{ verified: boolean; actualPayout?: string; txHash?: string }> {
   try {
-    const provider = new JsonRpcProvider(POLYGON_RPC_URL, POLYGON_CHAIN_ID);
+    const provider = new JsonRpcProvider(POLYGON_RPC_URL, { chainId: POLYGON_CHAIN_ID, name: 'polygon' });
     const currentBlock = await provider.getBlockNumber();
 
     // Search from fillBlockNumber to current block
@@ -129,7 +125,9 @@ async function verifyRedemptionPayout(
       EXCHANGE_CONTRACT_ADDRESS.toLowerCase(),
     ]);
 
-    const redemptionEvents = events.filter((event) => {
+    // Filter to EventLog with args and only from CTF or Exchange contracts
+    const redemptionEvents = events.filter((event): event is EventLog => {
+      if (!('args' in event)) return false;
       const from = event.args?.from?.toLowerCase();
       return from && redemptionSources.has(from);
     });
@@ -144,13 +142,13 @@ async function verifyRedemptionPayout(
     }
 
     // Sum all redemption transfers (in case of multiple)
-    let totalPayoutWei = ethers.BigNumber.from(0);
+    let totalPayoutWei = 0n;
     let latestTxHash: string | undefined;
 
     for (const event of redemptionEvents) {
       const value = event.args?.value;
       if (value) {
-        totalPayoutWei = totalPayoutWei.add(value);
+        totalPayoutWei = totalPayoutWei + BigInt(value);
         latestTxHash = event.transactionHash;
       }
     }

@@ -14,17 +14,13 @@
  * - Withdrawals (embedded wallet → user's connected wallet)
  */
 
-import { ethers, Contract } from 'ethers';
-import type { Signer } from 'ethers';
+import { Contract, JsonRpcProvider, Signature, parseUnits, formatUnits } from 'ethers';
+import type { Signer, Provider } from 'ethers';
 import { createSignerWithProvider } from './turnkey-client';
 import { createLogger } from './logger';
 import { requireEnvVar } from '../utils/envVars';
 
 const logger = createLogger('usdc-permit');
-
-// ethers v5 helpers
-const { JsonRpcProvider } = ethers.providers;
-const { splitSignature, _TypedDataEncoder } = ethers.utils;
 
 // Polygon configuration
 const POLYGON_RPC_URL = 'https://polygon-rpc.com';
@@ -77,9 +73,9 @@ export interface PermitTransferResult {
  * Get the current nonce for an address (used in permit signing)
  */
 async function getPermitNonce(
-  provider: ethers.providers.Provider,
+  provider: Provider,
   ownerAddress: string
-): Promise<ethers.BigNumber> {
+): Promise<bigint> {
   const usdcContract = new Contract(USDC_CONTRACT_ADDRESS, USDC_PERMIT_ABI, provider);
   return usdcContract.nonces(ownerAddress);
 }
@@ -99,7 +95,7 @@ async function getPermitNonce(
 export async function signPermit(
   ownerSigner: Signer,
   spenderAddress: string,
-  value: ethers.BigNumber,
+  value: bigint,
   deadline: number
 ): Promise<PermitSignature> {
   const ownerAddress = await ownerSigner.getAddress();
@@ -130,23 +126,23 @@ export async function signPermit(
   };
 
   // Sign the typed data (EIP-712)
-  // Note: Turnkey signer supports _signTypedData
-  const signature = await (ownerSigner as any)._signTypedData(
+  // Note: Turnkey signer supports signTypedData
+  const signature = await (ownerSigner as any).signTypedData(
     PERMIT_DOMAIN,
     PERMIT_TYPES,
     permitMessage
   );
 
-  // Split signature into v, r, s components
-  const { v, r, s } = splitSignature(signature);
+  // Split signature into v, r, s components (ethers v6)
+  const sig = Signature.from(signature);
 
   logger.debug('Permit signed', {
     owner: ownerAddress,
     spender: spenderAddress,
-    v,
+    v: sig.v,
   });
 
-  return { v, r, s };
+  return { v: sig.v, r: sig.r, s: sig.s };
 }
 
 /**
@@ -182,7 +178,7 @@ export async function executePermitTransfer(
 
   try {
     // Create provider
-    const provider = new JsonRpcProvider(POLYGON_RPC_URL, POLYGON_CHAIN_ID);
+    const provider = new JsonRpcProvider(POLYGON_RPC_URL, { chainId: POLYGON_CHAIN_ID, name: 'polygon' });
 
     // Create signer for platform wallet (pays gas)
     const platformSigner = await createSignerWithProvider(platformWalletAddress, provider);
@@ -191,12 +187,12 @@ export async function executePermitTransfer(
     const usdcContract = new Contract(USDC_CONTRACT_ADDRESS, USDC_PERMIT_ABI, platformSigner);
 
     // Convert amount to USDC units (6 decimals)
-    const amountWei = ethers.utils.parseUnits(amount, USDC_DECIMALS);
+    const amountWei = parseUnits(amount, USDC_DECIMALS);
 
     // Check owner's balance first
     const balance = await usdcContract.balanceOf(ownerAddress);
-    if (balance.lt(amountWei)) {
-      const balanceFormatted = ethers.utils.formatUnits(balance, USDC_DECIMALS);
+    if (balance < amountWei) {
+      const balanceFormatted = formatUnits(balance, USDC_DECIMALS);
       logger.warn('Insufficient USDC balance', {
         owner: ownerAddress,
         balance: balanceFormatted,
@@ -245,7 +241,7 @@ export async function executePermitTransfer(
     const receipt = await transferTx.wait(1);
 
     logger.info('Permit transfer completed', {
-      txHash: receipt?.transactionHash,
+      txHash: receipt?.hash,
       blockNumber: receipt?.blockNumber,
       gasUsed: receipt?.gasUsed?.toString(),
       owner: ownerAddress,
@@ -255,7 +251,7 @@ export async function executePermitTransfer(
 
     return {
       success: true,
-      txHash: receipt?.transactionHash,
+      txHash: receipt?.hash,
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -299,7 +295,7 @@ export async function transferUsdcWithPlatformGas(
 
   try {
     // Create provider
-    const provider = new JsonRpcProvider(POLYGON_RPC_URL, POLYGON_CHAIN_ID);
+    const provider = new JsonRpcProvider(POLYGON_RPC_URL, { chainId: POLYGON_CHAIN_ID, name: 'polygon' });
 
     // Create signer for embedded user wallet (to sign permit)
     const ownerSigner = await createSignerWithProvider(embeddedUserWalletAddress, provider);
@@ -308,7 +304,7 @@ export async function transferUsdcWithPlatformGas(
     const deadline = Math.floor(Date.now() / 1000) + 3600;
 
     // Convert amount to wei for permit
-    const amountWei = ethers.utils.parseUnits(amount, USDC_DECIMALS);
+    const amountWei = parseUnits(amount, USDC_DECIMALS);
 
     // Step 1: Sign the permit (off-chain, gasless)
     const permitSignature = await signPermit(

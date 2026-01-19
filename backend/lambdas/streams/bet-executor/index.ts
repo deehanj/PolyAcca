@@ -42,14 +42,13 @@ import {
 import { createSigner } from '../../shared/turnkey-client';
 import { createLogger } from '../../shared/logger';
 import { toMicroUsdc, fromMicroUsdc, calculateShares } from '../../shared/usdc-math';
-import { ethers } from 'ethers';
+import { JsonRpcProvider } from 'ethers';
 import type { BetEntity, BetStatus, BuilderCredentials } from '../../shared/types';
 
 const log = createLogger('bet-executor');
 
 // Polygon RPC for getting block numbers
 const POLYGON_RPC_URL = 'https://polygon-rpc.com';
-const { JsonRpcProvider } = ethers.providers;
 
 // Secrets Manager client
 const secretsClient = new SecretsManagerClient({});

@@ -9,6 +9,8 @@ import { FrontendStack } from '../lib/frontend-stack';
 // =============================================================================
 process.env.TURNKEY_ORGANIZATION_ID ??= 'af05ad7f-6d97-4bd6-9161-2cca55e2cb45';
 
+process.env.COMMISSION_WALLET_ADDRESS = "0x338ea503bEfFC48aE4418851145836Bc780102b8"
+
 const app = new cdk.App();
 
 // Backend stack (API, Database, Auth, Processing)

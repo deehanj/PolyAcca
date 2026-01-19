@@ -8,11 +8,8 @@
 import { TurnkeyClient } from '@turnkey/http';
 import { ApiKeyStamper } from '@turnkey/api-key-stamper';
 import { TurnkeySigner } from '@turnkey/ethers';
-import { ethers, Signer } from 'ethers';
-import type { Provider } from '@ethersproject/providers';
-
-// ethers v5 helpers
-const { JsonRpcProvider } = ethers.providers;
+import { JsonRpcProvider } from 'ethers';
+import type { Signer, Provider } from 'ethers';
 import {
   SecretsManagerClient,
   GetSecretValueCommand,

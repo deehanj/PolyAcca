@@ -12,10 +12,7 @@
  */
 
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import { ethers } from 'ethers';
-
-// ethers v5 helpers
-const { verifyMessage } = ethers.utils;
+import { verifyMessage } from 'ethers';
 import { getNonce, deleteNonce, getUser } from '../../shared/dynamo-client';
 import { buildWithdrawMessage, isValidAddress } from '../../shared/auth-utils';
 import { errorResponse, successResponse } from '../../shared/api-utils';

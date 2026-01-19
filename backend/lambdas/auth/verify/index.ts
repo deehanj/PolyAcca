@@ -12,10 +12,7 @@
  */
 
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import { ethers } from 'ethers';
-
-// ethers v5 helpers
-const { verifyMessage } = ethers.utils;
+import { verifyMessage } from 'ethers';
 import { getNonce, deleteNonce, getOrCreateUser, updateUserEmbeddedWallet, updateUserHasCredentials } from '../../shared/dynamo-client';
 import { createToken } from '../../shared/jwt';
 import { createWallet, createSigner } from '../../shared/turnkey-client';

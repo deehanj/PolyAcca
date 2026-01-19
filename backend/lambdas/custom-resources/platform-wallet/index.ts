@@ -2,7 +2,9 @@
  * Platform Wallet Custom Resource
  *
  * CloudFormation custom resource that creates a platform wallet via Turnkey.
- * This wallet is used to fund new user embedded wallets with POL for gas.
+ * This wallet pays gas (in POL) for permit-based USDC transfers:
+ * - Platform fee collection from winning accumulators
+ * - User withdrawals from embedded wallets
  *
  * On CREATE: Creates "PolyAcca-Platform" wallet, returns address
  * On UPDATE: Returns existing wallet address (no changes)
