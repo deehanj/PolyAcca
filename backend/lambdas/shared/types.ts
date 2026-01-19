@@ -456,6 +456,39 @@ export interface PolymarketOrder {
 }
 
 // =============================================================================
+// Orderbook Types (for price impact calculation)
+// =============================================================================
+
+export interface OrderbookLevel {
+  price: string;
+  size: string;
+}
+
+export interface OrderbookData {
+  bids: OrderbookLevel[];
+  asks: OrderbookLevel[];
+  midPrice: string;
+  spread: string;
+  timestamp: string;
+}
+
+export interface CheckoutLegEstimate {
+  conditionId: string;
+  displayedPrice: string;
+  estimatedFillPrice: string;
+  estimatedImpact: string;
+  liquidityDepth: string;
+  requiresOrderbookFetch: boolean;
+}
+
+export interface CheckoutEstimate {
+  legs: CheckoutLegEstimate[];
+  totalEstimatedCost: string;
+  totalImpactPercent: string;
+  warnings: string[];
+}
+
+// =============================================================================
 // Gamma API Types
 // =============================================================================
 
