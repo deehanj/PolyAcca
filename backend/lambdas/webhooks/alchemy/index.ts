@@ -248,27 +248,30 @@ function parseConditionResolutionEvent(
  * For binary markets (2 outcomes):
  * - [X, 0] where X > 0 = YES wins (outcome index 0)
  * - [0, X] where X > 0 = NO wins (outcome index 1)
+ * - [X, X] or other distributions = VOID (split/invalid resolution)
+ *
+ * For non-binary markets:
+ * - Treated as VOID since we only support binary markets
  *
  * Note: Polymarket uses YES=index 0, NO=index 1 for binary markets
  */
-function determineOutcome(payoutNumerators: bigint[]): 'YES' | 'NO' | null {
+function determineOutcome(payoutNumerators: bigint[]): 'YES' | 'NO' | 'VOID' {
   if (payoutNumerators.length !== 2) {
-    console.warn('Non-binary market detected, payouts:', payoutNumerators.map(String));
-    // For multi-outcome markets, we'd need more complex logic
-    // For now, return null to skip
-    return null;
+    console.warn('Non-binary market detected, treating as VOID. Payouts:', payoutNumerators.map(String));
+    // Non-binary markets are not supported - mark as VOID so chains can be properly terminated
+    return 'VOID';
   }
 
-  const [yesPayut, noPayout] = payoutNumerators;
+  const [yesPayout, noPayout] = payoutNumerators;
 
-  if (yesPayut > 0n && noPayout === 0n) {
+  if (yesPayout > 0n && noPayout === 0n) {
     return 'YES';
-  } else if (noPayout > 0n && yesPayut === 0n) {
+  } else if (noPayout > 0n && yesPayout === 0n) {
     return 'NO';
   } else {
-    // Split resolution or invalid
-    console.warn('Unexpected payout distribution:', { yes: String(yesPayut), no: String(noPayout) });
-    return null;
+    // Split resolution, all-zero, or invalid distribution - treat as VOID
+    console.warn('Split/invalid payout distribution, treating as VOID:', { yes: String(yesPayout), no: String(noPayout) });
+    return 'VOID';
   }
 }
 
@@ -278,7 +281,7 @@ function determineOutcome(payoutNumerators: bigint[]): 'YES' | 'NO' | null {
  */
 async function handleMarketResolution(
   conditionId: string,
-  outcome: 'YES' | 'NO'
+  outcome: 'YES' | 'NO' | 'VOID'
 ): Promise<void> {
   console.log('Processing market resolution:', { conditionId, outcome });
 
@@ -339,11 +342,7 @@ async function handleAddressActivity(activities: AlchemyActivity[]): Promise<voi
         });
 
         const outcome = determineOutcome(resolution.payoutNumerators);
-        if (outcome) {
-          await handleMarketResolution(resolution.conditionId, outcome);
-        } else {
-          console.warn('Could not determine outcome for condition:', resolution.conditionId);
-        }
+        await handleMarketResolution(resolution.conditionId, outcome);
       }
     }
   }
@@ -385,12 +384,7 @@ async function handleGraphQLWebhook(logs: AlchemyGraphQLLog[]): Promise<void> {
     });
 
     const outcome = determineOutcome(resolution.payoutNumerators);
-
-    if (outcome) {
-      await handleMarketResolution(resolution.conditionId, outcome);
-    } else {
-      console.warn('Could not determine outcome for condition:', resolution.conditionId);
-    }
+    await handleMarketResolution(resolution.conditionId, outcome);
   }
 }
 

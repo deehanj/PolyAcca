@@ -735,7 +735,7 @@ export async function updateUserChainStatus(
   const expressionValues: Record<string, unknown> = { ':status': status, ':now': now };
   const updateExpression = appendUpdates(
     updates,
-    ['currentValue', 'completedLegs', 'currentLegSequence', 'platformFee', 'platformFeeTxHash'],
+    ['currentValue', 'completedLegs', 'wonLegs', 'skippedLegs', 'currentLegSequence', 'platformFee', 'platformFeeTxHash', 'feeCollectionFailed', 'feeCollectionError'],
     'SET #status = :status, updatedAt = :now',
     expressionValues
   );

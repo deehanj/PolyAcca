@@ -25,7 +25,9 @@ import { createLogger } from '../../shared/logger';
 import { collectPlatformFee } from '../../shared/platform-fee';
 import { toMicroUsdc, fromMicroUsdc, calculateShares } from '../../shared/usdc-math';
 import { fetchMarketByConditionId } from '../../shared/gamma-client';
-import type { MarketEntity, BetEntity } from '../../shared/types';
+import { fetchOrderStatus, decryptEmbeddedWalletCredentials } from '../../shared/polymarket-client';
+import { getEmbeddedWalletCredentials } from '../../shared/embedded-wallet-credentials';
+import type { MarketEntity, BetEntity, MarketOutcome } from '../../shared/types';
 
 const log = createLogger('market-resolution-handler');
 
@@ -45,8 +47,12 @@ const ERC20_ABI = [
 
 /**
  * Determine if a bet won based on market outcome and bet side
+ * Returns null for VOID outcomes (neither won nor lost in normal sense)
  */
-function didBetWin(bet: BetEntity, marketOutcome: 'YES' | 'NO'): boolean {
+function didBetWin(bet: BetEntity, marketOutcome: MarketOutcome): boolean | null {
+  if (marketOutcome === 'VOID') {
+    return null; // Market was voided - special handling needed
+  }
   return bet.side === marketOutcome;
 }
 
@@ -82,6 +88,110 @@ function calculateExpectedPayout(bet: BetEntity): string {
   });
 
   return fromMicroUsdc(sharesMicro);
+}
+
+/**
+ * Re-check order status for a PLACED bet and update to FILLED if filled
+ * This handles the case where an order fills after our initial polling window
+ *
+ * @returns true if the bet was updated to FILLED, false otherwise
+ */
+async function recheckAndUpdatePlacedBet(bet: BetEntity): Promise<boolean> {
+  if (!bet.orderId) {
+    log.warn('PLACED bet has no orderId, cannot recheck', { betId: bet.betId });
+    return false;
+  }
+
+  try {
+    // Get credentials to check order status
+    const creds = await getEmbeddedWalletCredentials(bet.walletAddress);
+    if (!creds) {
+      log.error('No credentials found for PLACED bet recheck', {
+        betId: bet.betId,
+        walletAddress: bet.walletAddress,
+      });
+      return false;
+    }
+
+    const decrypted = await decryptEmbeddedWalletCredentials(creds);
+    const status = await fetchOrderStatus(decrypted, bet.orderId);
+
+    if (status.filled) {
+      log.info('PLACED bet confirmed filled on recheck', {
+        betId: bet.betId,
+        orderId: bet.orderId,
+        fillPrice: status.fillPrice,
+        filledSize: status.filledSize,
+      });
+
+      // Update bet to FILLED status with fill details
+      await updateBetStatus(bet.chainId, bet.walletAddress, bet.sequence, 'FILLED', {
+        fillPrice: status.fillPrice ?? bet.targetPrice,
+        sharesAcquired: status.filledSize ?? bet.potentialPayout,
+      });
+
+      // Update in-memory bet object for subsequent processing
+      bet.status = 'FILLED';
+      bet.fillPrice = status.fillPrice ?? bet.targetPrice;
+      bet.sharesAcquired = status.filledSize ?? bet.potentialPayout;
+
+      return true;
+    }
+
+    log.warn('PLACED bet still not filled on recheck', {
+      betId: bet.betId,
+      orderId: bet.orderId,
+      status: status.status,
+    });
+    return false;
+  } catch (error) {
+    log.errorWithStack('Error rechecking PLACED bet status', error, {
+      betId: bet.betId,
+      orderId: bet.orderId,
+    });
+    return false;
+  }
+}
+
+/**
+ * Handle a VOID market resolution
+ * Marks the bet as VOIDED and the chain as FAILED
+ */
+async function handleVoidedBet(bet: BetEntity): Promise<void> {
+  const now = new Date().toISOString();
+
+  log.info('Handling voided bet due to VOID market resolution', {
+    betId: bet.betId,
+    chainId: bet.chainId,
+    walletAddress: bet.walletAddress,
+  });
+
+  // Mark bet as VOIDED
+  await updateBetStatus(bet.chainId, bet.walletAddress, bet.sequence, 'VOIDED', {
+    settledAt: now,
+  });
+
+  // Get user chain to get current value
+  const userChain = await getUserChain(bet.chainId, bet.walletAddress);
+  if (!userChain) {
+    log.error('UserChain not found for voided bet', {
+      chainId: bet.chainId,
+      walletAddress: bet.walletAddress,
+    });
+    return;
+  }
+
+  // Mark chain as FAILED due to voided market
+  // The position-termination-handler will void any remaining QUEUED bets
+  await updateUserChainStatus(bet.chainId, bet.walletAddress, 'FAILED', {
+    completedLegs: bet.sequence - 1,
+    currentValue: userChain.currentValue, // Preserve current value
+  });
+
+  log.info('Chain marked as FAILED due to VOID market resolution', {
+    chainId: bet.chainId,
+    walletAddress: bet.walletAddress,
+  });
 }
 
 /**
@@ -204,6 +314,8 @@ async function verifyRedemptionPayout(
  * 1. Calculate expected payout from shares
  * 2. If fillBlockNumber available, verify redemption transfer on-chain
  * 3. Use verified payout if available, otherwise use expected payout
+ *
+ * Note: VOID outcomes should be handled separately via handleVoidedBet()
  */
 async function settleBet(
   bet: BetEntity,
@@ -213,6 +325,7 @@ async function settleBet(
   const won = didBetWin(bet, marketOutcome);
   const now = new Date().toISOString();
 
+  // won should never be null here since we filter VOID outcomes before calling
   if (!won) {
     // Lost bet - no payout
     await updateBetStatus(bet.chainId, bet.walletAddress, bet.sequence, 'SETTLED', {
@@ -295,6 +408,10 @@ async function handleUserChainAfterSettlement(
     return;
   }
 
+  // Calculate current wonLegs and skippedLegs from existing userChain
+  const currentWonLegs = userChain.wonLegs ?? 0;
+  const currentSkippedLegs = userChain.skippedLegs ?? 0;
+
   if (!won) {
     // Bet lost - mark user chain as LOST
     // The position-termination-handler will void remaining QUEUED bets via stream
@@ -305,10 +422,15 @@ async function handleUserChainAfterSettlement(
 
     await updateUserChainStatus(bet.chainId, bet.walletAddress, 'LOST', {
       completedLegs: bet.sequence,
+      wonLegs: currentWonLegs, // No change - this bet was lost, not won
+      skippedLegs: currentSkippedLegs, // No change
     });
 
     return;
   }
+
+  // Bet won - increment wonLegs
+  const newWonLegs = currentWonLegs + 1;
 
   // Bet won
   const isLastBet = bet.sequence === chain.legs.length;
@@ -319,12 +441,16 @@ async function handleUserChainAfterSettlement(
       chainId: bet.chainId,
       walletAddress: bet.walletAddress,
       payout,
+      wonLegs: newWonLegs,
+      skippedLegs: currentSkippedLegs,
     });
 
     // Collect platform fee (2% of profit) - only for multi-leg accumulators
     // Single-leg chains are just regular bets, no commission applies
     let platformFee = '0';
     let platformFeeTxHash: string | undefined;
+    let feeCollectionFailed = false;
+    let feeCollectionError: string | undefined;
 
     if (chain.legs.length > 1) {
       try {
@@ -348,22 +474,36 @@ async function handleUserChainAfterSettlement(
               txHash: platformFeeTxHash,
             });
           } else {
-            log.warn('Platform fee collection failed', {
+            // Fee collection failed - track it for alerting
+            feeCollectionFailed = true;
+            feeCollectionError = feeResult.error ?? 'Unknown error';
+            log.error('CRITICAL: Platform fee collection failed', {
               chainId: bet.chainId,
               walletAddress: bet.walletAddress,
+              payout,
+              initialStake: userChain.initialStake,
               error: feeResult.error,
             });
           }
         } else {
-          log.warn('User has no embedded wallet, skipping fee collection', {
+          feeCollectionFailed = true;
+          feeCollectionError = 'User has no embedded wallet';
+          log.error('CRITICAL: Platform fee collection failed - no embedded wallet', {
+            chainId: bet.chainId,
             walletAddress: bet.walletAddress,
+            payout,
           });
         }
       } catch (error) {
-        // Log but don't fail the resolution - fee collection is not critical
-        log.errorWithStack('Error collecting platform fee', error, {
+        // Log at ERROR level for alerting - fee collection failures are revenue loss
+        feeCollectionFailed = true;
+        feeCollectionError = error instanceof Error ? error.message : 'Unknown error';
+        log.error('CRITICAL: Platform fee collection threw exception', {
           chainId: bet.chainId,
           walletAddress: bet.walletAddress,
+          payout,
+          initialStake: userChain.initialStake,
+          error: feeCollectionError,
         });
       }
     } else {
@@ -376,8 +516,12 @@ async function handleUserChainAfterSettlement(
     await updateUserChainStatus(bet.chainId, bet.walletAddress, 'WON', {
       currentValue: payout,
       completedLegs: bet.sequence,
+      wonLegs: newWonLegs,
+      skippedLegs: currentSkippedLegs,
       platformFee,
       platformFeeTxHash,
+      feeCollectionFailed: feeCollectionFailed || undefined, // Only set if true
+      feeCollectionError,
     });
   } else {
     // More bets to go - update user chain and mark next bet as READY
@@ -481,16 +625,24 @@ async function handleUserChainAfterSettlement(
       }
     }
 
+    // Calculate how many bets were skipped in this pass
+    const betsSkippedThisPass = currentSequence - nextSequence;
+    const newSkippedLegs = currentSkippedLegs + betsSkippedThisPass;
+
     if (!foundActiveBet) {
       // All remaining bets have closed markets - mark chain as FAILED
       log.warn('All remaining markets are closed, chain cannot continue', {
         chainId: bet.chainId,
         walletAddress: bet.walletAddress,
         lastCheckedSequence: currentSequence - 1,
+        wonLegs: newWonLegs,
+        skippedLegs: newSkippedLegs,
       });
       await updateUserChainStatus(bet.chainId, bet.walletAddress, 'FAILED', {
         currentValue: payout,
         completedLegs: currentSequence - 1,
+        wonLegs: newWonLegs,
+        skippedLegs: newSkippedLegs,
       });
       return;
     }
@@ -499,6 +651,8 @@ async function handleUserChainAfterSettlement(
     await updateUserChainStatus(bet.chainId, bet.walletAddress, 'ACTIVE', {
       currentValue: payout,
       completedLegs: currentSequence - 1, // All bets before this one are done (settled or skipped)
+      wonLegs: newWonLegs,
+      skippedLegs: newSkippedLegs,
       currentLegSequence: currentSequence,
     });
 
@@ -509,13 +663,21 @@ async function handleUserChainAfterSettlement(
       chainId: bet.chainId,
       walletAddress: bet.walletAddress,
       sequence: currentSequence,
-      skippedBets: currentSequence - nextSequence,
+      skippedBets: betsSkippedThisPass,
+      totalWonLegs: newWonLegs,
+      totalSkippedLegs: newSkippedLegs,
     });
   }
 }
 
 /**
- * Process a single market resolution event
+ * Process a single market resolution or cancellation event
+ *
+ * Handles:
+ * - FILLED bets: Settle normally based on outcome
+ * - PLACED bets: Re-check order status, then settle if filled
+ * - VOID outcomes: Mark bets as VOIDED and chains as FAILED
+ * - CANCELLED markets: Treat same as VOID - mark bets and chains as FAILED
  */
 async function processMarketResolution(record: DynamoDBRecord): Promise<void> {
   if (!record.dynamodb?.NewImage) {
@@ -523,10 +685,40 @@ async function processMarketResolution(record: DynamoDBRecord): Promise<void> {
     return;
   }
 
-  // Unmarshall the DynamoDB record
+  // Unmarshall old and new images to check for status transition
   const market = unmarshall(
     record.dynamodb.NewImage as Record<string, AttributeValue>
   ) as MarketEntity;
+
+  const oldMarket = record.dynamodb.OldImage
+    ? (unmarshall(record.dynamodb.OldImage as Record<string, AttributeValue>) as MarketEntity)
+    : null;
+
+  // Only process if this is a transition TO RESOLVED or CANCELLED
+  const terminalStatuses = ['RESOLVED', 'CANCELLED'];
+  if (!terminalStatuses.includes(market.status)) {
+    return; // Not a terminal status, skip
+  }
+
+  // Skip if already was in a terminal status (avoid re-processing)
+  if (oldMarket && terminalStatuses.includes(oldMarket.status)) {
+    log.debug('Market already in terminal status, skipping', {
+      conditionId: market.conditionId,
+      oldStatus: oldMarket.status,
+      newStatus: market.status,
+    });
+    return;
+  }
+
+  // Handle CANCELLED markets - treat same as VOID outcome
+  if (market.status === 'CANCELLED') {
+    log.info('Market was CANCELLED, treating as VOID outcome', {
+      conditionId: market.conditionId,
+      question: market.question,
+    });
+    // Set outcome to VOID for consistent handling below
+    market.outcome = 'VOID';
+  }
 
   if (!market.outcome) {
     log.error('Market resolved without outcome', { conditionId: market.conditionId });
@@ -542,13 +734,59 @@ async function processMarketResolution(record: DynamoDBRecord): Promise<void> {
   // Find all bets on this market
   const bets = await getBetsByCondition(market.conditionId);
 
-  // Filter to only FILLED bets (waiting for resolution)
-  const filledBets = bets.filter((bet) => bet.status === 'FILLED');
+  // Handle VOID outcomes separately - all bets are voided
+  if (market.outcome === 'VOID') {
+    log.info('Market resolved as VOID, voiding all active bets', {
+      conditionId: market.conditionId,
+      betCount: bets.length,
+    });
 
-  log.info('Found filled bets to settle', { count: filledBets.length });
+    const activeBets = bets.filter((bet) =>
+      ['FILLED', 'PLACED', 'EXECUTING', 'READY'].includes(bet.status)
+    );
+
+    for (const bet of activeBets) {
+      try {
+        await handleVoidedBet(bet);
+      } catch (error) {
+        log.errorWithStack('Error handling voided bet', error, { betId: bet.betId });
+      }
+    }
+    return;
+  }
+
+  // For YES/NO outcomes, process both FILLED and PLACED bets
+  // PLACED bets may have filled after our initial polling window
+  const filledBets = bets.filter((bet) => bet.status === 'FILLED');
+  const placedBets = bets.filter((bet) => bet.status === 'PLACED');
+
+  log.info('Found bets to process', {
+    filledCount: filledBets.length,
+    placedCount: placedBets.length,
+  });
+
+  // First, recheck PLACED bets to see if they actually filled
+  const recheckResults: { bet: BetEntity; updated: boolean }[] = [];
+  for (const bet of placedBets) {
+    try {
+      const updated = await recheckAndUpdatePlacedBet(bet);
+      recheckResults.push({ bet, updated });
+    } catch (error) {
+      log.errorWithStack('Error rechecking PLACED bet', error, { betId: bet.betId });
+      recheckResults.push({ bet, updated: false });
+    }
+  }
+
+  // Combine FILLED bets with successfully rechecked PLACED bets
+  const betsToSettle = [
+    ...filledBets,
+    ...recheckResults.filter((r) => r.updated).map((r) => r.bet),
+  ];
+
+  log.info('Settling bets', { count: betsToSettle.length });
 
   // Settle each bet
-  for (const bet of filledBets) {
+  for (const bet of betsToSettle) {
     try {
       // Get user's embedded wallet address for redemption verification
       const user = await getUser(bet.walletAddress);
@@ -559,6 +797,38 @@ async function processMarketResolution(record: DynamoDBRecord): Promise<void> {
     } catch (error) {
       log.errorWithStack('Error settling bet', error, { betId: bet.betId });
       // Continue with other bets, don't fail entire batch
+    }
+  }
+
+  // Handle PLACED bets that couldn't be confirmed as filled
+  // These are stuck orders - mark them and the chain as FAILED
+  const stuckPlacedBets = recheckResults.filter((r) => !r.updated).map((r) => r.bet);
+  if (stuckPlacedBets.length > 0) {
+    log.warn('Found stuck PLACED bets that could not be confirmed filled', {
+      count: stuckPlacedBets.length,
+    });
+
+    for (const bet of stuckPlacedBets) {
+      try {
+        const now = new Date().toISOString();
+
+        // Mark bet as failed - order status unknown
+        await updateBetStatus(bet.chainId, bet.walletAddress, bet.sequence, 'EXECUTION_ERROR', {
+          settledAt: now,
+        });
+
+        // Mark chain as FAILED
+        await updateUserChainStatus(bet.chainId, bet.walletAddress, 'FAILED', {
+          completedLegs: bet.sequence - 1,
+        });
+
+        log.info('Marked stuck PLACED bet and chain as FAILED', {
+          betId: bet.betId,
+          chainId: bet.chainId,
+        });
+      } catch (error) {
+        log.errorWithStack('Error handling stuck PLACED bet', error, { betId: bet.betId });
+      }
     }
   }
 }

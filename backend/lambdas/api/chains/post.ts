@@ -383,6 +383,8 @@ export async function createUserChain(
     initialStake: request.initialStake,
     currentValue: request.initialStake,
     completedLegs: 0,
+    wonLegs: 0,
+    skippedLegs: 0,
     currentLegSequence: 1,
     status: 'PENDING',
     createdAt: now,

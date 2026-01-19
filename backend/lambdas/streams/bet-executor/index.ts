@@ -25,6 +25,7 @@ import {
   getUser,
   getBet,
   getChain,
+  getUserChain,
 } from '../../shared/dynamo-client';
 import {
   getEmbeddedWalletCredentials,
@@ -473,6 +474,12 @@ async function skipClosedMarketAndContinue(
     return false;
   }
 
+  // Get user chain to track wonLegs and skippedLegs
+  const userChain = await getUserChain(bet.chainId, bet.walletAddress);
+  const currentWonLegs = userChain?.wonLegs ?? 0;
+  const currentSkippedLegs = userChain?.skippedLegs ?? 0;
+  const newSkippedLegs = currentSkippedLegs + 1; // Increment skipped count
+
   const isLastBet = bet.sequence === chain.legs.length;
 
   if (isLastBet) {
@@ -481,9 +488,13 @@ async function skipClosedMarketAndContinue(
     log.info('Last bet in chain was skipped due to closed market', {
       chainId: bet.chainId,
       walletAddress: bet.walletAddress,
+      wonLegs: currentWonLegs,
+      skippedLegs: newSkippedLegs,
     });
     await updateUserChainStatus(bet.chainId, bet.walletAddress, 'FAILED', {
       completedLegs: bet.sequence - 1,
+      wonLegs: currentWonLegs,
+      skippedLegs: newSkippedLegs,
     });
     return false;
   }
@@ -500,13 +511,17 @@ async function skipClosedMarketAndContinue(
     });
     await updateUserChainStatus(bet.chainId, bet.walletAddress, 'FAILED', {
       completedLegs: bet.sequence - 1,
+      wonLegs: currentWonLegs,
+      skippedLegs: newSkippedLegs,
     });
     return false;
   }
 
   // Update user chain to reflect we're moving to the next leg
   await updateUserChainStatus(bet.chainId, bet.walletAddress, 'ACTIVE', {
-    completedLegs: bet.sequence, // Count the skipped bet as "completed" (skipped)
+    completedLegs: bet.sequence, // Total processed (won + skipped) for backwards compat
+    wonLegs: currentWonLegs, // No change - we skipped, didn't win
+    skippedLegs: newSkippedLegs, // Incremented
     currentLegSequence: nextSequence,
   });
 
@@ -517,6 +532,8 @@ async function skipClosedMarketAndContinue(
     chainId: bet.chainId,
     skippedSequence: bet.sequence,
     nextSequence,
+    wonLegs: currentWonLegs,
+    skippedLegs: newSkippedLegs,
   });
 
   return true;

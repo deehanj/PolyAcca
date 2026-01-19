@@ -130,12 +130,16 @@ export interface UserChainEntity extends BaseEntity {
   walletAddress: string;
   initialStake: string; // USDC amount as string (to preserve precision)
   currentValue: string; // Current accumulated value
-  completedLegs: number; // How many legs have settled
+  completedLegs: number; // How many legs have been processed (won + skipped) - kept for backwards compat
+  wonLegs?: number; // How many legs were actually WON (not skipped)
+  skippedLegs?: number; // How many legs were skipped due to closed markets
   currentLegSequence: number; // Which leg is currently active
   status: UserChainStatus;
   // Platform fee fields (populated when status = WON)
   platformFee?: string; // Fee amount collected (2% of profit)
   platformFeeTxHash?: string; // Transaction hash of fee transfer
+  feeCollectionFailed?: boolean; // True if fee collection failed
+  feeCollectionError?: string; // Error message if fee collection failed
 }
 
 export type UserChainStatus =
@@ -223,12 +227,19 @@ export interface MarketEntity extends BaseEntity {
   status: MarketStatus;
   endDate: string; // When market closes for trading
   resolutionDate?: string; // When market was resolved
-  outcome?: 'YES' | 'NO'; // Winning outcome if resolved
+  outcome?: MarketOutcome; // Winning outcome if resolved
   category?: string;
   volume?: string; // Total volume traded
   liquidity?: string; // Current liquidity
   lastSyncedAt: string; // When we last synced from Polymarket
 }
+
+/**
+ * Market outcome types
+ * - YES/NO: Standard binary outcomes
+ * - VOID: Market was cancelled, voided, or had a split/invalid resolution
+ */
+export type MarketOutcome = 'YES' | 'NO' | 'VOID';
 
 export type MarketStatus =
   | 'ACTIVE' // Open for trading
