@@ -269,3 +269,52 @@ Add before "Place Bet" button:
 | Orderbook fetch fails | Fall back to Gamma estimate, log warning |
 | Slippage set to 0% | Must fill at exactly targetPrice or fail |
 | Stake > 100% of liquidity | Show warning, likely very low fill |
+
+## Implementation Notes
+
+**Completed:** 2026-01-19
+
+### Summary
+
+All 13 tasks completed successfully:
+
+1. ✅ Add Orderbook Types to types.ts
+2. ✅ Add BetEntity Fields for Slippage
+3. ✅ Add UserChainEntity Fields
+4. ✅ Add UNFILLED and MARKET_CLOSING_SOON Bet Statuses
+5. ✅ Create Orderbook Client with price impact calculation
+6. ✅ Create GET /markets/:conditionId/orderbook endpoint
+7. ✅ Create POST /chains/estimate endpoint
+8. ✅ Update POST /chains to accept maxSlippage
+9. ✅ Update Polymarket Client for FAK Orders
+10. ✅ Update Bet Executor for FAK Orders and Partial Fills
+11. ✅ Update dynamo-client for New Fields
+12. ✅ Integration Tests for Full Flow
+13. ✅ Update Design Doc with Implementation Notes
+
+### Key Implementation Details
+
+**Order Type Routing:** The Polymarket CLOB client has two different methods:
+- `createAndPostOrder` for GTC/GTD (limit orders)
+- `createAndPostMarketOrder` for FOK/FAK (market orders)
+
+The polymarket-client correctly routes to the appropriate method based on order type.
+
+**Price Calculations:** All USDC calculations use BigInt arithmetic via `toMicroUsdc`/`fromMicroUsdc` for precision. Fill tracking fields (`actualStake`, `fillPercentage`, `priceImpact`) use floating point for display/analytics only.
+
+**Test Coverage:** 123+ tests covering:
+- Unit tests for orderbook-client, estimate endpoint, FAK order logic
+- Integration tests for full slippage flow
+- Edge cases: zero fills, partial fills, market timeouts
+
+### Known Limitations
+
+- Orderbook fetch adds ~200-500ms latency for large orders (>5% of liquidity)
+- FAK orders may partially fill even below slippage threshold if book is thin
+- `PLACED` status kept for backwards compatibility but not used for new FAK-based orders
+
+### Future Improvements
+
+- WebSocket for real-time orderbook updates during checkout
+- Historical price impact analytics dashboard
+- Automatic slippage suggestion based on recent market volatility
