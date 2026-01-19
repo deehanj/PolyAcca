@@ -168,57 +168,6 @@ function classifyError(error: unknown): BetStatus {
 }
 
 /**
- * Check if a market is still active and accepting orders
- * This prevents attempting to place bets on markets that have already closed or resolved
- *
- * @returns Object with isActive flag and reason if not active
- */
-async function checkMarketIsActive(
-  conditionId: string
-): Promise<{ isActive: boolean; reason?: string }> {
-  try {
-    const market = await fetchMarketByConditionId(conditionId);
-
-    if (!market) {
-      log.warn('Market not found in Gamma API', { conditionId });
-      // If we can't find the market, assume it might be closed
-      return { isActive: false, reason: 'Market not found' };
-    }
-
-    // Check if market is closed
-    if (market.closed) {
-      log.info('Market is closed', { conditionId, question: market.question });
-      return { isActive: false, reason: 'Market is closed' };
-    }
-
-    // Check if market is not active (some markets may be suspended)
-    if (!market.active) {
-      log.info('Market is not active', { conditionId, question: market.question });
-      return { isActive: false, reason: 'Market is not active' };
-    }
-
-    // Check if end date has passed
-    const endDate = new Date(market.endDate);
-    const now = new Date();
-    if (endDate <= now) {
-      log.info('Market end date has passed', {
-        conditionId,
-        endDate: market.endDate,
-        question: market.question,
-      });
-      return { isActive: false, reason: 'Market end date has passed' };
-    }
-
-    return { isActive: true };
-  } catch (error) {
-    log.errorWithStack('Failed to check market status', error, { conditionId });
-    // On error checking market status, proceed with bet placement
-    // The order will fail if the market is truly closed
-    return { isActive: true };
-  }
-}
-
-/**
  * Handle execution failure - mark bet and UserChain with appropriate status
  */
 async function handleExecutionFailure(
@@ -249,9 +198,15 @@ async function handleExecutionFailure(
 interface FillDetails {
   orderId: string;
   filled: boolean;
+  unfilled?: boolean; // True if FAK got zero fills
   fillPrice?: string; // Actual fill price
   sharesAcquired?: string; // Actual shares received
   fillBlockNumber?: number; // Block number for timeboxing redemption lookups
+  // Slippage tracking fields
+  requestedStake?: string; // What user intended to bet
+  actualStake?: string; // What actually filled (may be less for partial fills)
+  fillPercentage?: string; // e.g., "0.85" for 85%
+  priceImpact?: string; // Actual vs target price difference
 }
 
 /**
@@ -382,39 +337,52 @@ async function executeBetWithEmbeddedWallet(
   }
 
   // Determine actual stake (uses previous bet's payout for subsequent legs)
-  const actualStake = await determineActualStake(bet);
+  const determinedStake = await determineActualStake(bet);
+  // Track requested stake for fill percentage calculation
+  const requestedStake = bet.requestedStake || determinedStake;
+
+  // Use maxPrice for FAK order (falls back to targetPrice if not set)
+  const orderPrice = parseFloat(bet.maxPrice || bet.targetPrice);
 
   // Calculate order size using bigint arithmetic for precision
   // size = stake / price (number of shares to buy)
-  const stakeMicro = toMicroUsdc(actualStake);
+  const stakeMicro = toMicroUsdc(determinedStake);
   const priceMicro = toMicroUsdc(bet.targetPrice);
   const sharesMicro = calculateShares(stakeMicro, priceMicro);
   const size = parseFloat(fromMicroUsdc(sharesMicro, 6)); // Use 6 decimals for precision
 
   log.info('Calculated order size', {
     betId: bet.betId,
-    actualStake,
+    determinedStake,
+    requestedStake,
     targetPrice: bet.targetPrice,
+    maxPrice: bet.maxPrice,
+    orderPrice,
     size,
   });
 
-  // Place order using Turnkey signer
+  // Place FAK order using Turnkey signer
   const orderId = await placeOrder(signer, credentials, {
     tokenId: bet.tokenId,
     side: 'BUY',
-    price: parseFloat(bet.targetPrice),
+    price: orderPrice,
     size,
+    orderType: 'FAK', // Fill-and-kill for immediate execution
   });
 
   // Poll for fill confirmation and capture fill details
   const maxAttempts = 3;
   let filled = false;
+  let unfilled = false;
   let fillPrice: string | undefined;
   let sharesAcquired: string | undefined;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const status = await fetchOrderStatus(credentials, orderId);
-    if (status.filled) {
+    // Check if we got any fills
+    const filledSize = parseFloat(status.filledSize || '0');
+
+    if (filledSize > 0) {
       filled = true;
       fillPrice = status.fillPrice;
       sharesAcquired = status.filledSize;
@@ -425,7 +393,18 @@ async function executeBetWithEmbeddedWallet(
         sharesAcquired,
       });
       break;
+    } else if (status.status === 'MATCHED' || status.status === 'FILLED' || status.status === 'EXPIRED' || status.status === 'CANCELLED') {
+      // FAK orders that don't fill are immediately killed
+      // Check if zero fills
+      unfilled = true;
+      log.warn('FAK order got zero fills', {
+        betId: bet.betId,
+        orderId,
+        status: status.status,
+      });
+      break;
     }
+
     if (attempt < maxAttempts) {
       await wait(500 * attempt);
     }
@@ -443,7 +422,52 @@ async function executeBetWithEmbeddedWallet(
     }
   }
 
-  return { orderId, filled, fillPrice, sharesAcquired, fillBlockNumber };
+  // Calculate fill details for slippage tracking
+  let actualStake: string | undefined;
+  let fillPercentage: string | undefined;
+  let priceImpact: string | undefined;
+
+  if (filled && fillPrice && sharesAcquired) {
+    // Calculate actual stake from fill (shares * fillPrice)
+    const sharesNum = parseFloat(sharesAcquired);
+    const fillPriceNum = parseFloat(fillPrice);
+    actualStake = (sharesNum * fillPriceNum).toFixed(6);
+
+    // Calculate fill percentage
+    const requestedNum = parseFloat(requestedStake);
+    if (requestedNum > 0) {
+      fillPercentage = (parseFloat(actualStake) / requestedNum).toFixed(4);
+    }
+
+    // Calculate price impact: (fillPrice - targetPrice) / targetPrice
+    const targetPriceNum = parseFloat(bet.targetPrice);
+    if (targetPriceNum > 0) {
+      priceImpact = ((fillPriceNum - targetPriceNum) / targetPriceNum).toFixed(4);
+    }
+
+    log.info('Calculated fill details', {
+      betId: bet.betId,
+      requestedStake,
+      actualStake,
+      fillPercentage,
+      targetPrice: bet.targetPrice,
+      fillPrice,
+      priceImpact,
+    });
+  }
+
+  return {
+    orderId,
+    filled,
+    unfilled,
+    fillPrice,
+    sharesAcquired,
+    fillBlockNumber,
+    requestedStake,
+    actualStake,
+    fillPercentage,
+    priceImpact,
+  };
 }
 
 /**
@@ -556,16 +580,57 @@ async function executeBet(bet: BetEntity): Promise<void> {
   try {
     // Check if market is still active before attempting to place order
     // This prevents wasted API calls and provides better error handling
-    const marketCheck = await checkMarketIsActive(bet.conditionId);
-    if (!marketCheck.isActive) {
+    const market = await fetchMarketByConditionId(bet.conditionId);
+    if (!market) {
+      log.warn('Market not found, cannot place bet', {
+        betId: bet.betId,
+        conditionId: bet.conditionId,
+      });
+      await skipClosedMarketAndContinue(bet, 'Market not found');
+      return;
+    }
+
+    // Check if market is closed or inactive
+    if (market.closed || !market.active) {
       log.warn('Market is not active, cannot place bet', {
         betId: bet.betId,
         conditionId: bet.conditionId,
-        reason: marketCheck.reason,
+        closed: market.closed,
+        active: market.active,
       });
-      // Skip this bet and try to continue with the next one in the chain
-      await skipClosedMarketAndContinue(bet, marketCheck.reason ?? 'Market closed');
-      return; // Don't throw - we've handled it by skipping
+      await skipClosedMarketAndContinue(bet, market.closed ? 'Market is closed' : 'Market is not active');
+      return;
+    }
+
+    // Check if end date has passed
+    const endDate = new Date(market.endDate);
+    const now = new Date();
+    if (endDate <= now) {
+      log.warn('Market end date has passed, cannot place bet', {
+        betId: bet.betId,
+        conditionId: bet.conditionId,
+        endDate: market.endDate,
+      });
+      await skipClosedMarketAndContinue(bet, 'Market end date has passed');
+      return;
+    }
+
+    // Add 24-hour market timeout check
+    // Prevents placing bets on markets that are about to close
+    const hoursToEnd = (endDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+    if (hoursToEnd < 24) {
+      log.warn('Market closing within 24h, cannot place bet', {
+        betId: bet.betId,
+        conditionId: bet.conditionId,
+        hoursToEnd: hoursToEnd.toFixed(2),
+        endDate: market.endDate,
+      });
+      await updateBetStatus(bet.chainId, bet.walletAddress, bet.sequence, 'MARKET_CLOSING_SOON');
+      // Mark chain as failed since we can't place the bet
+      await updateUserChainStatus(bet.chainId, bet.walletAddress, 'FAILED', {
+        completedLegs: bet.sequence - 1,
+      });
+      return;
     }
 
     // Mark bet as EXECUTING
@@ -580,23 +645,54 @@ async function executeBet(bet: BetEntity): Promise<void> {
 
     // Execute using embedded wallet
     const fillDetails = await executeBetWithEmbeddedWallet(bet, user.embeddedWalletAddress);
-    const { orderId, filled, fillPrice, sharesAcquired, fillBlockNumber } = fillDetails;
+    const {
+      orderId,
+      filled,
+      unfilled,
+      fillPrice,
+      sharesAcquired,
+      fillBlockNumber,
+      actualStake,
+      fillPercentage,
+      priceImpact,
+    } = fillDetails;
 
     log.info('Order placed', { betId: bet.betId, orderId });
 
+    // Handle unfilled FAK orders
+    if (unfilled) {
+      log.warn('FAK order got zero fills, marking as UNFILLED', {
+        betId: bet.betId,
+        orderId,
+      });
+      await updateBetStatus(bet.chainId, bet.walletAddress, bet.sequence, 'UNFILLED', {
+        orderId,
+        executedAt: new Date().toISOString(),
+      });
+      // Mark chain as failed since the order didn't fill
+      await updateUserChainStatus(bet.chainId, bet.walletAddress, 'FAILED', {
+        completedLegs: bet.sequence - 1,
+      });
+      return;
+    }
+
     // Update bet status to PLACED with order ID
-    const now = new Date().toISOString();
+    const nowStr = new Date().toISOString();
     await updateBetStatus(bet.chainId, bet.walletAddress, bet.sequence, 'PLACED', {
       orderId,
-      executedAt: now,
+      executedAt: nowStr,
     });
 
     if (filled) {
       // Store fill details for accurate payout calculation during resolution
+      // Include slippage tracking fields
       await updateBetStatus(bet.chainId, bet.walletAddress, bet.sequence, 'FILLED', {
         fillPrice: fillPrice ?? bet.targetPrice, // Fallback to target if fill price unavailable
         sharesAcquired: sharesAcquired ?? bet.potentialPayout, // Fallback to projected shares
         fillBlockNumber,
+        actualStake,
+        fillPercentage,
+        priceImpact,
       });
 
       log.info('Bet filled with details', {
@@ -604,6 +700,9 @@ async function executeBet(bet: BetEntity): Promise<void> {
         fillPrice: fillPrice ?? bet.targetPrice,
         sharesAcquired: sharesAcquired ?? bet.potentialPayout,
         fillBlockNumber,
+        actualStake,
+        fillPercentage,
+        priceImpact,
       });
     } else {
       log.warn('Order not confirmed filled yet; leaving status PLACED', {
