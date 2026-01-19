@@ -140,6 +140,10 @@ export interface UserChainEntity extends BaseEntity {
   platformFeeTxHash?: string; // Transaction hash of fee transfer
   feeCollectionFailed?: boolean; // True if fee collection failed
   feeCollectionError?: string; // Error message if fee collection failed
+  // Slippage tracking
+  actualInitialStake?: string; // What first leg actually filled
+  totalPriceImpact?: string; // Sum of impact across all legs
+  maxSlippage?: string; // User's chain-wide setting
 }
 
 export type UserChainStatus =
