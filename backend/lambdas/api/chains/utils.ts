@@ -41,13 +41,11 @@ export function toChainSummary(entity: ChainEntity): ChainSummary {
  */
 export function toTrendingChainSummary(
   entity: ChainEntity,
-  participantCount: number,
-  completedLegs: number
+  participantCount: number
 ): ChainSummary {
   return {
     ...toChainSummary(entity),
     participantCount,
-    completedLegs,
   };
 }
 

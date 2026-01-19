@@ -417,13 +417,32 @@ export function DesignPage() {
           />
 
           <div className="space-y-12">
-            {/* Trending Acca Card */}
+            {/* Trending Acca Card Variations */}
             <div>
               <h3 className="text-sm font-medium text-muted-foreground mb-6 uppercase tracking-wider">
-                Trending Acca Card
+                Trending Acca Card Variations
               </h3>
-              <div className="w-[360px]">
-                <TrendingAccaCardExample />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div>
+                  <p className="text-xs text-muted-foreground mb-3 font-mono">Variation 1: Compact with social proof banner</p>
+                  <TrendingAccaCardV1 />
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-3 font-mono">Variation 2: Stacked layout, prominent backing count</p>
+                  <TrendingAccaCardV2 />
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-3 font-mono">Variation 3: Full-width backing bar</p>
+                  <TrendingAccaCardV3 />
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-3 font-mono">Variation 4: Betting slip style</p>
+                  <TrendingAccaCardV4 />
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-3 font-mono">Variation 5: Paddy Power inspired</p>
+                  <TrendingAccaCardV5 />
+                </div>
               </div>
             </div>
 
@@ -495,80 +514,359 @@ function ColorSwatch({
   );
 }
 
-function TrendingAccaCardExample() {
+// Variation 1: Compact with social proof banner at top
+function TrendingAccaCardV1() {
   const totalLegs = 5;
   const completedLegs = 3;
 
   return (
-    <div className="bg-card/80 hover:bg-card rounded-xl p-3 border border-border hover:border-[var(--color-gold)]/50 transition-all duration-200 hover:-translate-y-0.5 group">
-      <div className="flex gap-3">
-        {/* Square image on left */}
-        <div className="w-16 h-16 rounded-lg overflow-hidden bg-muted/50 shrink-0 flex items-center justify-center">
-          <Flame className="w-6 h-6 text-[var(--color-gold)] opacity-30" />
-        </div>
+    <div className="w-[380px] bg-card/80 hover:bg-card rounded-xl border border-border hover:border-[var(--color-gold)]/50 transition-all duration-200 hover:-translate-y-0.5 group overflow-hidden">
+      {/* Social proof banner */}
+      <div className="bg-[var(--color-gold)]/10 px-4 py-2 flex items-center gap-2 border-b border-[var(--color-gold)]/20">
+        <Users className="w-4 h-4 text-[var(--color-gold)]" />
+        <span className="text-sm font-medium text-[var(--color-gold)]">42 people backed this</span>
+      </div>
 
-        {/* Content on right */}
-        <div className="flex-1 min-w-0 flex flex-col">
-          {/* Title row with Players & Value */}
-          <div className="flex items-start gap-2">
-            <h3 className="font-bold text-sm text-foreground truncate group-hover:text-[var(--color-gold)] transition-colors flex-1">
+      <div className="p-4">
+        <div className="flex gap-4">
+          {/* Square image on left */}
+          <div className="w-16 h-16 rounded-lg overflow-hidden bg-muted/50 shrink-0 flex items-center justify-center">
+            <Flame className="w-6 h-6 text-[var(--color-gold)] opacity-30" />
+          </div>
+
+          {/* Content on right */}
+          <div className="flex-1 min-w-0 flex flex-col gap-3">
+            {/* Title */}
+            <h3 className="font-bold text-base text-foreground group-hover:text-[var(--color-gold)] transition-colors">
               Trump 2024 Sweep
             </h3>
-            <div className="flex items-center gap-2 shrink-0">
-              <div className="flex items-center gap-1 text-muted-foreground">
-                <Users className="w-3 h-3" />
-                <span className="text-xs font-mono">42</span>
-              </div>
-              <span className="text-xs font-mono text-muted-foreground">$2.4K</span>
+
+            {/* Category tags */}
+            <div className="flex flex-wrap gap-1.5">
+              <Badge variant="outline" size="sm" className="text-[10px] px-2 py-0.5 border-[var(--color-gold)]/30 text-[var(--color-gold)]">
+                Politics
+              </Badge>
+              <Badge variant="outline" size="sm" className="text-[10px] px-2 py-0.5 border-[var(--color-gold)]/30 text-[var(--color-gold)]">
+                US
+              </Badge>
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom section */}
+        <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
+          <div className="flex items-center gap-4">
+            {/* Time remaining */}
+            <div className="flex items-center gap-1.5 text-muted-foreground">
+              <Clock className="w-4 h-4" />
+              <span className="text-xs font-mono">2d 5h</span>
+            </div>
+
+            {/* Leg progress */}
+            <div className="flex items-center gap-1">
+              {Array.from({ length: totalLegs }).map((_, i) => (
+                <div
+                  key={i}
+                  className={`w-2.5 h-2.5 rounded-full ${
+                    i < completedLegs ? "bg-[var(--color-success)]" : "bg-muted-foreground/30"
+                  }`}
+                />
+              ))}
             </div>
           </div>
 
-          {/* Category tags */}
-          <div className="flex flex-wrap gap-1 mt-1">
-            <Badge
-              variant="outline"
-              size="sm"
-              className="text-[9px] px-1.5 py-0 h-4 border-[var(--color-gold)]/30 text-[var(--color-gold)]"
-            >
+          {/* Multiplier */}
+          <span className="text-xl font-mono font-bold text-[var(--color-gold)]">4.5x</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Variation 2: Stacked layout with prominent backing count
+function TrendingAccaCardV2() {
+  const totalLegs = 5;
+  const completedLegs = 3;
+
+  return (
+    <div className="w-[380px] bg-card/80 hover:bg-card rounded-xl p-5 border border-border hover:border-[var(--color-gold)]/50 transition-all duration-200 hover:-translate-y-0.5 group">
+      {/* Header with image and title */}
+      <div className="flex gap-4 mb-4">
+        <div className="w-14 h-14 rounded-lg overflow-hidden bg-muted/50 shrink-0 flex items-center justify-center">
+          <Flame className="w-5 h-5 text-[var(--color-gold)] opacity-30" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h3 className="font-bold text-base text-foreground group-hover:text-[var(--color-gold)] transition-colors mb-2">
+            Trump 2024 Sweep
+          </h3>
+          <div className="flex flex-wrap gap-1.5">
+            <Badge variant="outline" size="sm" className="text-[10px] px-2 py-0.5 border-[var(--color-gold)]/30 text-[var(--color-gold)]">
               Politics
             </Badge>
-            <Badge
-              variant="outline"
-              size="sm"
-              className="text-[9px] px-1.5 py-0 h-4 border-[var(--color-gold)]/30 text-[var(--color-gold)]"
-            >
+            <Badge variant="outline" size="sm" className="text-[10px] px-2 py-0.5 border-[var(--color-gold)]/30 text-[var(--color-gold)]">
               US
             </Badge>
           </div>
+        </div>
+      </div>
 
-          {/* Bottom section: Time & Legs on left, Multiplier on right */}
-          <div className="flex items-end justify-between mt-auto">
-            <div className="flex flex-col gap-1">
-              {/* Time remaining */}
-              <div className="flex items-center gap-1 text-muted-foreground">
-                <Clock className="w-3 h-3" />
-                <span className="text-[10px] font-mono">2d 5h</span>
-              </div>
+      {/* Prominent backing count */}
+      <div className="bg-[var(--primary)]/10 rounded-lg px-4 py-3 mb-4 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-full bg-[var(--primary)]/20 flex items-center justify-center">
+            <Users className="w-4 h-4 text-[var(--primary)]" />
+          </div>
+          <div>
+            <span className="text-lg font-bold text-[var(--primary)]">42</span>
+            <span className="text-sm text-muted-foreground ml-1">people backed this</span>
+          </div>
+        </div>
+        <span className="text-xs font-mono text-muted-foreground">$2.4K total</span>
+      </div>
 
-              {/* Leg circles */}
-              <div className="flex items-center gap-0.5">
-                {Array.from({ length: totalLegs }).map((_, i) => (
-                  <div
-                    key={i}
-                    className={`w-2 h-2 rounded-full ${
-                      i < completedLegs
-                        ? "bg-[var(--color-success)]"
-                        : "bg-muted-foreground/30"
-                    }`}
-                  />
-                ))}
+      {/* Stats row */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1.5 text-muted-foreground">
+            <Clock className="w-4 h-4" />
+            <span className="text-xs font-mono">2d 5h</span>
+          </div>
+          <div className="flex items-center gap-1">
+            {Array.from({ length: totalLegs }).map((_, i) => (
+              <div
+                key={i}
+                className={`w-2.5 h-2.5 rounded-full ${
+                  i < completedLegs ? "bg-[var(--color-success)]" : "bg-muted-foreground/30"
+                }`}
+              />
+            ))}
+          </div>
+        </div>
+        <span className="text-xl font-mono font-bold text-[var(--color-gold)]">4.5x</span>
+      </div>
+    </div>
+  );
+}
+
+// Variation 3: Full-width backing bar at bottom
+function TrendingAccaCardV3() {
+  const totalLegs = 5;
+  const completedLegs = 3;
+
+  return (
+    <div className="w-[380px] bg-card/80 hover:bg-card rounded-xl border border-border hover:border-[var(--color-gold)]/50 transition-all duration-200 hover:-translate-y-0.5 group overflow-hidden">
+      <div className="p-5">
+        {/* Top section */}
+        <div className="flex gap-4 mb-4">
+          <div className="w-16 h-16 rounded-lg overflow-hidden bg-muted/50 shrink-0 flex items-center justify-center">
+            <Flame className="w-6 h-6 text-[var(--color-gold)] opacity-30" />
+          </div>
+          <div className="flex-1 min-w-0 flex flex-col justify-between">
+            <h3 className="font-bold text-base text-foreground group-hover:text-[var(--color-gold)] transition-colors">
+              Trump 2024 Sweep
+            </h3>
+            <div className="flex flex-wrap gap-1.5">
+              <Badge variant="outline" size="sm" className="text-[10px] px-2 py-0.5 border-[var(--color-gold)]/30 text-[var(--color-gold)]">
+                Politics
+              </Badge>
+            </div>
+          </div>
+          <div className="text-right shrink-0">
+            <span className="text-2xl font-mono font-bold text-[var(--color-gold)]">4.5x</span>
+            <div className="text-xs text-muted-foreground">multiplier</div>
+          </div>
+        </div>
+
+        {/* Middle stats */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-1.5 text-muted-foreground">
+            <Clock className="w-4 h-4" />
+            <span className="text-sm font-mono">Ends in 2d 5h</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-muted-foreground mr-1">Progress:</span>
+            {Array.from({ length: totalLegs }).map((_, i) => (
+              <div
+                key={i}
+                className={`w-3 h-3 rounded-full ${
+                  i < completedLegs ? "bg-[var(--color-success)]" : "bg-muted-foreground/30"
+                }`}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Full-width backing bar */}
+      <div className="bg-gradient-to-r from-[var(--color-success)]/20 to-[var(--color-success)]/10 px-5 py-3 flex items-center justify-between border-t border-[var(--color-success)]/20">
+        <div className="flex items-center gap-3">
+          <Users className="w-5 h-5 text-[var(--color-success)]" />
+          <span className="text-sm font-semibold text-[var(--color-success)]">42 bettors have backed this acca</span>
+        </div>
+        <span className="text-sm font-mono font-bold text-[var(--color-success)]">$2.4K</span>
+      </div>
+    </div>
+  );
+}
+
+// Variation 4: Betting slip style (vertical)
+function TrendingAccaCardV4() {
+  const totalLegs = 5;
+  const completedLegs = 3;
+
+  return (
+    <div className="w-[380px] bg-card/80 hover:bg-card rounded-xl border border-border hover:border-[var(--color-gold)]/50 transition-all duration-200 hover:-translate-y-0.5 group">
+      {/* Header */}
+      <div className="px-5 py-4 border-b border-border">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-lg overflow-hidden bg-muted/50 shrink-0 flex items-center justify-center">
+              <Flame className="w-5 h-5 text-[var(--color-gold)] opacity-30" />
+            </div>
+            <div>
+              <h3 className="font-bold text-base text-foreground group-hover:text-[var(--color-gold)] transition-colors">
+                Trump 2024 Sweep
+              </h3>
+              <div className="flex items-center gap-2 mt-1">
+                <Badge variant="outline" size="sm" className="text-[9px] px-1.5 py-0 border-[var(--color-gold)]/30 text-[var(--color-gold)]">
+                  Politics
+                </Badge>
               </div>
             </div>
+          </div>
+          <div className="text-right">
+            <span className="text-2xl font-mono font-bold text-[var(--color-gold)]">4.5x</span>
+          </div>
+        </div>
+      </div>
 
-            {/* Multiplier - right aligned */}
-            <span className="text-lg font-mono font-bold text-[var(--color-gold)]">
-              4.5x
-            </span>
+      {/* Stats section */}
+      <div className="px-5 py-4 space-y-4">
+        {/* Backing count - prominent */}
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-[var(--color-gold)]/10 flex items-center justify-center shrink-0">
+            <Users className="w-5 h-5 text-[var(--color-gold)]" />
+          </div>
+          <div className="flex-1">
+            <div className="text-sm font-semibold text-foreground">42 people backed this</div>
+            <div className="text-xs text-muted-foreground">$2,400 total wagered</div>
+          </div>
+        </div>
+
+        {/* Time */}
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-muted/50 flex items-center justify-center shrink-0">
+            <Clock className="w-5 h-5 text-muted-foreground" />
+          </div>
+          <div className="flex-1">
+            <div className="text-sm font-semibold text-foreground">2 days, 5 hours left</div>
+            <div className="text-xs text-muted-foreground">Until first market closes</div>
+          </div>
+        </div>
+
+        {/* Progress */}
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-[var(--color-success)]/10 flex items-center justify-center shrink-0">
+            <Activity className="w-5 h-5 text-[var(--color-success)]" />
+          </div>
+          <div className="flex-1">
+            <div className="text-sm font-semibold text-foreground">{completedLegs} of {totalLegs} legs complete</div>
+            <div className="flex items-center gap-1 mt-1">
+              {Array.from({ length: totalLegs }).map((_, i) => (
+                <div
+                  key={i}
+                  className={`w-3 h-3 rounded-full ${
+                    i < completedLegs ? "bg-[var(--color-success)]" : "bg-muted-foreground/30"
+                  }`}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Variation 5: Paddy Power inspired - clean with strong CTA feel
+function TrendingAccaCardV5() {
+  const totalLegs = 5;
+  const completedLegs = 3;
+
+  return (
+    <div className="w-[380px] bg-card hover:bg-card/90 rounded-xl border-2 border-border hover:border-[var(--color-gold)] transition-all duration-200 hover:-translate-y-0.5 group overflow-hidden">
+      {/* Hot badge */}
+      <div className="bg-[var(--color-gold)] text-black px-4 py-1.5 flex items-center gap-2">
+        <Flame className="w-4 h-4" />
+        <span className="text-xs font-bold uppercase tracking-wide">Popular Pick</span>
+      </div>
+
+      <div className="p-5">
+        {/* Title section */}
+        <div className="flex items-start gap-4 mb-5">
+          <div className="w-14 h-14 rounded-lg overflow-hidden bg-muted/50 shrink-0 flex items-center justify-center">
+            <Flame className="w-6 h-6 text-[var(--color-gold)] opacity-30" />
+          </div>
+          <div className="flex-1">
+            <h3 className="font-bold text-lg text-foreground group-hover:text-[var(--color-gold)] transition-colors leading-tight">
+              Trump 2024 Sweep
+            </h3>
+            <div className="flex items-center gap-2 mt-2">
+              <Badge variant="outline" size="sm" className="text-[10px] px-2 py-0.5 border-[var(--color-gold)]/30 text-[var(--color-gold)]">
+                Politics
+              </Badge>
+              <span className="text-xs text-muted-foreground">5 legs</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Social proof - the key element */}
+        <div className="bg-muted/30 rounded-lg p-4 mb-5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex -space-x-2">
+                <div className="w-8 h-8 rounded-full bg-[var(--primary)]/30 border-2 border-card flex items-center justify-center">
+                  <span className="text-xs font-bold">JD</span>
+                </div>
+                <div className="w-8 h-8 rounded-full bg-[var(--color-gold)]/30 border-2 border-card flex items-center justify-center">
+                  <span className="text-xs font-bold">MK</span>
+                </div>
+                <div className="w-8 h-8 rounded-full bg-[var(--color-success)]/30 border-2 border-card flex items-center justify-center">
+                  <span className="text-xs font-bold">+40</span>
+                </div>
+              </div>
+              <div>
+                <div className="text-sm font-bold text-foreground">42 people backed this</div>
+                <div className="text-xs text-muted-foreground">Join them now</div>
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-xs text-muted-foreground">Total</div>
+              <div className="text-sm font-bold font-mono text-[var(--color-gold)]">$2.4K</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom stats */}
+        <div className="flex items-center justify-between pt-4 border-t border-border">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1.5 text-muted-foreground">
+              <Clock className="w-4 h-4" />
+              <span className="text-sm">2d 5h</span>
+            </div>
+            <div className="flex items-center gap-1">
+              {Array.from({ length: totalLegs }).map((_, i) => (
+                <div
+                  key={i}
+                  className={`w-2.5 h-2.5 rounded-full ${
+                    i < completedLegs ? "bg-[var(--color-success)]" : "bg-muted-foreground/30"
+                  }`}
+                />
+              ))}
+            </div>
+          </div>
+          <div className="text-right">
+            <span className="text-2xl font-mono font-bold text-[var(--color-gold)]">4.5x</span>
           </div>
         </div>
       </div>

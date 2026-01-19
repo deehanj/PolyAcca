@@ -217,6 +217,14 @@ export async function createUserChain(
   // Simple chain format for debugging: ["conditionId:YES", "conditionId:NO"]
   const chainArray = validatedLegs.map((leg) => `${leg.conditionId}:${leg.side}`);
 
+  // Extract first market end date (legs are already sorted by endDate)
+  const firstMarketEndDate = validatedLegs[0]?.endDate;
+
+  // Extract unique categories
+  const categories = Array.from(
+    new Set(validatedLegs.map((leg) => leg.category).filter(Boolean))
+  ) as string[];
+
   const chainEntity: ChainEntity = {
     ...chainKeys,
     entityType: 'CHAIN',
@@ -226,6 +234,8 @@ export async function createUserChain(
     legs,
     totalValue: 0, // Will be set by upsert
     status: 'ACTIVE',
+    firstMarketEndDate,
+    categories,
     createdAt: now,
     updatedAt: now,
   };

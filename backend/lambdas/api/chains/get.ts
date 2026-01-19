@@ -112,19 +112,17 @@ export async function listTrendingChains(
     .sort((a, b) => (b.totalValue || 0) - (a.totalValue || 0))
     .slice(0, limit);
 
-  // Fetch participant counts and compute completed legs for each chain
+  // Fetch participant counts for each chain
+  // Only count active positions (exclude FAILED/CANCELLED)
   const summaries: ChainSummary[] = await Promise.all(
     trendingChains.map(async (chain: ChainEntity) => {
       const userChains = await getChainUsersFromDb(chain.chainId);
-      const participantCount = userChains.length;
+      const activeUserChains = userChains.filter(
+        (uc) => !['FAILED', 'CANCELLED'].includes(uc.status)
+      );
+      const participantCount = activeUserChains.length;
 
-      // Calculate completed legs (max completed across all participants)
-      // This represents chain-wide progress
-      const completedLegs = userChains.length > 0
-        ? Math.max(...userChains.map((uc) => uc.completedLegs || 0))
-        : 0;
-
-      return toTrendingChainSummary(chain, participantCount, completedLegs);
+      return toTrendingChainSummary(chain, participantCount);
     })
   );
 

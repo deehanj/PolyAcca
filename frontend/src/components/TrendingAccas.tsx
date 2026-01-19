@@ -147,102 +147,114 @@ function AccaCard({ chain, multiplier, isLoadingMultiplier }: AccaCardProps) {
       : null;
 
   const totalLegs = chain.totalLegs ?? chain.chain.length;
-  const completedLegs = chain.completedLegs ?? 0;
+  const participantCount = chain.participantCount ?? 0;
 
   return (
     <Link
       to={`/acca/${chain.chainId}`}
-      className="min-w-[360px] w-[360px] bg-card/80 hover:bg-card rounded-xl p-3 border border-border hover:border-[var(--color-gold)]/50 transition-all duration-200 hover:-translate-y-0.5 group block"
+      className="min-w-[380px] w-[380px] bg-card hover:bg-card/90 rounded-xl border-2 border-border hover:border-[var(--color-gold)] transition-all duration-200 hover:-translate-y-0.5 group block overflow-hidden"
     >
-      <div className="flex gap-3">
-        {/* Square image on left */}
-        <div className="w-16 h-16 rounded-lg overflow-hidden bg-muted/50 shrink-0">
-          {imageUrl ? (
-            <img
-              src={imageUrl}
-              alt={chain.name || "Acca"}
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center">
-              <Flame className="w-6 h-6 text-[var(--color-gold)] opacity-30" />
-            </div>
-          )}
-        </div>
+      {/* Popular Pick banner */}
+      <div className="bg-[var(--color-gold)] text-black px-4 py-1.5 flex items-center gap-2">
+        <Flame className="w-4 h-4" />
+        <span className="text-xs font-bold uppercase tracking-wide">Popular Pick</span>
+      </div>
 
-        {/* Content on right */}
-        <div className="flex-1 min-w-0 flex flex-col">
-          {/* Title row with Players & Value */}
-          <div className="flex items-start gap-2">
-            <h3 className="font-bold text-sm text-foreground truncate group-hover:text-[var(--color-gold)] transition-colors flex-1">
+      <div className="p-5">
+        {/* Title section */}
+        <div className="flex items-start gap-4 mb-5">
+          <div className="w-14 h-14 rounded-lg overflow-hidden bg-muted/50 shrink-0">
+            {imageUrl ? (
+              <img
+                src={imageUrl}
+                alt={chain.name || "Acca"}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center">
+                <Flame className="w-6 h-6 text-[var(--color-gold)] opacity-30" />
+              </div>
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="font-bold text-lg text-foreground group-hover:text-[var(--color-gold)] transition-colors leading-tight truncate">
               {chain.name || `Acca ${truncateId(chain.chainId)}`}
             </h3>
-            <div className="flex items-center gap-2 shrink-0">
-              <div className="flex items-center gap-1 text-muted-foreground">
-                <Users className="w-3 h-3" />
-                <span className="text-xs font-mono">{chain.participantCount ?? 0}</span>
-              </div>
-              <span className="text-xs font-mono text-muted-foreground">
-                {formatValue(chain.totalValue)}
-              </span>
-            </div>
-          </div>
-
-          {/* Category tags */}
-          {chain.categories && chain.categories.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-1">
-              {chain.categories.slice(0, 2).map((cat) => (
+            <div className="flex items-center gap-2 mt-2">
+              {chain.categories && chain.categories.length > 0 && (
                 <Badge
-                  key={cat}
                   variant="outline"
                   size="sm"
-                  className="text-[9px] px-1.5 py-0 h-4 border-[var(--color-gold)]/30 text-[var(--color-gold)]"
+                  className="text-[10px] px-2 py-0.5 border-[var(--color-gold)]/30 text-[var(--color-gold)]"
                 >
-                  {cat}
+                  {chain.categories[0]}
                 </Badge>
-              ))}
-            </div>
-          )}
-
-          {/* Bottom section: Time & Legs on left, Multiplier on right */}
-          <div className="flex items-end justify-between mt-auto">
-            <div className="flex flex-col gap-1">
-              {/* Time remaining */}
-              <div className="flex items-center gap-1 text-muted-foreground">
-                <Clock className="w-3 h-3" />
-                <span className="text-[10px] font-mono">
-                  {formatTimeRemaining(chain.firstMarketEndDate)}
-                </span>
-              </div>
-
-              {/* Leg circles */}
-              <div className="flex items-center gap-0.5">
-                {Array.from({ length: totalLegs }).map((_, i) => (
-                  <div
-                    key={i}
-                    className={`w-2 h-2 rounded-full ${
-                      i < completedLegs
-                        ? "bg-[var(--color-success)]"
-                        : "bg-muted-foreground/30"
-                    }`}
-                  />
-                ))}
-              </div>
-            </div>
-
-            {/* Multiplier - right aligned */}
-            <div className="shrink-0">
-              {isLoadingMultiplier ? (
-                <span className="text-lg font-mono font-bold text-muted-foreground">...</span>
-              ) : multiplier !== null ? (
-                <span className="text-lg font-mono font-bold text-[var(--color-gold)]">
-                  {multiplier.toFixed(1)}x
-                </span>
-              ) : (
-                <span className="text-lg font-mono font-bold text-muted-foreground">-</span>
               )}
+              <span className="text-xs text-muted-foreground">{totalLegs} legs</span>
             </div>
           </div>
+          {/* Multiplier - top right */}
+          <div className="text-right shrink-0">
+            {isLoadingMultiplier ? (
+              <span className="text-2xl font-mono font-bold text-muted-foreground">...</span>
+            ) : multiplier !== null ? (
+              <>
+                <span className="text-2xl font-mono font-bold text-[var(--color-gold)]">
+                  {multiplier.toFixed(1)}x
+                </span>
+                <div className="text-xs text-muted-foreground">multiplier</div>
+              </>
+            ) : (
+              <span className="text-2xl font-mono font-bold text-muted-foreground">-</span>
+            )}
+          </div>
+        </div>
+
+        {/* Social proof section */}
+        <div className="bg-muted/30 rounded-lg p-4 mb-5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex -space-x-2">
+                <div className="w-8 h-8 rounded-full bg-[var(--primary)]/30 border-2 border-card flex items-center justify-center">
+                  <span className="text-xs font-bold">
+                    {participantCount > 0 ? "JD" : "??"}
+                  </span>
+                </div>
+                <div className="w-8 h-8 rounded-full bg-[var(--color-gold)]/30 border-2 border-card flex items-center justify-center">
+                  <span className="text-xs font-bold">
+                    {participantCount > 1 ? "MK" : "??"}
+                  </span>
+                </div>
+                {participantCount > 2 && (
+                  <div className="w-8 h-8 rounded-full bg-[var(--color-success)]/30 border-2 border-card flex items-center justify-center">
+                    <span className="text-xs font-bold">+{participantCount - 2}</span>
+                  </div>
+                )}
+              </div>
+              <div>
+                <div className="text-sm font-bold text-foreground">
+                  {participantCount} {participantCount === 1 ? "person" : "people"} backed this
+                </div>
+                <div className="text-xs text-muted-foreground">Join them now</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Time remaining */}
+        <div className="flex items-center gap-1.5 text-muted-foreground">
+          <Clock className="w-4 h-4" />
+          <span className="text-sm">Starts in {formatTimeRemaining(chain.firstMarketEndDate)}</span>
+        </div>
+      </div>
+
+      {/* Bottom backing bar */}
+      <div className="bg-gradient-to-r from-[var(--color-success)]/20 to-[var(--color-success)]/10 px-5 py-3 flex items-center justify-between border-t border-[var(--color-success)]/20">
+        <div className="flex items-center gap-2">
+          <Users className="w-4 h-4 text-[var(--color-success)]" />
+          <span className="text-sm font-medium text-[var(--color-success)]">
+            {formatValue(chain.totalValue)} wagered
+          </span>
         </div>
       </div>
     </Link>
