@@ -271,6 +271,14 @@ export async function createUserChain(
     return dateA - dateB;
   });
 
+  // Calculate slippage multiplier (defaults to 2.5%)
+  const maxSlippage = request.maxSlippage || '0.025';
+  const slippageValue = parseFloat(maxSlippage);
+  if (!Number.isFinite(slippageValue) || slippageValue < 0 || slippageValue > 1) {
+    return errorResponse(400, 'maxSlippage must be a number between 0 and 1');
+  }
+  const slippageMultiplier = 1 + slippageValue;
+
   const now = new Date().toISOString();
 
   // Generate deterministic chain ID from chain definition
@@ -425,6 +433,10 @@ export async function createUserChain(
       stake: fromMicroUsdc(currentStakeMicro),
       potentialPayout: fromMicroUsdc(potentialPayoutMicro),
       status: sequence === 1 ? 'READY' : 'QUEUED',
+      // Slippage fields
+      maxPrice: (parseFloat(legInput.targetPrice) * slippageMultiplier).toFixed(4),
+      maxSlippage,
+      requestedStake: fromMicroUsdc(currentStakeMicro),
       createdAt: now,
       updatedAt: now,
     };

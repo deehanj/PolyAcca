@@ -363,6 +363,7 @@ export interface CreateLegInput {
 export interface CreatePositionRequest {
   legs: CreateLegInput[];
   initialStake: string;
+  maxSlippage?: string; // defaults to "0.025" (2.5%)
 }
 
 /**
