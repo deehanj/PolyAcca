@@ -50,21 +50,21 @@ export async function getMarketById(marketId: string): Promise<APIGatewayProxyRe
 }
 
 /**
- * GET /markets/{tokenId}/status - Check if market is accepting orders
+ * GET /markets/{conditionId}/status - Check if market is accepting orders
  *
  * Queries the CLOB API (source of truth) to determine if a market
  * is currently accepting orders for betting.
  *
- * @param tokenId - The YES or NO token ID for the market
+ * @param conditionId - The condition ID for the market (from Market.conditionId)
  */
-export async function getMarketStatus(tokenId: string): Promise<APIGatewayProxyResult> {
+export async function getMarketStatus(conditionId: string): Promise<APIGatewayProxyResult> {
   try {
-    const status = await checkMarketAcceptingOrders(tokenId);
+    const status = await checkMarketAcceptingOrders(conditionId);
 
     if (!status) {
       // Market not found on CLOB
       return successResponse({
-        tokenId,
+        conditionId,
         acceptingOrders: false,
         canBet: false,
         reason: 'Market not found on order book',
@@ -72,10 +72,10 @@ export async function getMarketStatus(tokenId: string): Promise<APIGatewayProxyR
     }
 
     // Use the convenience function for canBet + reason
-    const bettability = await isMarketBettable(tokenId);
+    const bettability = await isMarketBettable(conditionId);
 
     return successResponse({
-      tokenId,
+      conditionId,
       acceptingOrders: status.acceptingOrders,
       closed: status.closed,
       active: status.active,

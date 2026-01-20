@@ -86,16 +86,16 @@ const BROWSER_HEADERS = {
  * This is the source of truth for whether you can place a bet.
  * The Gamma API's `active` field is not reliable - use this instead.
  *
- * @param tokenId - The token ID (YES or NO token) for the market
+ * @param conditionId - The condition ID for the market (NOT the token ID)
  * @returns Market status including acceptingOrders
  * @throws Error if the API call fails (not including 404)
  */
 export async function checkMarketAcceptingOrders(
-  tokenId: string
+  conditionId: string
 ): Promise<ClobMarketStatus | null> {
-  const url = `${CLOB_API_BASE}/markets/${tokenId}`;
+  const url = `${CLOB_API_BASE}/markets/${conditionId}`;
 
-  logger.info('Checking market accepting orders status', { tokenId, url });
+  logger.info('Checking market accepting orders status', { conditionId, url });
 
   try {
     const response = await fetchWithTimeout(url, {
@@ -105,13 +105,13 @@ export async function checkMarketAcceptingOrders(
 
     // 404 means market not found on CLOB (removed/never existed)
     if (response.status === 404) {
-      logger.info('Market not found on CLOB', { tokenId });
+      logger.info('Market not found on CLOB', { conditionId });
       return null;
     }
 
     if (!response.ok) {
       logger.error('CLOB API request failed', {
-        tokenId,
+        conditionId,
         status: response.status,
         statusText: response.statusText,
       });
@@ -130,7 +130,7 @@ export async function checkMarketAcceptingOrders(
     };
 
     logger.info('Market status retrieved', {
-      tokenId,
+      conditionId,
       acceptingOrders: status.acceptingOrders,
       closed: status.closed,
     });
@@ -141,12 +141,12 @@ export async function checkMarketAcceptingOrders(
     const isTimeout = errorMessage.includes('aborted') || errorMessage.includes('timeout');
 
     logger.errorWithStack('Failed to check market accepting orders', error, {
-      tokenId,
+      conditionId,
       isTimeout,
     });
 
     if (isTimeout) {
-      throw new Error(`CLOB API timeout for tokenId: ${tokenId}`);
+      throw new Error(`CLOB API timeout for conditionId: ${conditionId}`);
     }
     throw error;
   }
@@ -157,13 +157,13 @@ export async function checkMarketAcceptingOrders(
  *
  * Convenience function that returns a simple boolean with reason.
  *
- * @param tokenId - The token ID for the market
+ * @param conditionId - The condition ID for the market
  * @returns Object with canBet boolean and reason string
  */
 export async function isMarketBettable(
-  tokenId: string
+  conditionId: string
 ): Promise<{ canBet: boolean; reason: string }> {
-  const status = await checkMarketAcceptingOrders(tokenId);
+  const status = await checkMarketAcceptingOrders(conditionId);
 
   if (status === null) {
     return {

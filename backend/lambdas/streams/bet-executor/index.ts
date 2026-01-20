@@ -619,11 +619,11 @@ export async function executeBet(bet: BetEntity): Promise<void> {
 
     // Check CLOB API for actual order book status (source of truth for betting availability)
     // This catches cases where Gamma API shows active but CLOB has stopped accepting orders
-    const bettability = await isMarketBettable(bet.tokenId);
+    const bettability = await isMarketBettable(bet.conditionId);
     if (!bettability.canBet) {
       log.warn('Market not accepting orders on CLOB', {
         betId: bet.betId,
-        tokenId: bet.tokenId,
+        conditionId: bet.conditionId,
         reason: bettability.reason,
       });
       await skipClosedMarketAndContinue(bet, bettability.reason);

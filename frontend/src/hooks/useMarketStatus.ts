@@ -5,7 +5,7 @@
 const API_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
 
 export interface MarketStatus {
-  tokenId: string;
+  conditionId: string;
   acceptingOrders: boolean;
   closed?: boolean;
   active?: boolean;
@@ -24,15 +24,15 @@ interface MarketStatusResponse {
 /**
  * Check if a market is currently accepting orders
  *
- * @param tokenId - The YES or NO token ID for the market
+ * @param conditionId - The condition ID for the market (Market.conditionId)
  * @returns Market status including canBet boolean and reason
  */
-export async function checkMarketStatus(tokenId: string): Promise<MarketStatus> {
+export async function checkMarketStatus(conditionId: string): Promise<MarketStatus> {
   if (!API_URL) {
     throw new Error('API URL not configured');
   }
 
-  const response = await fetch(`${API_URL}/markets/${tokenId}/status`);
+  const response = await fetch(`${API_URL}/markets/${conditionId}/status`);
   const data: MarketStatusResponse = await response.json();
 
   if (!response.ok || !data.success) {
@@ -46,13 +46,13 @@ export async function checkMarketStatus(tokenId: string): Promise<MarketStatus> 
  * Check if a market can be bet on
  * Returns a simple result with canBet and reason
  *
- * @param tokenId - The YES or NO token ID for the market
+ * @param conditionId - The condition ID for the market (Market.conditionId)
  */
 export async function isMarketBettable(
-  tokenId: string
+  conditionId: string
 ): Promise<{ canBet: boolean; reason: string }> {
   try {
-    const status = await checkMarketStatus(tokenId);
+    const status = await checkMarketStatus(conditionId);
     return {
       canBet: status.canBet,
       reason: status.reason,

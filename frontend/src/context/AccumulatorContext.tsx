@@ -121,8 +121,7 @@ export function AccumulatorProvider({ children }: { children: ReactNode }) {
     if (!existingBet) {
       setIsCheckingMarket(true);
       try {
-        const tokenId = selection === "yes" ? market.yesTokenId : market.noTokenId;
-        const bettability = await isMarketBettable(tokenId);
+        const bettability = await isMarketBettable(market.conditionId);
 
         if (!bettability.canBet) {
           toast.error("Market not available for betting", {
