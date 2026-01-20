@@ -133,6 +133,7 @@ export class BetManagementConstruct extends Construct {
       description: 'Handles market resolution, settles bets, collects platform fees',
       environment: {
         ...lambdaConfig.environment,
+        ...credentialsLambdaEnv,
         // Turnkey for signing fee transfers from embedded wallets
         TURNKEY_SECRET_ARN: secrets.turnkeySecretArn,
         TURNKEY_ORGANIZATION_ID: turnkeyOrganizationId,
@@ -210,9 +211,10 @@ export class BetManagementConstruct extends Construct {
 
     // Credentials table access (for Polymarket API keys)
     // betExecutor needs read/write (for deriving and saving embedded wallet credentials)
-    // positionTerminationHandler only needs read
+    // positionTerminationHandler and marketResolutionHandler only need read
     credentialsTable.grantReadWrite(this.betExecutor);
     credentialsTable.grantRead(this.positionTerminationHandler);
+    credentialsTable.grantRead(this.marketResolutionHandler);
 
     // Builder secret access (for order attribution)
     secrets.grantBuilderSecretRead(this.betExecutor);

@@ -415,7 +415,7 @@ export async function upsertChain(
       ExpressionAttributeValues: {
         ':chainId': chain.chainId,
         ':entityType': 'CHAIN',
-        ':name': chain.name,
+        ':name': chain.name ?? null,
         ':description': chain.description ?? null,
         ':imageKey': chain.imageKey ?? null,
         ':chain': chain.chain,
@@ -468,7 +468,7 @@ export async function createUserChainPosition(
         ExpressionAttributeValues: {
           ':chainId': chain.chainId,
           ':entityType': 'CHAIN',
-          ':name': chain.name,
+          ':name': chain.name ?? null,
           ':description': chain.description ?? null,
           ':imageKey': chain.imageKey ?? null,
           ':chain': chain.chain,
