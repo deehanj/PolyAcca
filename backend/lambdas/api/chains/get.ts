@@ -31,13 +31,13 @@ import {
 export async function listUserChains(walletAddress: string): Promise<APIGatewayProxyResult> {
   const userChains = await getUserChains(walletAddress);
 
-  // Get chain info for each to get totalLegs
+  // Get chain info for each to get totalLegs, name, and imageKey
   const summaries: UserChainSummary[] = [];
 
   for (const userChain of userChains) {
     const chain = await getChain(userChain.chainId);
     if (chain) {
-      summaries.push(toUserChainSummary(userChain, chain.legs.length));
+      summaries.push(toUserChainSummary(userChain, chain));
     }
   }
 
@@ -112,7 +112,7 @@ export async function getChainUsers(
   const userChains = await getChainUsersFromDb(chainId);
 
   const summaries: UserChainSummary[] = userChains.map((userChain) =>
-    toUserChainSummary(userChain, chain.legs.length)
+    toUserChainSummary(userChain, chain)
   );
 
   // Sort by createdAt descending

@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { Badge } from "./ui/Badge";
-import { ChevronDown, ChevronUp, Trophy, XCircle, Clock, AlertCircle, Loader2, Share2 } from "lucide-react";
+import { ChevronDown, ChevronUp, Trophy, XCircle, Clock, AlertCircle, Loader2, Share2, Flame } from "lucide-react";
 import type { UserChainSummary, UserChainDetail } from "../types/chain";
 import { useChainDetail } from "../hooks/useChains";
 import { SharePnLCard } from "./SharePnLCard";
+
+const CHAIN_IMAGES_DOMAIN = import.meta.env.VITE_CHAIN_IMAGES_DOMAIN || "";
 
 interface ChainCardProps {
   chain: UserChainSummary;
@@ -59,9 +61,16 @@ export function ChainCard({ chain }: ChainCardProps) {
     year: "numeric",
   });
 
-  // Get first market question for display
-  const displayName = chainDetail?.chainDefinition?.legs?.[0]?.marketQuestion ||
+  // Use chain name from summary, fallback to first market question from detail, or generic label
+  const displayName = chain.name ||
+    chainDetail?.chainDefinition?.legs?.[0]?.marketQuestion ||
     `Accumulator (${chain.totalLegs} legs)`;
+
+  // Build image URL from chain imageKey
+  const imageUrl =
+    chain.imageKey && CHAIN_IMAGES_DOMAIN
+      ? `https://${CHAIN_IMAGES_DOMAIN}/${chain.imageKey}`
+      : null;
 
   return (
     <div
@@ -80,9 +89,25 @@ export function ChainCard({ chain }: ChainCardProps) {
       <div className="p-4 md:p-5 relative z-10">
         {/* Header Row */}
         <div className="flex items-start justify-between gap-3 mb-4">
-          <h3 className="text-sm md:text-base font-medium text-foreground leading-snug line-clamp-2 flex-1">
-            {displayName}
-          </h3>
+          <div className="flex items-start gap-3 flex-1 min-w-0">
+            {/* Chain Image */}
+            <div className="w-10 h-10 md:w-12 md:h-12 rounded-lg overflow-hidden bg-muted/50 shrink-0">
+              {imageUrl ? (
+                <img
+                  src={imageUrl}
+                  alt={displayName}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <Flame className="w-5 h-5 text-[var(--color-gold)] opacity-30" />
+                </div>
+              )}
+            </div>
+            <h3 className="text-sm md:text-base font-medium text-foreground leading-snug line-clamp-2 flex-1 pt-1">
+              {displayName}
+            </h3>
+          </div>
           <Badge variant={status.variant} size="sm" className="flex items-center gap-1 shrink-0">
             <StatusIcon className={`w-3 h-3 ${chain.status === 'ACTIVE' ? 'animate-spin' : ''}`} />
             {status.label}

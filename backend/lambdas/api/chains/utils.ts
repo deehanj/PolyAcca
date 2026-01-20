@@ -54,15 +54,17 @@ export function toTrendingChainSummary(
  */
 export function toUserChainSummary(
   userChain: UserChainEntity,
-  totalLegs: number
+  chain: ChainEntity
 ): UserChainSummary {
   return {
     chainId: userChain.chainId,
     walletAddress: userChain.walletAddress,
+    name: chain.name,
+    imageKey: chain.imageKey,
     initialStake: userChain.initialStake,
     currentValue: userChain.currentValue,
     completedLegs: userChain.completedLegs,
-    totalLegs,
+    totalLegs: chain.legs?.length ?? chain.chain.length,
     status: userChain.status,
     createdAt: userChain.createdAt,
   };
@@ -108,7 +110,7 @@ export async function getUserChainDetail(
     .sort((a, b) => a.sequence - b.sequence);
 
   return {
-    ...toUserChainSummary(userChain, chain.chain.length),
+    ...toUserChainSummary(userChain, chain),
     chainDefinition: toChainSummary(chain),
     bets: betSummaries,
   };

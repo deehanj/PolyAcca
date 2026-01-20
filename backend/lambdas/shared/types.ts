@@ -396,6 +396,8 @@ export interface ChainSummary {
 export interface UserChainSummary {
   chainId: string;
   walletAddress: string;
+  name?: string; // Chain name (if customized)
+  imageKey?: string; // S3 key for chain image (frontend prepends CloudFront domain)
   initialStake: string;
   currentValue: string;
   completedLegs: number;
