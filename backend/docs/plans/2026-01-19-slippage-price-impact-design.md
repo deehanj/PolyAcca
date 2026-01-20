@@ -269,6 +269,7 @@ Add before "Place Bet" button:
 | Orderbook fetch fails | Fall back to Gamma estimate, log warning |
 | Slippage set to 0% | Must fill at exactly targetPrice or fail |
 | Stake > 100% of liquidity | Show warning, likely very low fill |
+<<<<<<< HEAD
 
 ## Implementation Notes
 
@@ -318,3 +319,5 @@ The polymarket-client correctly routes to the appropriate method based on order 
 - WebSocket for real-time orderbook updates during checkout
 - Historical price impact analytics dashboard
 - Automatic slippage suggestion based on recent market volatility
+=======
+>>>>>>> 633fa71 (Add slippage and price impact design document)
