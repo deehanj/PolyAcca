@@ -1,62 +1,41 @@
 /**
- * Axios Cloudflare Headers
+ * Cloudflare Bypass Headers
  *
- * Adds browser-like headers to axios requests to prevent Cloudflare blocking.
- * Must be called early in Lambda initialization (before any HTTP clients are created).
+ * Patches Node.js https module to add browser-like headers to Polymarket requests.
+ * Intercepts ALL outgoing HTTPS requests, including from nested dependencies.
  */
 
-import axios from 'axios';
+import https from 'https';
+import http from 'http';
 
-let interceptorInstalled = false;
+let installed = false;
+const originalRequest = https.request;
 
-/**
- * Browser-like headers that help bypass Cloudflare bot protection
- */
-const BROWSER_HEADERS = {
-  'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-  'Accept': 'application/json, text/plain, */*',
-  'Accept-Language': 'en-US,en;q=0.9',
-  'Accept-Encoding': 'gzip, deflate, br',
-  'Connection': 'keep-alive',
-  'Cache-Control': 'no-cache',
-  'Pragma': 'no-cache',
+const BROWSER_HEADERS: Record<string, string> = {
+  'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  'accept': 'application/json, text/plain, */*',
+  'accept-language': 'en-US,en;q=0.9',
+  'cache-control': 'no-cache',
 };
 
-/**
- * Install axios interceptor that adds browser-like headers to all requests.
- * This helps prevent Cloudflare from blocking Lambda requests.
- *
- * Safe to call multiple times - will only install once.
- */
 export function installCloudflareBypassHeaders(): void {
-  if (interceptorInstalled) {
-    return;
-  }
+  if (installed) return;
+  installed = true;
 
-  axios.interceptors.request.use(
-    (config) => {
-      // Only modify headers for polymarket.com domains
-      const url = config.url || '';
-      if (url.includes('polymarket.com')) {
-        config.headers = config.headers || {};
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (https as any).request = function (...args: any[]): http.ClientRequest {
+    const opts = typeof args[0] === 'object' && !(args[0] instanceof URL) ? args[0] : args[1] || {};
+    const host = opts.hostname || opts.host || (typeof args[0] === 'string' ? args[0] : args[0]?.hostname) || '';
 
-        for (const [key, value] of Object.entries(BROWSER_HEADERS)) {
-          // Force override User-Agent to prevent CLOB client's default from being used
-          // Other headers: only set if not already present
-          if (key === 'User-Agent') {
-            config.headers[key] = value;
-          } else if (!config.headers[key]) {
-            config.headers[key] = value;
-          }
-        }
+    if (host.includes('polymarket.com')) {
+      opts.headers = { ...BROWSER_HEADERS, ...opts.headers, 'user-agent': BROWSER_HEADERS['user-agent'] };
+      if (typeof args[0] === 'object' && !(args[0] instanceof URL)) {
+        args[0] = opts;
+      } else {
+        args[1] = opts;
       }
-
-      return config;
-    },
-    (error) => {
-      return Promise.reject(error);
     }
-  );
 
-  interceptorInstalled = true;
+    return originalRequest.apply(https, args as Parameters<typeof https.request>);
+  };
 }
