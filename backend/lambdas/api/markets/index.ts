@@ -5,11 +5,12 @@
  * - GET /markets - List markets from Gamma API
  * - GET /markets/{marketId} - Get single market
  * - GET /markets/{conditionId}/orderbook - Get orderbook for a market
+ * - GET /markets/{tokenId}/status - Check if market is accepting orders (CLOB)
  */
 
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { HEADERS, errorResponse } from '../../shared/api-utils';
-import { listMarkets, getMarketById } from './get';
+import { listMarkets, getMarketById, getMarketStatus } from './get';
 import { getOrderbook } from './orderbook';
 
 export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
@@ -27,6 +28,12 @@ export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayPr
       const conditionId = pathParts[1];
       const tokenId = event.queryStringParameters?.tokenId || '';
       return getOrderbook(conditionId, tokenId);
+    }
+
+    // GET /markets/{tokenId}/status - Check if market is accepting orders
+    if (path.match(/^\/markets\/[^/]+\/status$/)) {
+      const tokenId = pathParts[1];
+      return getMarketStatus(tokenId);
     }
 
     // GET /markets/{marketId}

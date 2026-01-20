@@ -258,9 +258,12 @@ export class ApiConstruct extends Construct {
     // Markets endpoints (public - no auth required)
     const marketsResource = this.api.root.addResource('markets');
     const marketIdResource = marketsResource.addResource('{marketId}');
+    const marketStatusResource = marketIdResource.addResource('status');
 
     marketsResource.addMethod('GET', new apigateway.LambdaIntegration(this.marketsFunction));
     marketIdResource.addMethod('GET', new apigateway.LambdaIntegration(this.marketsFunction));
+    // GET /markets/{marketId}/status - Check if market is accepting orders (CLOB)
+    marketStatusResource.addMethod('GET', new apigateway.LambdaIntegration(this.marketsFunction));
 
     // Wallet endpoints (signature-based auth - not JWT)
     // These endpoints verify a fresh wallet signature instead of JWT
