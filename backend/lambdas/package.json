@@ -10,7 +10,7 @@
     "@polymarket/clob-client": "^4.0.0",
     "@turnkey/api-key-stamper": "^0.4.5",
     "@turnkey/ethers": "^1.0.23",
-    "@turnkey/http": "^2.21.0",
+    "@turnkey/http": "^3.16.1",
     "axios": "^1.7.0",
     "ethers": "^6.10.0"
   },
