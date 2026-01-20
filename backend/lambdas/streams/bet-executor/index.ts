@@ -11,10 +11,6 @@
  * The position-termination-handler will void remaining bets via stream.
  */
 
-// Patch follow-redirects BEFORE any other imports that might use axios
-// This routes POST /order requests through Sydney Lambda to bypass Cloudflare
-import '../../shared/axios-cloudflare-headers';
-
 import type { DynamoDBStreamEvent, DynamoDBRecord } from 'aws-lambda';
 import { unmarshall } from '@aws-sdk/util-dynamodb';
 import type { AttributeValue } from '@aws-sdk/client-dynamodb';

@@ -108,8 +108,7 @@ export class BetManagementConstruct extends Construct {
     // =========================================================================
     // Bet Executor - Places orders on Polymarket CLOB
     // Triggered by: Stream (bet status → READY) or direct invocation
-    // Supports embedded wallets (Turnkey) and legacy credentials
-    // Routes order placement through Sydney Lambda to bypass Cloudflare geo-blocking
+    // Supports embedded wallets (Turnkey) with proper GNOSIS_SAFE signature type
     // =========================================================================
     this.betExecutor = new nodejs.NodejsFunction(this, 'BetExecutor', {
       ...lambdaConfig,
@@ -124,15 +123,9 @@ export class BetManagementConstruct extends Construct {
         // Turnkey for embedded wallet signing
         TURNKEY_SECRET_ARN: secrets.turnkeySecretArn,
         TURNKEY_ORGANIZATION_ID: turnkeyOrganizationId,
-        // Bright Data proxy configuration (replaces Sydney proxy)
-        BRIGHT_DATA_USERNAME: 'brd-customer-hl_21d203c0-zone-residential_proxy1',
-        BRIGHT_DATA_PASSWORD: 'f61fhcjhnarl',
-        BRIGHT_DATA_HOST: 'brd.superproxy.io',
-        BRIGHT_DATA_PORT: '33335',
       },
     });
 
-    // No longer needed - using Bright Data proxy instead of Sydney Lambda
 
     // =========================================================================
     // Market Resolution Handler - Triggers on market status → RESOLVED

@@ -12,9 +12,7 @@
     "@turnkey/ethers": "^1.0.23",
     "@turnkey/http": "^3.16.1",
     "axios": "^1.7.0",
-    "ethers": "^6.10.0",
-    "global-agent": "^3.0.0",
-    "https-proxy-agent": "^7.0.6"
+    "ethers": "^6.10.0"
   },
   "devDependencies": {
     "@aws-sdk/client-apigatewaymanagementapi": "^3.700.0",
