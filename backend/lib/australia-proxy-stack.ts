@@ -14,9 +14,10 @@ export interface AustraliaProxyStackProps extends cdk.StackProps {
 /**
  * Australia Proxy Stack
  *
- * Deploys a lightweight HTTP proxy Lambda to ap-southeast-2 (Sydney)
- * to bypass Cloudflare's blocking of US datacenter IPs.
+ * Deploys a lightweight HTTP proxy Lambda to eu-north-1 (Stockholm, Sweden)
+ * to bypass Polymarket's geographic blocking.
  *
+ * Sweden is not on Polymarket's blocked countries list.
  * This Lambda is invoked cross-region by the bet-executor in us-east-1.
  * It simply forwards HTTP requests and returns responses - no business logic.
  */
@@ -37,7 +38,7 @@ export class AustraliaProxyStack extends cdk.Stack {
       memorySize: 256,
       timeout: cdk.Duration.seconds(30),
       functionName: `polyacca-${environment}-http-proxy`,
-      description: 'HTTP proxy in Sydney for bypassing Cloudflare geo-blocking',
+      description: 'HTTP proxy in Stockholm for bypassing Polymarket geo-blocking',
       entry: path.join(__dirname, '../lambdas/cross-region/http-proxy/index.ts'),
       handler: 'handler',
       environment: {
@@ -57,12 +58,12 @@ export class AustraliaProxyStack extends cdk.Stack {
     // =========================================================================
     new cdk.CfnOutput(this, 'HttpProxyFunctionArn', {
       value: this.httpProxyFunction.functionArn,
-      description: 'ARN of the HTTP Proxy Lambda in Sydney',
+      description: 'ARN of the HTTP Proxy Lambda in Stockholm',
     });
 
     new cdk.CfnOutput(this, 'HttpProxyFunctionName', {
       value: this.httpProxyFunction.functionName,
-      description: 'Name of the HTTP Proxy Lambda in Sydney',
+      description: 'Name of the HTTP Proxy Lambda in Stockholm',
     });
   }
 }

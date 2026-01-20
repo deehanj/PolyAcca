@@ -142,6 +142,11 @@ export class BackendStack extends cdk.Stack {
     // ==========================================================================
     // Bet Management (stream handlers and bet executor)
     // ==========================================================================
+
+    // Construct the ARN of the HTTP proxy Lambda in Stockholm
+    // Format: arn:aws:lambda:region:account:function:function-name
+    const httpProxyLambdaArn = `arn:aws:lambda:eu-north-1:${this.account}:function:polyacca-${environment}-http-proxy`;
+
     this.betManagement = new BetManagementConstruct(this, 'BetManagement', {
       table: this.database.table,
       credentialsTable: this.credentialsTable,
@@ -152,6 +157,7 @@ export class BackendStack extends cdk.Stack {
       websocket: this.websocket,
       adminWebsocket: this.adminWebsocket,
       environment, // For cross-region Lambda ARN construction
+      httpProxyLambdaArn, // ARN of the HTTP proxy Lambda in Stockholm
     });
 
     // ==========================================================================

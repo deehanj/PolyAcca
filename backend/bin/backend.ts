@@ -29,8 +29,8 @@ new FrontendStack(app, 'FrontendStack', {
   env: { account, region: 'us-east-1' },
 });
 
-// Australia Proxy stack (HTTP proxy for Cloudflare bypass) - ap-southeast-2
+// Australia Proxy stack (HTTP proxy for Polymarket geo-blocking bypass) - eu-north-1 (Stockholm, Sweden)
 new AustraliaProxyStack(app, 'AustraliaProxyStack', {
   environment,
-  env: { account, region: 'ap-southeast-2' },
+  env: { account, region: 'eu-north-1' },
 });

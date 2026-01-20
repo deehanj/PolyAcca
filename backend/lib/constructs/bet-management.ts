@@ -49,6 +49,10 @@ export interface BetManagementConstructProps {
    * Environment name (e.g., 'dev', 'prod') for cross-region Lambda ARN construction
    */
   environment?: string;
+  /**
+   * ARN of the HTTP proxy Lambda in Stockholm for bypassing Polymarket geo-blocking
+   */
+  httpProxyLambdaArn?: string;
 }
 
 /**
@@ -79,7 +83,7 @@ export class BetManagementConstruct extends Construct {
   constructor(scope: Construct, id: string, props: BetManagementConstructProps) {
     super(scope, id);
 
-    const { table, credentialsTable, secrets, turnkeyOrganizationId, commissionWalletAddress, platformWalletAddress, websocket, adminWebsocket, environment = 'dev' } = props;
+    const { table, credentialsTable, secrets, turnkeyOrganizationId, commissionWalletAddress, platformWalletAddress, websocket, adminWebsocket, environment = 'dev', httpProxyLambdaArn } = props;
 
     // Shared Lambda config
     const lambdaConfig = {
@@ -123,6 +127,8 @@ export class BetManagementConstruct extends Construct {
         // Turnkey for embedded wallet signing
         TURNKEY_SECRET_ARN: secrets.turnkeySecretArn,
         TURNKEY_ORGANIZATION_ID: turnkeyOrganizationId,
+        // HTTP Proxy Lambda ARN for bypassing Polymarket geo-blocking
+        ...(httpProxyLambdaArn ? { HTTP_PROXY_LAMBDA_ARN: httpProxyLambdaArn } : {}),
       },
     });
 
@@ -237,6 +243,12 @@ export class BetManagementConstruct extends Construct {
     // Admin WebSocket permission for admin notification handler
     if (adminWebsocket) {
       adminWebsocket.grantManageConnections(this.adminNotificationHandler);
+    }
+
+    // Grant permission to invoke HTTP proxy Lambda if configured
+    if (httpProxyLambdaArn) {
+      const proxyLambda = lambda.Function.fromFunctionArn(this, 'HttpProxyLambda', httpProxyLambdaArn);
+      proxyLambda.grantInvoke(this.betExecutor);
     }
 
     // =========================================================================
