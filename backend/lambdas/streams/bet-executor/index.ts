@@ -113,12 +113,13 @@ function classifyError(error: unknown): BetStatus {
   const message = err.message?.toLowerCase() || '';
   const code = err.code?.toLowerCase() || '';
 
-  // Cloudflare blocking - treat as temporary execution error
+  // Cloudflare blocking or order placement failure - treat as temporary execution error
   if (message.includes('cloudflare') || message.includes('403') ||
       message.includes('access denied') || message.includes('just a moment') ||
       message.includes('challenge') || message.includes('captcha') ||
-      message.includes('ray id') || message.includes('blocked')) {
-    log.warn('Cloudflare blocking detected', { message: err.message });
+      message.includes('ray id') || message.includes('blocked') ||
+      message.includes('no order id returned')) {
+    log.warn('Cloudflare blocking or API error detected', { message: err.message });
     return 'EXECUTION_ERROR';
   }
 

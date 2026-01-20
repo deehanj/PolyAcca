@@ -38,12 +38,14 @@ export function installCloudflareBypassHeaders(): void {
       // Only modify headers for polymarket.com domains
       const url = config.url || '';
       if (url.includes('polymarket.com')) {
-        // Merge browser headers, but don't override any that are explicitly set
         config.headers = config.headers || {};
 
         for (const [key, value] of Object.entries(BROWSER_HEADERS)) {
-          // Only set if not already present
-          if (!config.headers[key]) {
+          // Force override User-Agent to prevent CLOB client's default from being used
+          // Other headers: only set if not already present
+          if (key === 'User-Agent') {
+            config.headers[key] = value;
+          } else if (!config.headers[key]) {
             config.headers[key] = value;
           }
         }

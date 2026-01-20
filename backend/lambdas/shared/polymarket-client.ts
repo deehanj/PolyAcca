@@ -345,7 +345,18 @@ export async function placeOrder(
       );
     }
 
-    const orderId = order.id ?? order.orderID ?? order.order_id;
+    const orderId = order?.id ?? order?.orderID ?? order?.order_id;
+
+    // Validate we got a real order ID - the CLOB client may return undefined on errors
+    if (!orderId) {
+      logger.error('Order placement failed - no order ID returned', {
+        tokenId: params.tokenId,
+        side: params.side,
+        orderResponse: JSON.stringify(order),
+      });
+      throw new Error('Order placement failed - no order ID returned (possible Cloudflare block or API error)');
+    }
+
     logger.info('Order placed', { orderId, tokenId: params.tokenId });
     return orderId;
   } catch (error) {
