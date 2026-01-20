@@ -30,9 +30,9 @@ build-cdk:
 bootstrap:
 	cd backend && npx cdk bootstrap
 
-# Deploy backend only (API, Database, etc.)
+# Deploy backend only (API, Database, Australia proxy)
 deploy-backend:
-	cd backend && npx cdk deploy BackendStack --require-approval never
+	cd backend && npx cdk deploy BackendStack AustraliaProxyStack --require-approval never
 
 # Get API URL from deployed backend
 get-api-url:

@@ -16,20 +16,21 @@ const app = new cdk.App();
 
 // Determine environment (default to 'dev')
 const environment = process.env.ENVIRONMENT ?? 'dev';
+const account = process.env.CDK_DEFAULT_ACCOUNT;
 
 // Backend stack (API, Database, Auth, Processing) - us-east-1
 const backend = new BackendStack(app, 'BackendStack', {
   environment,
-  env: { region: 'us-east-1' },
+  env: { account, region: 'us-east-1' },
 });
 
 // Frontend stack (S3 + CloudFront) - us-east-1
 new FrontendStack(app, 'FrontendStack', {
-  env: { region: 'us-east-1' },
+  env: { account, region: 'us-east-1' },
 });
 
 // Australia Proxy stack (HTTP proxy for Cloudflare bypass) - ap-southeast-2
 new AustraliaProxyStack(app, 'AustraliaProxyStack', {
   environment,
-  env: { region: 'ap-southeast-2' },
+  env: { account, region: 'ap-southeast-2' },
 });
