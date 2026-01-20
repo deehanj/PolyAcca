@@ -151,6 +151,7 @@ export class BackendStack extends cdk.Stack {
       platformWalletAddress: this.platformWallet.walletAddress,
       websocket: this.websocket,
       adminWebsocket: this.adminWebsocket,
+      environment, // For cross-region Lambda ARN construction
     });
 
     // ==========================================================================

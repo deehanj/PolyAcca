@@ -2,6 +2,7 @@
 import * as cdk from 'aws-cdk-lib/core';
 import { BackendStack } from '../lib/backend-stack';
 import { FrontendStack } from '../lib/frontend-stack';
+import { AustraliaProxyStack } from '../lib/australia-proxy-stack';
 
 // =============================================================================
 // Required Environment Variables
@@ -13,12 +14,22 @@ process.env.COMMISSION_WALLET_ADDRESS = "0x338ea503bEfFC48aE4418851145836Bc78010
 
 const app = new cdk.App();
 
-// Backend stack (API, Database, Auth, Processing)
+// Determine environment (default to 'dev')
+const environment = process.env.ENVIRONMENT ?? 'dev';
+
+// Backend stack (API, Database, Auth, Processing) - us-east-1
 const backend = new BackendStack(app, 'BackendStack', {
-  // env: { account: process.env.CDK_DEFAULT_ACCOUNT, region: process.env.CDK_DEFAULT_REGION },
+  environment,
+  env: { region: 'us-east-1' },
 });
 
-// Frontend stack (S3 + CloudFront)
+// Frontend stack (S3 + CloudFront) - us-east-1
 new FrontendStack(app, 'FrontendStack', {
-  // env: { account: process.env.CDK_DEFAULT_ACCOUNT, region: process.env.CDK_DEFAULT_REGION },
+  env: { region: 'us-east-1' },
+});
+
+// Australia Proxy stack (HTTP proxy for Cloudflare bypass) - ap-southeast-2
+new AustraliaProxyStack(app, 'AustraliaProxyStack', {
+  environment,
+  env: { region: 'ap-southeast-2' },
 });

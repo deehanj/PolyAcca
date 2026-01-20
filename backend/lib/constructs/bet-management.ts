@@ -3,6 +3,7 @@ import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as nodejs from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as eventsources from 'aws-cdk-lib/aws-lambda-event-sources';
+import * as iam from 'aws-cdk-lib/aws-iam';
 import * as cdk from 'aws-cdk-lib/core';
 import * as path from 'path';
 import type { WebSocketConstruct } from './websocket';
@@ -44,6 +45,10 @@ export interface BetManagementConstructProps {
    * Admin WebSocket construct for granting admin notification permissions
    */
   adminWebsocket?: AdminWebSocketConstruct;
+  /**
+   * Environment name (e.g., 'dev', 'prod') for cross-region Lambda ARN construction
+   */
+  environment?: string;
 }
 
 /**
@@ -74,7 +79,7 @@ export class BetManagementConstruct extends Construct {
   constructor(scope: Construct, id: string, props: BetManagementConstructProps) {
     super(scope, id);
 
-    const { table, credentialsTable, secrets, turnkeyOrganizationId, commissionWalletAddress, platformWalletAddress, websocket, adminWebsocket } = props;
+    const { table, credentialsTable, secrets, turnkeyOrganizationId, commissionWalletAddress, platformWalletAddress, websocket, adminWebsocket, environment = 'dev' } = props;
 
     // Shared Lambda config
     const lambdaConfig = {
@@ -104,6 +109,7 @@ export class BetManagementConstruct extends Construct {
     // Bet Executor - Places orders on Polymarket CLOB
     // Triggered by: Stream (bet status → READY) or direct invocation
     // Supports embedded wallets (Turnkey) and legacy credentials
+    // Routes order placement through Sydney Lambda to bypass Cloudflare geo-blocking
     // =========================================================================
     this.betExecutor = new nodejs.NodejsFunction(this, 'BetExecutor', {
       ...lambdaConfig,
@@ -118,8 +124,22 @@ export class BetManagementConstruct extends Construct {
         // Turnkey for embedded wallet signing
         TURNKEY_SECRET_ARN: secrets.turnkeySecretArn,
         TURNKEY_ORGANIZATION_ID: turnkeyOrganizationId,
+        // Australia proxy config for Cloudflare bypass
+        ENVIRONMENT: environment,
+        AWS_ACCOUNT_ID: cdk.Aws.ACCOUNT_ID,
       },
     });
+
+    // Grant permission to invoke the Sydney HTTP proxy Lambda (cross-region)
+    // ARN: arn:aws:lambda:ap-southeast-2:{account}:function:polyacca-{env}-http-proxy
+    const australiaProxyArn = `arn:aws:lambda:ap-southeast-2:${cdk.Aws.ACCOUNT_ID}:function:polyacca-${environment}-http-proxy`;
+    this.betExecutor.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ['lambda:InvokeFunction'],
+        resources: [australiaProxyArn],
+      })
+    );
 
     // =========================================================================
     // Market Resolution Handler - Triggers on market status → RESOLVED
