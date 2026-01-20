@@ -71,7 +71,7 @@ export const AccumulatorSidebar = forwardRef<HTMLDivElement>(
     setIsDragOver(false);
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
 
@@ -81,7 +81,7 @@ export const AccumulatorSidebar = forwardRef<HTMLDivElement>(
         market: Market;
         selection: "yes" | "no";
       };
-      const result = addBet(market, selection);
+      const result = await addBet(market, selection);
       if (result.success) {
         setIsMobileOpen(true); // Open on drop for mobile
       }

@@ -41,15 +41,15 @@ export function MarketCard({ market, onBetClick }: MarketCardProps) {
     e.dataTransfer.effectAllowed = "copy";
   };
 
-  const handleYesClick = () => {
-    const result = addBet(market, "yes");
+  const handleYesClick = async () => {
+    const result = await addBet(market, "yes");
     if (result.success && onBetClick && yesButtonRef.current) {
       onBetClick(yesButtonRef.current, "yes");
     }
   };
 
-  const handleNoClick = () => {
-    const result = addBet(market, "no");
+  const handleNoClick = async () => {
+    const result = await addBet(market, "no");
     if (result.success && onBetClick && noButtonRef.current) {
       onBetClick(noButtonRef.current, "no");
     }

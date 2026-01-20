@@ -108,14 +108,14 @@ function MiniMarketCard({
     e.dataTransfer.effectAllowed = "copy";
   };
 
-  const handleYesClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+  const handleYesClick = async (e: React.MouseEvent<HTMLButtonElement>) => {
     onBetClick?.(e.currentTarget, "yes");
-    addBet(market, "yes");
+    await addBet(market, "yes");
   };
 
-  const handleNoClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+  const handleNoClick = async (e: React.MouseEvent<HTMLButtonElement>) => {
     onBetClick?.(e.currentTarget, "no");
-    addBet(market, "no");
+    await addBet(market, "no");
   };
 
   return (

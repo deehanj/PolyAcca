@@ -7,6 +7,7 @@ import {
 } from "react";
 import { toast } from "sonner";
 import type { Market } from "../components/MarketCard";
+import { isMarketBettable } from "../hooks/useMarketStatus";
 
 export interface AccumulatorBet {
   market: Market;
@@ -40,7 +41,7 @@ export interface AddBetResult {
 
 interface AccumulatorContextType {
   bets: AccumulatorBet[];
-  addBet: (market: Market, selection: "yes" | "no") => AddBetResult;
+  addBet: (market: Market, selection: "yes" | "no") => Promise<AddBetResult>;
   removeBet: (marketId: string) => void;
   clearBets: () => void;
   totalOdds: number;
@@ -54,12 +55,15 @@ interface AccumulatorContextType {
   getLegsForApi: () => CreateLegInput[];
   /** Check if a market can be added (no conflicting end dates) */
   canAddMarket: (market: Market) => AddBetResult;
+  /** Loading state for market status checks */
+  isCheckingMarket: boolean;
 }
 
 const AccumulatorContext = createContext<AccumulatorContextType | null>(null);
 
 export function AccumulatorProvider({ children }: { children: ReactNode }) {
   const [bets, setBets] = useState<AccumulatorBet[]>([]);
+  const [isCheckingMarket, setIsCheckingMarket] = useState(false);
   const onBetAddedRef = useRef<
     ((market: Market, selection: "yes" | "no") => void) | null
   >(null);
@@ -106,11 +110,35 @@ export function AccumulatorProvider({ children }: { children: ReactNode }) {
     return { success: true };
   };
 
-  const addBet = (market: Market, selection: "yes" | "no"): AddBetResult => {
+  const addBet = async (market: Market, selection: "yes" | "no"): Promise<AddBetResult> => {
     // If already in accumulator with same selection, just return success (no-op)
     const existingBet = bets.find((b) => b.market.id === market.id);
     if (existingBet && existingBet.selection === selection) {
       return { success: true };
+    }
+
+    // For new bets, check if the market is accepting orders on the CLOB
+    if (!existingBet) {
+      setIsCheckingMarket(true);
+      try {
+        const tokenId = selection === "yes" ? market.yesTokenId : market.noTokenId;
+        const bettability = await isMarketBettable(tokenId);
+
+        if (!bettability.canBet) {
+          toast.error("Market not available for betting", {
+            description: bettability.reason,
+          });
+          return {
+            success: false,
+            error: bettability.reason,
+          };
+        }
+      } catch (error) {
+        // If check fails, log but continue (backend will catch it)
+        console.warn("Failed to check market status:", error);
+      } finally {
+        setIsCheckingMarket(false);
+      }
     }
 
     // Check for same-day end dates only for new bets
@@ -206,6 +234,7 @@ export function AccumulatorProvider({ children }: { children: ReactNode }) {
         setOnBetAdded,
         getLegsForApi,
         canAddMarket,
+        isCheckingMarket,
       }}
     >
       {children}
