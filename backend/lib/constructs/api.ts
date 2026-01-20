@@ -92,15 +92,40 @@ export class ApiConstruct extends Construct {
     });
 
     // Chains Lambda - chain management
+    // Uses sharp for image processing - install platform-specific binaries
     this.chainsFunction = new nodejs.NodejsFunction(this, 'ChainsFunction', {
       ...lambdaConfig,
       entry: path.join(__dirname, '../../lambdas/api/chains/index.ts'),
       handler: 'handler',
-      timeout: cdk.Duration.seconds(30), // Allow time for Rekognition + S3 upload
+      timeout: cdk.Duration.seconds(30), // Allow time for image processing + Rekognition + S3 upload
+      memorySize: 1024, // Increased for image processing
       environment: {
         MONOTABLE_NAME: table.tableName,
         CHAIN_IMAGES_BUCKET: this.chainImagesBucket.bucketName,
         NODE_OPTIONS: '--enable-source-maps',
+      },
+      bundling: {
+        minify: true,
+        sourceMap: true,
+        externalModules: ['@aws-sdk/*'],
+        forceDockerBundling: false,
+        // Include sharp with its Linux ARM64 native binaries
+        nodeModules: ['sharp'],
+        // Install Linux ARM64 binaries for Lambda
+        commandHooks: {
+          beforeBundling(): string[] {
+            return [];
+          },
+          afterBundling(inputDir: string, outputDir: string): string[] {
+            return [
+              `cd ${outputDir}`,
+              'npm install --cpu=arm64 --os=linux sharp',
+            ];
+          },
+          beforeInstall(): string[] {
+            return [];
+          },
+        },
       },
     });
 

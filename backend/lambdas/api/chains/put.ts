@@ -9,11 +9,15 @@
 import type { APIGatewayProxyResult } from 'aws-lambda';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { RekognitionClient, DetectModerationLabelsCommand } from '@aws-sdk/client-rekognition';
+import sharp from 'sharp';
 import { randomUUID } from 'crypto';
 import { getChain, updateChainCustomization } from '../../shared/dynamo-client';
 import type { UpdateChainRequest } from '../../shared/types';
 import { errorResponse, successResponse, toChainSummary } from './utils';
 import { optionalEnvVar } from '../../utils/envVars';
+
+// Image dimensions - square crop like pump.fun
+const IMAGE_SIZE = 400;
 
 // Environment variables (optional - image upload requires this)
 const CHAIN_IMAGES_BUCKET = optionalEnvVar('CHAIN_IMAGES_BUCKET');
@@ -46,15 +50,27 @@ const MAX_IMAGE_SIZE_BYTES = 1 * 1024 * 1024;
 const MODERATION_CONFIDENCE_THRESHOLD = 75;
 
 /**
- * Get file extension from content type
+ * Process image: crop to square and resize to standard dimensions
+ * Uses center crop like pump.fun
  */
-function getExtension(contentType: string): string {
-  const extensions: Record<string, string> = {
-    'image/jpeg': 'jpg',
-    'image/jpg': 'jpg',
-    'image/png': 'png',
-  };
-  return extensions[contentType] || 'jpg';
+async function processImage(imageBytes: Buffer): Promise<Buffer> {
+  const image = sharp(imageBytes);
+  const metadata = await image.metadata();
+
+  const width = metadata.width || IMAGE_SIZE;
+  const height = metadata.height || IMAGE_SIZE;
+
+  // Calculate square crop dimensions (center crop)
+  const size = Math.min(width, height);
+  const left = Math.floor((width - size) / 2);
+  const top = Math.floor((height - size) / 2);
+
+  // Crop to square, resize to standard size, output as JPEG for consistency
+  return image
+    .extract({ left, top, width: size, height: size })
+    .resize(IMAGE_SIZE, IMAGE_SIZE, { fit: 'cover' })
+    .jpeg({ quality: 85 })
+    .toBuffer();
 }
 
 /**
@@ -83,10 +99,10 @@ async function moderateImage(imageBytes: Buffer): Promise<{ safe: boolean; label
 /**
  * Upload image to S3 and return the S3 key
  * Frontend constructs the full CloudFront URL using its own env var
+ * Images are always stored as JPEG after processing
  */
 async function uploadImageToS3(
   imageBytes: Buffer,
-  contentType: string,
   chainId: string
 ): Promise<string> {
   if (!CHAIN_IMAGES_BUCKET) {
@@ -94,15 +110,15 @@ async function uploadImageToS3(
   }
 
   const client = getS3Client();
-  const extension = getExtension(contentType);
-  const key = `chains/${chainId}/${randomUUID().slice(0, 8)}.${extension}`;
+  // Always use .jpg since we convert to JPEG during processing
+  const key = `chains/${chainId}/${randomUUID().slice(0, 8)}.jpg`;
 
   await client.send(
     new PutObjectCommand({
       Bucket: CHAIN_IMAGES_BUCKET,
       Key: key,
       Body: imageBytes,
-      ContentType: contentType,
+      ContentType: 'image/jpeg',
     })
   );
 
@@ -190,10 +206,20 @@ export async function updateChain(
     return errorResponse(400, 'Image too small or invalid');
   }
 
-  // Run moderation check
+  // Process image: crop to square and resize to standard 400x400
+  let processedImage: Buffer;
+  try {
+    processedImage = await processImage(imageBytes);
+    console.log(`Image processed: ${imageBytes.length} bytes -> ${processedImage.length} bytes`);
+  } catch (error) {
+    console.error('Image processing error:', error);
+    return errorResponse(400, 'Failed to process image. Please try a different image.');
+  }
+
+  // Run moderation check on processed image
   let moderation;
   try {
-    moderation = await moderateImage(imageBytes);
+    moderation = await moderateImage(processedImage);
     if (!moderation.safe) {
       console.warn(`Image rejected for chain ${chainId}: ${moderation.labels.join(', ')}`);
       return errorResponse(400, 'Image contains inappropriate content and was rejected');
@@ -203,10 +229,10 @@ export async function updateChain(
     return errorResponse(500, 'Failed to verify image content');
   }
 
-  // Upload to S3
+  // Upload processed image to S3
   let imageKey: string;
   try {
-    imageKey = await uploadImageToS3(imageBytes, request.imageContentType, chainId);
+    imageKey = await uploadImageToS3(processedImage, chainId);
   } catch (error) {
     console.error('S3 upload error:', error);
     return errorResponse(500, 'Failed to upload image');
