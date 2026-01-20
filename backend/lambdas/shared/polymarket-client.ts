@@ -230,13 +230,13 @@ export async function cancelOrder(
  *
  * @param signer - ethers Signer from Turnkey
  * @param credentials - Optional pre-derived API credentials
- * @param signatureType - Signature type (default: GNOSIS_SAFE for embedded wallets)
+ * @param signatureType - Signature type (default: POLY_GNOSIS_SAFE for embedded wallets)
  * @param funderAddress - The address holding the funds (proxy wallet for embedded wallets)
  */
 function createClientWithSigner(
   signer: Signer,
   credentials?: Pick<PolymarketCredentials, 'apiKey' | 'apiSecret' | 'passphrase'>,
-  signatureType: PolymarketSignatureType = PolymarketSignatureType.GNOSIS_SAFE,
+  signatureType: PolymarketSignatureType = PolymarketSignatureType.POLY_GNOSIS_SAFE,
   funderAddress?: string
 ): ClobClient {
   return new ClobClient(
@@ -273,7 +273,7 @@ export async function deriveApiCredentials(
     const client = createClientWithSigner(
       signer,
       undefined, // no credentials yet
-      PolymarketSignatureType.GNOSIS_SAFE, // embedded wallets use GNOSIS_SAFE
+      PolymarketSignatureType.POLY_GNOSIS_SAFE, // embedded wallets use POLY_GNOSIS_SAFE
       walletAddress // wallet address as funder for credential derivation
     );
 
@@ -309,11 +309,11 @@ export async function placeOrder(
   // Get the embedded wallet address to use as funder
   const walletAddress = await signer.getAddress();
 
-  // For embedded wallets (Turnkey), use GNOSIS_SAFE signature type with wallet as funder
+  // For embedded wallets (Turnkey), use POLY_GNOSIS_SAFE signature type with wallet as funder
   const client = createClientWithSigner(
     signer,
     credentials,
-    PolymarketSignatureType.GNOSIS_SAFE,
+    PolymarketSignatureType.POLY_GNOSIS_SAFE,
     walletAddress // The embedded wallet address holds the funds
   );
 
