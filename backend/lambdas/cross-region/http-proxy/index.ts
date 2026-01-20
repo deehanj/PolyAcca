@@ -33,7 +33,13 @@ export async function handler(event: ProxyRequest): Promise<ProxyResponse> {
     // Collect response headers
     const responseHeaders: Record<string, string> = {};
     response.headers.forEach((value, key) => {
-      responseHeaders[key] = value;
+      // IMPORTANT: Skip content-encoding header since fetch() automatically
+      // decompresses the response. If we forward this header, the client
+      // will try to decompress already-decompressed data, causing
+      // "incorrect header check" errors.
+      if (key.toLowerCase() !== 'content-encoding') {
+        responseHeaders[key] = value;
+      }
     });
 
     const responseBody = await response.text();
