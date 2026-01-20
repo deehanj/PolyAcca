@@ -124,22 +124,15 @@ export class BetManagementConstruct extends Construct {
         // Turnkey for embedded wallet signing
         TURNKEY_SECRET_ARN: secrets.turnkeySecretArn,
         TURNKEY_ORGANIZATION_ID: turnkeyOrganizationId,
-        // Australia proxy config for Cloudflare bypass
-        ENVIRONMENT: environment,
-        AWS_ACCOUNT_ID: cdk.Aws.ACCOUNT_ID,
+        // Bright Data proxy configuration (replaces Sydney proxy)
+        BRIGHT_DATA_USERNAME: 'brd-customer-hl_21d203c0-zone-residential_proxy1',
+        BRIGHT_DATA_PASSWORD: 'f61fhcjhnarl',
+        BRIGHT_DATA_HOST: 'brd.superproxy.io',
+        BRIGHT_DATA_PORT: '33335',
       },
     });
 
-    // Grant permission to invoke the Sydney HTTP proxy Lambda (cross-region)
-    // ARN: arn:aws:lambda:ap-southeast-2:{account}:function:polyacca-{env}-http-proxy
-    const australiaProxyArn = `arn:aws:lambda:ap-southeast-2:${cdk.Aws.ACCOUNT_ID}:function:polyacca-${environment}-http-proxy`;
-    this.betExecutor.addToRolePolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: ['lambda:InvokeFunction'],
-        resources: [australiaProxyArn],
-      })
-    );
+    // No longer needed - using Bright Data proxy instead of Sydney Lambda
 
     // =========================================================================
     // Market Resolution Handler - Triggers on market status → RESOLVED
