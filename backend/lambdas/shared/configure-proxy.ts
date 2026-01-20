@@ -8,6 +8,7 @@
  */
 
 import axios from 'axios';
+import type { AxiosAdapter } from 'axios';
 import { createLambdaProxyAdapter, shouldUseProxy } from './lambda-proxy-adapter';
 import { createLogger } from './logger';
 
@@ -28,7 +29,7 @@ export function configurePolymarketProxy(lambdaArn: string): void {
   const proxyAdapter = createLambdaProxyAdapter(lambdaArn);
 
   // Set up axios interceptor to conditionally use proxy
-  axios.defaults.adapter = async (config) => {
+  const customAdapter: AxiosAdapter = async (config) => {
     const url = config.url || '';
 
     // Check if this is a Polymarket request
@@ -39,13 +40,26 @@ export function configurePolymarketProxy(lambdaArn: string): void {
 
     // Use original adapter for non-Polymarket requests
     logger.debug('Using default adapter for non-Polymarket request', { url });
-    if (originalAdapter) {
+
+    // If originalAdapter is an array or string, let axios handle it
+    if (typeof originalAdapter === 'string' || Array.isArray(originalAdapter)) {
+      // Reset to original and let axios handle it internally
+      axios.defaults.adapter = originalAdapter;
+      // Re-execute the request with the original adapter
+      const axios_module = await import('axios');
+      return axios_module.default.request(config);
+    }
+
+    // If it's a function, call it
+    if (typeof originalAdapter === 'function') {
       return originalAdapter(config);
     }
 
     // Fallback to axios default behavior
     throw new Error('No adapter available');
   };
+
+  axios.defaults.adapter = customAdapter;
 }
 
 /**

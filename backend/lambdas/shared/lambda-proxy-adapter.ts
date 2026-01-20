@@ -8,7 +8,7 @@
  */
 
 import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
-import type { AxiosAdapter, AxiosRequestConfig } from 'axios';
+import type { AxiosAdapter, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { createLogger } from './logger';
 
 const logger = createLogger('lambda-proxy-adapter');
@@ -107,14 +107,15 @@ export function createLambdaProxyAdapter(lambdaArn?: string): AxiosAdapter {
       }
 
       // Return axios-compatible response
-      return {
+      const axiosResponse: AxiosResponse = {
         data: responseData,
         status: proxyResponse.statusCode,
         statusText: getStatusText(proxyResponse.statusCode),
-        headers: proxyResponse.headers,
-        config: config,
+        headers: proxyResponse.headers as any,
+        config: config as any,
         request: {},
       };
+      return axiosResponse;
     } catch (error) {
       logger.errorWithStack('Lambda proxy request failed', error, { url: fullUrl });
 
