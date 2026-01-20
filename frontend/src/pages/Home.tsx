@@ -1,10 +1,12 @@
 import { useState, useRef, useEffect } from "react";
+import { useParams } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { MarketCard, type Market } from "@/components/MarketCard";
 import { AccumulatorSidebar } from "@/components/AccumulatorSidebar";
 import { HorizontalMarketList } from "@/components/HorizontalMarketList";
 import { Button } from "@/components/ui/Button";
 import { RingCollectionEffect } from "@/components/RingCollectionEffect";
+import { SharedAccaModal } from "@/components/SharedAccaModal";
 import { useMarkets } from "@/hooks/useMarkets";
 import { useRingAnimation } from "@/hooks/useRingAnimation";
 import type { Market as ApiMarket, MarketsQueryParams } from "@/types/market";
@@ -71,14 +73,23 @@ function transformMarketForCard(market: ApiMarket): Market {
 }
 
 export function HomePage() {
+  const { chainId } = useParams<{ chainId: string }>();
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [selectedSort, setSelectedSort] = useState("volume-desc");
   const [isSortOpen, setIsSortOpen] = useState(false);
   const [offset, setOffset] = useState(0);
+  const [sharedAccaModalOpen, setSharedAccaModalOpen] = useState(false);
   const limit = 12;
   const sidebarRef = useRef<HTMLDivElement>(null);
   const sortDropdownRef = useRef<HTMLDivElement>(null);
   const { animations, triggerAnimation } = useRingAnimation();
+
+  // Open shared acca modal when chainId is present in URL
+  useEffect(() => {
+    if (chainId) {
+      setSharedAccaModalOpen(true);
+    }
+  }, [chainId]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -337,6 +348,13 @@ export function HomePage() {
 
       {/* Ring Collection Animation Effect */}
       <RingCollectionEffect animations={animations} />
+
+      {/* Shared Acca Modal - shown when navigating to /acca/:chainId */}
+      <SharedAccaModal
+        chainId={chainId || null}
+        isOpen={sharedAccaModalOpen}
+        onClose={() => setSharedAccaModalOpen(false)}
+      />
     </div>
   );
 }

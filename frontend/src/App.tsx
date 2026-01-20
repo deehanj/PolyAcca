@@ -17,6 +17,7 @@ function AppContent() {
   return (
     <Routes>
       <Route path="/" element={<HomePage />} />
+      <Route path="/acca/:chainId" element={<HomePage />} />
       <Route path="/design" element={<DesignPage />} />
       <Route path="/admin" element={<AdminPage />} />
       <Route path="/my-chains" element={<MyChainsPage />} />

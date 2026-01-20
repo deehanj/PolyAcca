@@ -48,7 +48,32 @@ export async function listUserChains(walletAddress: string): Promise<APIGatewayP
 }
 
 /**
- * GET /chains/{id} - Get user chain details
+ * GET /chains/{id} - Get chain details (public)
+ * Returns chain definition and participant info without requiring auth
+ */
+export async function getChainById(
+  chainId: string
+): Promise<APIGatewayProxyResult> {
+  const chain = await getChain(chainId);
+
+  if (!chain) {
+    return errorResponse(404, 'Chain not found');
+  }
+
+  // Get participant count
+  const userChains = await getChainUsersFromDb(chainId);
+  const activeUserChains = userChains.filter(
+    (uc) => !['FAILED', 'CANCELLED'].includes(uc.status)
+  );
+
+  return successResponse({
+    ...toTrendingChainSummary(chain, activeUserChains.length),
+    legs: chain.legs, // Include full leg details for copying the bet
+  });
+}
+
+/**
+ * GET /users/me/chains/{id} - Get user's chain position details (authenticated)
  */
 export async function getUserChainById(
   walletAddress: string,
@@ -75,9 +100,12 @@ export async function getUserChainById(
 export async function getChainUsers(
   chainId: string
 ): Promise<APIGatewayProxyResult> {
+  console.log('getChainUsers called with chainId:', chainId);
   const chain = await getChain(chainId);
+  console.log('getChain result:', chain ? 'found' : 'not found', chain ? { chainId: chain.chainId, name: chain.name } : null);
 
   if (!chain) {
+    console.log('Chain not found for chainId:', chainId);
     return errorResponse(404, 'Chain not found');
   }
 

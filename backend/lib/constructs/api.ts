@@ -212,19 +212,23 @@ export class ApiConstruct extends Construct {
     // Chains endpoints
     const chainsResource = this.api.root.addResource('chains');
     const chainsTrendingResource = chainsResource.addResource('trending');
+    const chainsEstimateResource = chainsResource.addResource('estimate');
     const chainIdResource = chainsResource.addResource('{chainId}');
-    const chainUsersResource = chainIdResource.addResource('users');
 
     // Public: GET /chains/trending (no auth required)
     chainsTrendingResource.addMethod('GET', new apigateway.LambdaIntegration(this.chainsFunction));
 
+    // Public: GET /chains/{id} (for shared acca links - no auth required)
+    chainIdResource.addMethod('GET', new apigateway.LambdaIntegration(this.chainsFunction));
+
+    // Public: POST /chains/estimate (price impact calculation - no auth required)
+    chainsEstimateResource.addMethod('POST', new apigateway.LambdaIntegration(this.chainsFunction));
+
     // Protected chains endpoints
     chainsResource.addMethod('GET', new apigateway.LambdaIntegration(this.chainsFunction), protectedMethodOptions);
     chainsResource.addMethod('POST', new apigateway.LambdaIntegration(this.chainsFunction), protectedMethodOptions);
-    chainIdResource.addMethod('GET', new apigateway.LambdaIntegration(this.chainsFunction), protectedMethodOptions);
     chainIdResource.addMethod('PUT', new apigateway.LambdaIntegration(this.chainsFunction), protectedMethodOptions);
     chainIdResource.addMethod('DELETE', new apigateway.LambdaIntegration(this.chainsFunction), protectedMethodOptions);
-    chainUsersResource.addMethod('GET', new apigateway.LambdaIntegration(this.chainsFunction), protectedMethodOptions);
 
     // Markets endpoints (public - no auth required)
     const marketsResource = this.api.root.addResource('markets');
