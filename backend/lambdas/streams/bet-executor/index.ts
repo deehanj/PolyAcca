@@ -11,9 +11,8 @@
  * The position-termination-handler will void remaining bets via stream.
  */
 
-// Install Cloudflare bypass headers BEFORE any other imports that might use axios
-import { installCloudflareBypassHeaders } from '../../shared/axios-cloudflare-headers';
-installCloudflareBypassHeaders();
+// Patch follow-redirects BEFORE any other imports that might use axios
+import '../../shared/axios-cloudflare-headers';
 
 import type { DynamoDBStreamEvent, DynamoDBRecord } from 'aws-lambda';
 import { unmarshall } from '@aws-sdk/util-dynamodb';
