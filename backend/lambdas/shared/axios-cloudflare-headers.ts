@@ -18,15 +18,18 @@ if (PROXY_USERNAME && PROXY_PASSWORD) {
   process.env.GLOBAL_AGENT_HTTP_PROXY = `http://${PROXY_USERNAME}:${PROXY_PASSWORD}@${PROXY_HOST}:${PROXY_PORT}`;
   process.env.GLOBAL_AGENT_HTTPS_PROXY = `http://${PROXY_USERNAME}:${PROXY_PASSWORD}@${PROXY_HOST}:${PROXY_PORT}`;
 
-  // IMPORTANT: Exclude AWS services and localhost from proxy
-  // This ensures AWS SDK calls don't go through Bright Data
+  // IMPORTANT: Exclude AWS services, Turnkey, and localhost from proxy
+  // This ensures only Polymarket requests go through Bright Data
   process.env.GLOBAL_AGENT_NO_PROXY = [
     'localhost',
     '127.0.0.1',
     '169.254.169.254', // AWS metadata service
     '.amazonaws.com',   // All AWS services
     '.aws.amazon.com',  // AWS console/services
-    'polygon-rpc.com',  // Polygon RPC (we want direct connection)
+    'polygon-rpc.com',  // Polygon RPC (direct connection)
+    '.turnkey.com',     // Turnkey API (wallet signing)
+    'api.turnkey.com',  // Explicit Turnkey API
+    '.turnkey.io',      // Any other Turnkey domains
   ].join(',');
 
   // Disable certificate verification for Bright Data's proxy
