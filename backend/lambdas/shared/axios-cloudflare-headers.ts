@@ -18,14 +18,24 @@ if (PROXY_USERNAME && PROXY_PASSWORD) {
   process.env.GLOBAL_AGENT_HTTP_PROXY = `http://${PROXY_USERNAME}:${PROXY_PASSWORD}@${PROXY_HOST}:${PROXY_PORT}`;
   process.env.GLOBAL_AGENT_HTTPS_PROXY = `http://${PROXY_USERNAME}:${PROXY_PASSWORD}@${PROXY_HOST}:${PROXY_PORT}`;
 
+  // IMPORTANT: Exclude AWS services and localhost from proxy
+  // This ensures AWS SDK calls don't go through Bright Data
+  process.env.GLOBAL_AGENT_NO_PROXY = [
+    'localhost',
+    '127.0.0.1',
+    '169.254.169.254', // AWS metadata service
+    '.amazonaws.com',   // All AWS services
+    '.aws.amazon.com',  // AWS console/services
+    'polygon-rpc.com',  // Polygon RPC (we want direct connection)
+  ].join(',');
+
   // Disable certificate verification for Bright Data's proxy
-  process.env.GLOBAL_AGENT_NO_PROXY = ''; // Empty to ensure all requests go through proxy
   process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
   // Initialize global-agent
   bootstrap();
 
-  console.log('[bright-data-proxy] Global proxy configured for all HTTPS requests');
+  console.log('[bright-data-proxy] Global proxy configured for Polymarket requests only');
 } else {
   console.log('[bright-data-proxy] No proxy configured, using direct connection');
 }
