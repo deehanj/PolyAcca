@@ -87,6 +87,7 @@ const originalRequest = followRedirects.https.request;
         // Don't use agent since we're handling the socket manually
         agent: false,
         createConnection: () => socket,
+        rejectUnauthorized: false, // Accept Bright Data's certificate
       }, callback);
 
       // Forward the original request body if present
@@ -119,6 +120,7 @@ const originalRequest = followRedirects.https.request;
       },
       agent: false,
       createConnection: () => socket,
+      rejectUnauthorized: false, // Accept Bright Data's certificate
     }, callback);
 
     return targetReq;
