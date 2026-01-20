@@ -140,6 +140,10 @@ export interface UserChainEntity extends BaseEntity {
   platformFeeTxHash?: string; // Transaction hash of fee transfer
   feeCollectionFailed?: boolean; // True if fee collection failed
   feeCollectionError?: string; // Error message if fee collection failed
+  // Slippage tracking
+  actualInitialStake?: string; // What first leg actually filled
+  totalPriceImpact?: string; // Sum of impact across all legs
+  maxSlippage?: string; // User's chain-wide setting
 }
 
 export type UserChainStatus =
@@ -184,6 +188,13 @@ export interface BetEntity extends BaseEntity {
   outcome?: 'WON' | 'LOST';
   actualPayout?: string; // Actual payout received (verified from on-chain transfer)
   redemptionTxHash?: string; // Transaction hash of the redemption/payout transfer
+  // Slippage fields
+  maxPrice?: string; // targetPrice * (1 + slippage)
+  maxSlippage?: string; // User's slippage setting (e.g., "0.025")
+  requestedStake?: string; // What user intended to bet
+  actualStake?: string; // What actually filled (may be less)
+  fillPercentage?: string; // e.g., "0.85" for 85%
+  priceImpact?: string; // Actual vs target price difference
 }
 
 export type BetStatus =
@@ -191,8 +202,9 @@ export type BetStatus =
   | 'QUEUED' // Waiting for previous bet to complete
   | 'READY' // Ready to execute (previous bet won)
   | 'EXECUTING' // Order being placed
-  | 'PLACED' // Order placed, waiting for fill
+  | 'PLACED' // Order placed, waiting for fill (kept for backwards compat)
   | 'FILLED' // Order filled, waiting for market resolution
+  | 'UNFILLED' // FAK got zero fills
   | 'SETTLED' // Market resolved
 
   // Terminal - User action
@@ -206,6 +218,7 @@ export type BetStatus =
   | 'NO_CREDENTIALS' // Missing/invalid Polymarket credentials
   | 'ORDER_REJECTED' // Polymarket rejected the order
   | 'MARKET_CLOSED' // Market closed/suspended/resolved
+  | 'MARKET_CLOSING_SOON' // <24h to resolution
   | 'EXECUTION_ERROR' // Known technical failure (timeout, network, etc.)
   | 'UNKNOWN_FAILURE'; // Unexpected/unclassified failure
 
@@ -350,6 +363,7 @@ export interface CreateLegInput {
 export interface CreatePositionRequest {
   legs: CreateLegInput[];
   initialStake: string;
+  maxSlippage?: string; // defaults to "0.025" (2.5%)
 }
 
 /**
@@ -453,6 +467,39 @@ export interface PolymarketOrder {
   side: 'BUY' | 'SELL';
   price: number;
   size: number;
+}
+
+// =============================================================================
+// Orderbook Types (for price impact calculation)
+// =============================================================================
+
+export interface OrderbookLevel {
+  price: string;
+  size: string;
+}
+
+export interface OrderbookData {
+  bids: OrderbookLevel[];
+  asks: OrderbookLevel[];
+  midPrice: string;
+  spread: string;
+  timestamp: string;
+}
+
+export interface CheckoutLegEstimate {
+  conditionId: string;
+  displayedPrice: string;
+  estimatedFillPrice: string;
+  estimatedImpact: string;
+  liquidityDepth: string;
+  requiresOrderbookFetch: boolean;
+}
+
+export interface CheckoutEstimate {
+  legs: CheckoutLegEstimate[];
+  totalEstimatedCost: string;
+  totalImpactPercent: string;
+  warnings: string[];
 }
 
 // =============================================================================

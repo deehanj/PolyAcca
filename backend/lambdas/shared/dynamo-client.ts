@@ -795,7 +795,7 @@ export async function updateBetStatus(
   };
   const updateExpression = appendUpdates(
     updates,
-    ['orderId', 'executedAt', 'settledAt', 'outcome', 'actualPayout', 'fillPrice', 'sharesAcquired', 'fillBlockNumber', 'redemptionTxHash'],
+    ['orderId', 'executedAt', 'settledAt', 'outcome', 'actualPayout', 'fillPrice', 'sharesAcquired', 'fillBlockNumber', 'redemptionTxHash', 'actualStake', 'fillPercentage', 'priceImpact'],
     'SET #status = :status, updatedAt = :now, GSI1PK = :gsi1pk, GSI1SK = :gsi1sk',
     expressionValues
   );

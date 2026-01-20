@@ -4,21 +4,33 @@
  * Routes:
  * - GET /markets - List markets from Gamma API
  * - GET /markets/{marketId} - Get single market
+ * - GET /markets/{conditionId}/orderbook - Get orderbook for a market
  */
 
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { HEADERS, errorResponse } from '../../shared/api-utils';
 import { listMarkets, getMarketById } from './get';
+import { getOrderbook } from './orderbook';
 
 export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
   try {
     const method = event.httpMethod;
-    const marketId = event.pathParameters?.marketId;
+    const path = event.path;
+    const pathParts = path.split('/').filter(Boolean);
 
     if (method !== 'GET') {
       return errorResponse(405, 'Method not allowed');
     }
 
+    // GET /markets/{conditionId}/orderbook
+    if (path.match(/^\/markets\/[^/]+\/orderbook$/)) {
+      const conditionId = pathParts[1];
+      const tokenId = event.queryStringParameters?.tokenId || '';
+      return getOrderbook(conditionId, tokenId);
+    }
+
+    // GET /markets/{marketId}
+    const marketId = event.pathParameters?.marketId;
     if (marketId) {
       return getMarketById(marketId);
     }

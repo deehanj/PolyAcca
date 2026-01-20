@@ -12,6 +12,9 @@ module.exports = {
   transform: {
     '^.+\\.tsx?$': ['ts-jest', {
       tsconfig: 'tsconfig.json',
+      diagnostics: {
+        ignoreCodes: [151002],
+      },
     }],
   },
   modulePathIgnorePatterns: ['<rootDir>/cdk.out/', '<rootDir>/node_modules/'],
