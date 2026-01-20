@@ -120,14 +120,14 @@ export async function handler(
 
         const encrypted = await encryptEmbeddedWalletCredentials({
           ...credentials,
-          signatureType: 'POLY_GNOSIS_SAFE',
+          signatureType: 'GNOSIS_SAFE',
         });
         const now = new Date().toISOString();
         const credsInput: EmbeddedWalletCredentialsInput = {
           entityType: 'EMBEDDED_WALLET_CREDS',
           walletAddress: request.walletAddress.toLowerCase(),
           ...encrypted,
-          signatureType: 'POLY_GNOSIS_SAFE',
+          signatureType: 'GNOSIS_SAFE',
           createdAt: now,
           updatedAt: now,
         };
