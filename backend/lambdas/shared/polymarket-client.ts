@@ -103,8 +103,8 @@ function createClient(credentials?: Pick<PolymarketCredentials, 'apiKey' | 'apiS
     undefined, // signatureType
     undefined, // funderAddress
     undefined, // geoBlockToken
-    undefined, // useServerTime
-    cachedBuilderConfig // builderConfig - for order attribution
+    false, // useServerTime
+    cachedBuilderConfig // builderConfig - for order attribution (9th parameter)
   );
 }
 
@@ -230,12 +230,14 @@ export async function cancelOrder(
  *
  * @param signer - ethers Signer from Turnkey
  * @param credentials - Optional pre-derived API credentials
- * @param signatureType - Signature type (default: EOA)
+ * @param signatureType - Signature type (default: GNOSIS_SAFE for embedded wallets)
+ * @param funderAddress - The address holding the funds (proxy wallet for embedded wallets)
  */
 function createClientWithSigner(
   signer: Signer,
   credentials?: Pick<PolymarketCredentials, 'apiKey' | 'apiSecret' | 'passphrase'>,
-  signatureType: PolymarketSignatureType = PolymarketSignatureType.EOA
+  signatureType: PolymarketSignatureType = PolymarketSignatureType.GNOSIS_SAFE,
+  funderAddress?: string
 ): ClobClient {
   return new ClobClient(
     POLYMARKET_HOST,
@@ -243,10 +245,10 @@ function createClientWithSigner(
     signer as any, // ClobClient expects Wallet | JsonRpcSigner but Signer is compatible
     credentials ? { key: credentials.apiKey, secret: credentials.apiSecret, passphrase: credentials.passphrase } : undefined,
     signatureType,
-    undefined, // funderAddress
+    funderAddress, // The proxy wallet address for embedded wallets
     undefined, // geoBlockToken
-    undefined, // useServerTime
-    cachedBuilderConfig // builderConfig - for order attribution
+    false, // useServerTime
+    cachedBuilderConfig // builderConfig - for order attribution (9th parameter)
   );
 }
 
@@ -267,7 +269,13 @@ export async function deriveApiCredentials(
 
   try {
     // Create client with signer only (no credentials yet)
-    const client = createClientWithSigner(signer);
+    // For deriving credentials, we don't need funder address yet
+    const client = createClientWithSigner(
+      signer,
+      undefined, // no credentials yet
+      PolymarketSignatureType.GNOSIS_SAFE, // embedded wallets use GNOSIS_SAFE
+      walletAddress // wallet address as funder for credential derivation
+    );
 
     // Derive or create API credentials
     const creds = await client.createOrDeriveApiKey();
@@ -298,7 +306,16 @@ export async function placeOrder(
   credentials: Pick<PolymarketCredentials, 'apiKey' | 'apiSecret' | 'passphrase'>,
   params: OrderParams
 ): Promise<string> {
-  const client = createClientWithSigner(signer, credentials, PolymarketSignatureType.EOA);
+  // Get the embedded wallet address to use as funder
+  const walletAddress = await signer.getAddress();
+
+  // For embedded wallets (Turnkey), use GNOSIS_SAFE signature type with wallet as funder
+  const client = createClientWithSigner(
+    signer,
+    credentials,
+    PolymarketSignatureType.GNOSIS_SAFE,
+    walletAddress // The embedded wallet address holds the funds
+  );
 
   // Map order type string to CLOB client OrderType enum
   const orderTypeMap: Record<string, OrderType> = {
