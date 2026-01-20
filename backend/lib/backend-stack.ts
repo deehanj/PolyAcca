@@ -143,9 +143,13 @@ export class BackendStack extends cdk.Stack {
     // Bet Management (stream handlers and bet executor)
     // ==========================================================================
 
-    // Construct the ARN of the HTTP proxy Lambda in Stockholm
-    // Format: arn:aws:lambda:region:account:function:function-name
-    const httpProxyLambdaArn = `arn:aws:lambda:eu-north-1:${this.account}:function:polyacca-${environment}-http-proxy`;
+    // IPRoyal residential proxy configuration for bypassing Polymarket geo-blocking
+    const ipRoyalConfig = {
+      host: 'geo.iproyal.com',
+      port: '12321',
+      username: 'RzXTePEf4o5eJWpR',
+      password: 'AzZISa7HXAcV26Mg_country-ae_city-dubai',
+    };
 
     this.betManagement = new BetManagementConstruct(this, 'BetManagement', {
       table: this.database.table,
@@ -157,7 +161,7 @@ export class BackendStack extends cdk.Stack {
       websocket: this.websocket,
       adminWebsocket: this.adminWebsocket,
       environment, // For cross-region Lambda ARN construction
-      httpProxyLambdaArn, // ARN of the HTTP proxy Lambda in Stockholm
+      ipRoyalConfig, // IPRoyal proxy configuration
     });
 
     // ==========================================================================

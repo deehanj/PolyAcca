@@ -50,9 +50,14 @@ export interface BetManagementConstructProps {
    */
   environment?: string;
   /**
-   * ARN of the HTTP proxy Lambda in Stockholm for bypassing Polymarket geo-blocking
+   * IPRoyal proxy configuration for bypassing Polymarket geo-blocking
    */
-  httpProxyLambdaArn?: string;
+  ipRoyalConfig?: {
+    host: string;
+    port: string;
+    username: string;
+    password: string;
+  };
 }
 
 /**
@@ -83,7 +88,7 @@ export class BetManagementConstruct extends Construct {
   constructor(scope: Construct, id: string, props: BetManagementConstructProps) {
     super(scope, id);
 
-    const { table, credentialsTable, secrets, turnkeyOrganizationId, commissionWalletAddress, platformWalletAddress, websocket, adminWebsocket, environment = 'dev', httpProxyLambdaArn } = props;
+    const { table, credentialsTable, secrets, turnkeyOrganizationId, commissionWalletAddress, platformWalletAddress, websocket, adminWebsocket, environment = 'dev', ipRoyalConfig } = props;
 
     // Shared Lambda config
     const lambdaConfig = {
@@ -127,8 +132,13 @@ export class BetManagementConstruct extends Construct {
         // Turnkey for embedded wallet signing
         TURNKEY_SECRET_ARN: secrets.turnkeySecretArn,
         TURNKEY_ORGANIZATION_ID: turnkeyOrganizationId,
-        // HTTP Proxy Lambda ARN for bypassing Polymarket geo-blocking
-        ...(httpProxyLambdaArn ? { HTTP_PROXY_LAMBDA_ARN: httpProxyLambdaArn } : {}),
+        // IPRoyal proxy configuration for bypassing Polymarket geo-blocking
+        ...(ipRoyalConfig ? {
+          IPROYAL_HOST: ipRoyalConfig.host,
+          IPROYAL_PORT: ipRoyalConfig.port,
+          IPROYAL_USERNAME: ipRoyalConfig.username,
+          IPROYAL_PASSWORD: ipRoyalConfig.password,
+        } : {}),
       },
     });
 
@@ -243,12 +253,6 @@ export class BetManagementConstruct extends Construct {
     // Admin WebSocket permission for admin notification handler
     if (adminWebsocket) {
       adminWebsocket.grantManageConnections(this.adminNotificationHandler);
-    }
-
-    // Grant permission to invoke HTTP proxy Lambda if configured
-    if (httpProxyLambdaArn) {
-      const proxyLambda = lambda.Function.fromFunctionArn(this, 'HttpProxyLambda', httpProxyLambdaArn);
-      proxyLambda.grantInvoke(this.betExecutor);
     }
 
     // =========================================================================

@@ -44,7 +44,7 @@ import { JsonRpcProvider } from 'ethers';
 import type { BetEntity, BetStatus, BuilderCredentials } from '../../shared/types';
 import { fetchMarketByConditionId } from '../../shared/gamma-client';
 import { isMarketBettable } from '../../shared/clob-client';
-import { configurePolymarketProxy } from '../../shared/configure-proxy';
+import { configureIPRoyalProxy } from '../../shared/iproyal-proxy-config';
 
 const log = createLogger('bet-executor');
 
@@ -57,21 +57,12 @@ const secretsClient = new SecretsManagerClient({});
 // Builder secret ARN from environment
 const BUILDER_SECRET_ARN = process.env.BUILDER_SECRET_ARN;
 
-// HTTP Proxy Lambda ARN from environment (Stockholm, Sweden)
-const HTTP_PROXY_LAMBDA_ARN = process.env.HTTP_PROXY_LAMBDA_ARN;
-
 /**
- * Configure proxy for Polymarket requests (cold start only)
+ * Configure IPRoyal residential proxy for Polymarket requests (cold start only)
  */
 function initProxy(): void {
-  if (HTTP_PROXY_LAMBDA_ARN) {
-    log.info('Configuring Lambda proxy for Polymarket requests', {
-      proxyArn: HTTP_PROXY_LAMBDA_ARN
-    });
-    configurePolymarketProxy(HTTP_PROXY_LAMBDA_ARN);
-  } else {
-    log.warn('HTTP_PROXY_LAMBDA_ARN not set - requests will go direct (may be blocked)');
-  }
+  log.info('Configuring IPRoyal residential proxy for Polymarket requests');
+  configureIPRoyalProxy();
 }
 
 /**
