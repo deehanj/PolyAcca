@@ -319,14 +319,14 @@ async function executeBetWithEmbeddedWallet(
     // Cache encrypted credentials for future use
     const encrypted = await encryptEmbeddedWalletCredentials({
       ...credentials,
-      signatureType: 'EOA',
+      signatureType: 'GNOSIS_SAFE',
     });
     const now = new Date().toISOString();
     const credsInput: EmbeddedWalletCredentialsInput = {
       entityType: 'EMBEDDED_WALLET_CREDS',
       walletAddress: bet.walletAddress.toLowerCase(),
       ...encrypted,
-      signatureType: 'EOA',
+      signatureType: 'GNOSIS_SAFE',
       createdAt: now,
       updatedAt: now,
     };

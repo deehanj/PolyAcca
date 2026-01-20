@@ -277,8 +277,8 @@ export async function deriveApiCredentials(
       walletAddress // wallet address as funder for credential derivation
     );
 
-    // Derive or create API credentials
-    const creds = await client.createOrDeriveApiKey();
+    // Derive or create API credentials (use nonce=1 to avoid conflicts)
+    const creds = await client.createOrDeriveApiKey(1);
 
     logger.info('API credentials derived for embedded wallet', { walletAddress });
 
