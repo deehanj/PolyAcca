@@ -218,7 +218,6 @@ export type BetStatus =
   | 'NO_CREDENTIALS' // Missing/invalid Polymarket credentials
   | 'ORDER_REJECTED' // Polymarket rejected the order
   | 'MARKET_CLOSED' // Market closed/suspended/resolved
-  | 'MARKET_CLOSING_SOON' // <24h to resolution
   | 'EXECUTION_ERROR' // Known technical failure (timeout, network, etc.)
   | 'UNKNOWN_FAILURE'; // Unexpected/unclassified failure
 

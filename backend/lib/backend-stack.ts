@@ -206,6 +206,11 @@ export class BackendStack extends cdk.Stack {
       description: 'Admin WebSocket Endpoint',
     });
 
+    new cdk.CfnOutput(this, 'ChainImagesDomain', {
+      value: this.api.chainImagesDistribution.distributionDomainName,
+      description: 'CloudFront domain for chain images',
+    });
+
     new cdk.CfnOutput(this, 'Environment', {
       value: environment,
       description: 'Deployment Environment',

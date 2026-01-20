@@ -616,24 +616,6 @@ export async function executeBet(bet: BetEntity): Promise<void> {
       return;
     }
 
-    // Add 24-hour market timeout check
-    // Prevents placing bets on markets that are about to close
-    const hoursToEnd = (endDate.getTime() - now.getTime()) / (1000 * 60 * 60);
-    if (hoursToEnd < 24) {
-      log.warn('Market closing within 24h, cannot place bet', {
-        betId: bet.betId,
-        conditionId: bet.conditionId,
-        hoursToEnd: hoursToEnd.toFixed(2),
-        endDate: market.endDate,
-      });
-      await updateBetStatus(bet.chainId, bet.walletAddress, bet.sequence, 'MARKET_CLOSING_SOON');
-      // Mark chain as failed since we can't place the bet
-      await updateUserChainStatus(bet.chainId, bet.walletAddress, 'FAILED', {
-        completedLegs: bet.sequence - 1,
-      });
-      return;
-    }
-
     // Mark bet as EXECUTING
     await updateBetStatus(bet.chainId, bet.walletAddress, bet.sequence, 'EXECUTING');
 

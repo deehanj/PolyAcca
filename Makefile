@@ -38,10 +38,20 @@ deploy-backend:
 get-api-url:
 	@aws cloudformation describe-stacks --stack-name BackendStack --query "Stacks[0].Outputs[?OutputKey=='ApiEndpoint'].OutputValue" --output text
 
-# Build frontend with API URL from deployed backend
+# Build frontend with environment variables from deployed backend
+# Fetches all CDK outputs and injects them as VITE_* env vars
+# These override any values in .env file (Vite precedence: CLI > .env.local > .env)
 build-frontend-with-api:
 	$(eval API_URL := $(shell aws cloudformation describe-stacks --stack-name BackendStack --query "Stacks[0].Outputs[?OutputKey=='ApiEndpoint'].OutputValue" --output text))
-	cd frontend && VITE_API_URL=$(API_URL) npm run build
+	$(eval WS_URL := $(shell aws cloudformation describe-stacks --stack-name BackendStack --query "Stacks[0].Outputs[?OutputKey=='WebSocketEndpoint'].OutputValue" --output text))
+	$(eval ADMIN_WS_URL := $(shell aws cloudformation describe-stacks --stack-name BackendStack --query "Stacks[0].Outputs[?OutputKey=='AdminWebSocketEndpoint'].OutputValue" --output text))
+	$(eval CHAIN_IMAGES_DOMAIN := $(shell aws cloudformation describe-stacks --stack-name BackendStack --query "Stacks[0].Outputs[?OutputKey=='ChainImagesDomain'].OutputValue" --output text))
+	cd frontend && \
+		VITE_API_URL=$(API_URL) \
+		VITE_WS_URL=$(WS_URL) \
+		VITE_ADMIN_WS_URL=$(ADMIN_WS_URL) \
+		VITE_CHAIN_IMAGES_DOMAIN=$(CHAIN_IMAGES_DOMAIN) \
+		npm run build
 
 # Deploy frontend only
 deploy-frontend:
