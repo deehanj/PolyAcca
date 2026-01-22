@@ -1,12 +1,16 @@
 /**
  * IPRoyal Residential Proxy Configuration for Polymarket
  *
- * Routes requests through residential IPs in Dubai, UAE to bypass Cloudflare blocking.
+ * Routes ALL requests through residential IPs in Dubai, UAE to bypass Cloudflare blocking.
  * UAE is not on Polymarket's restricted countries list.
+ *
+ * Uses a global proxy with whitelist approach - all requests go through proxy
+ * EXCEPT for whitelisted domains (AWS, internal services, etc).
  */
 
 import axios from 'axios';
-import type { AxiosProxyConfig } from 'axios';
+import https from 'https';
+import http from 'http';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import { createLogger } from './logger';
 
@@ -20,39 +24,94 @@ const PROXY_CONFIG = {
   password: process.env.IPROYAL_PASSWORD || 'AzZISa7HXAcV26Mg_country-ae_city-dubai',
 };
 
+// Domains that should NOT use the proxy (whitelist)
+const PROXY_BYPASS_DOMAINS = [
+  // AWS Services
+  'amazonaws.com',
+  'aws.amazon.com',
+  'dynamodb',
+  'lambda',
+  's3',
+  'secretsmanager',
+  'kms',
+  'cloudfront',
+
+  // Local/Internal
+  'localhost',
+  '127.0.0.1',
+  '169.254', // AWS metadata service
+
+  // Turnkey
+  'api.turnkey.com',
+
+  // Other blockchain RPCs (not Polymarket)
+  'polygon-rpc.com',
+  'alchemy.com',
+  'infura.io',
+];
+
 /**
- * Configure axios to use IPRoyal residential proxy for Polymarket requests
+ * Check if a URL should bypass the proxy
+ */
+function shouldBypassProxy(url?: string): boolean {
+  if (!url) return true; // No URL = bypass proxy
+
+  // Check if any bypass domain is in the URL
+  return PROXY_BYPASS_DOMAINS.some(domain => url.includes(domain));
+}
+
+/**
+ * Configure global proxy for all HTTP/HTTPS requests
+ * This ensures even the @polymarket/clob-client library uses the proxy
  */
 export function configureIPRoyalProxy(): void {
   const proxyUrl = `http://${PROXY_CONFIG.username}:${PROXY_CONFIG.password}@${PROXY_CONFIG.host}:${PROXY_CONFIG.port}`;
 
-  logger.info('Configuring IPRoyal residential proxy', {
+  logger.info('Configuring global IPRoyal residential proxy', {
     host: PROXY_CONFIG.host,
     port: PROXY_CONFIG.port,
     location: 'Dubai, UAE',
+    mode: 'global-with-whitelist',
   });
 
-  // Create proxy agent for HTTPS requests
+  // Create proxy agent
   const proxyAgent = new HttpsProxyAgent(proxyUrl);
+
+  // Store original agents
+  const originalHttpAgent = http.globalAgent;
+  const originalHttpsAgent = https.globalAgent;
+
+  // Override global agents for Node.js http/https modules
+  // This affects ALL HTTP clients including those created by third-party libraries
+  http.globalAgent = proxyAgent as any;
+  https.globalAgent = proxyAgent as any;
 
   // Configure axios defaults to use the proxy
   axios.defaults.proxy = false; // Disable axios built-in proxy to use httpAgent
   axios.defaults.httpsAgent = proxyAgent;
   axios.defaults.httpAgent = proxyAgent;
 
-  // Add request interceptor for logging
+  // Add request interceptor to handle whitelisting
   axios.interceptors.request.use(
     (config) => {
-      if (isPolymarketRequest(config.url)) {
-        logger.debug('Routing Polymarket request through IPRoyal proxy', {
-          url: config.url,
+      const url = config.url;
+
+      if (shouldBypassProxy(url)) {
+        // Use original agents for whitelisted domains
+        logger.debug('Bypassing proxy for whitelisted domain', { url });
+        config.httpsAgent = originalHttpsAgent;
+        config.httpAgent = originalHttpAgent;
+      } else {
+        // Use proxy for everything else (including Polymarket)
+        logger.debug('Routing request through IPRoyal proxy', {
+          url,
           method: config.method,
         });
-        // Ensure proxy agent is used
         config.httpsAgent = proxyAgent;
         config.httpAgent = proxyAgent;
-        config.proxy = false; // Important: disable axios proxy to use agent
       }
+
+      config.proxy = false; // Always disable axios proxy to use agents
       return config;
     },
     (error) => {
@@ -64,42 +123,49 @@ export function configureIPRoyalProxy(): void {
   // Add response interceptor for logging
   axios.interceptors.response.use(
     (response) => {
-      logger.debug('Received response through proxy', {
-        url: response.config.url,
-        status: response.status,
-      });
+      const url = response.config.url;
+      if (!shouldBypassProxy(url)) {
+        logger.debug('Received proxied response', {
+          url,
+          status: response.status,
+        });
+      }
       return response;
     },
     (error) => {
       if (error.response) {
-        logger.error('Proxy request failed', {
+        logger.error('Request failed', {
           url: error.config?.url,
           status: error.response.status,
           statusText: error.response.statusText,
+          proxied: !shouldBypassProxy(error.config?.url),
         });
       } else {
-        logger.error('Proxy network error', {
+        logger.error('Network error', {
           message: error.message,
+          url: error.config?.url,
+          proxied: !shouldBypassProxy(error.config?.url),
         });
       }
       return Promise.reject(error);
     }
   );
-}
 
-/**
- * Check if a request is for Polymarket
- */
-function isPolymarketRequest(url?: string): boolean {
-  if (!url) return false;
+  // Set environment variables for libraries that respect them
+  process.env.HTTP_PROXY = proxyUrl;
+  process.env.HTTPS_PROXY = proxyUrl;
+  process.env.http_proxy = proxyUrl;
+  process.env.https_proxy = proxyUrl;
 
-  const polymarketDomains = [
-    'clob.polymarket.com',
-    'gamma-api.polymarket.com',
-    'polymarket.com',
-  ];
+  // Set NO_PROXY for whitelisted domains
+  process.env.NO_PROXY = PROXY_BYPASS_DOMAINS.join(',');
+  process.env.no_proxy = PROXY_BYPASS_DOMAINS.join(',');
 
-  return polymarketDomains.some(domain => url.includes(domain));
+  logger.info('Global proxy configuration complete', {
+    globalAgentsOverridden: true,
+    environmentVariablesSet: true,
+    whitelistedDomains: PROXY_BYPASS_DOMAINS.length,
+  });
 }
 
 /**
