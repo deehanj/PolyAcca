@@ -433,8 +433,8 @@ export async function createUserChain(
       stake: fromMicroUsdc(currentStakeMicro),
       potentialPayout: fromMicroUsdc(potentialPayoutMicro),
       status: sequence === 1 ? 'READY' : 'QUEUED',
-      // Slippage fields
-      maxPrice: (parseFloat(legInput.targetPrice) * slippageMultiplier).toFixed(4),
+      // Slippage fields - cap maxPrice at 0.99 to stay within Polymarket's valid range
+      maxPrice: Math.min(parseFloat(legInput.targetPrice) * slippageMultiplier, 0.99).toFixed(4),
       maxSlippage,
       requestedStake: fromMicroUsdc(currentStakeMicro),
       createdAt: now,
