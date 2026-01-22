@@ -34,6 +34,10 @@ export interface AuthConstructProps {
    * Credentials table construct (for caching Polymarket API credentials)
    */
   credentialsTable: CredentialsTableConstruct;
+  /**
+   * ARN of the Builder API credentials secret
+   */
+  builderSecretArn: string;
 }
 
 export class AuthConstruct extends Construct {
@@ -52,6 +56,7 @@ export class AuthConstruct extends Construct {
       turnkeySecretArn,
       turnkeyOrganizationId,
       credentialsTable,
+      builderSecretArn,
     } = props;
 
     // Shared Lambda environment
@@ -69,6 +74,7 @@ export class AuthConstruct extends Construct {
       TURNKEY_ORGANIZATION_ID: turnkeyOrganizationId,
       CREDENTIALS_TABLE_NAME: credentialsTable.table.tableName,
       KMS_KEY_ARN: credentialsTable.encryptionKey.keyArn,
+      BUILDER_SECRET_ARN: builderSecretArn,
     };
 
     // Nonce Lambda - generates nonce for wallet signing
@@ -152,6 +158,13 @@ export class AuthConstruct extends Construct {
       resources: [turnkeySecretArn],
     });
     this.verifyFunction.addToRolePolicy(turnkeySecretPolicy);
+
+    // Grant verify function access to Builder secret (for Safe wallet deployment via Builder Program)
+    const builderSecretPolicy = new iam.PolicyStatement({
+      actions: ['secretsmanager:GetSecretValue'],
+      resources: [builderSecretArn],
+    });
+    this.verifyFunction.addToRolePolicy(builderSecretPolicy);
 
     // Grant verify function access to credentials table (for caching Polymarket credentials)
     credentialsTable.grantReadWrite(this.verifyFunction);

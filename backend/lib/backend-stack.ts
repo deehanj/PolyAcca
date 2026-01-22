@@ -108,6 +108,7 @@ export class BackendStack extends cdk.Stack {
       turnkeySecretArn: this.secrets.turnkeySecretArn,
       turnkeyOrganizationId,
       credentialsTable: this.credentialsTable,
+      builderSecretArn: this.secrets.builderSecretArn,
     });
 
     // ==========================================================================

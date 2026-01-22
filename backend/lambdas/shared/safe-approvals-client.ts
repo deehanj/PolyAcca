@@ -22,16 +22,59 @@ import { polygon } from 'viem/chains';
 import { createLogger } from './logger';
 import { requireEnvVar } from '../utils/envVars';
 import type { Signer } from 'ethers';
+import {
+  SecretsManagerClient,
+  GetSecretValueCommand,
+} from '@aws-sdk/client-secrets-manager';
 
 const logger = createLogger('safe-approvals-client');
 
 // Environment variables
-const BUILDER_API_KEY = requireEnvVar('BUILDER_API_KEY');
-const BUILDER_API_SECRET = requireEnvVar('BUILDER_API_SECRET');
-const BUILDER_API_PASSPHRASE = requireEnvVar('BUILDER_API_PASSPHRASE');
+const BUILDER_SECRET_ARN = requireEnvVar('BUILDER_SECRET_ARN');
 
 // Polymarket Builder endpoints
 const BUILDER_RELAYER_URL = 'https://relayer-v2.polymarket.com';
+
+// Secrets Manager client
+const secretsClient = new SecretsManagerClient({});
+let cachedBuilderCredentials: {
+  key: string;
+  secret: string;
+  passphrase: string;
+} | null = null;
+
+/**
+ * Get Builder credentials from Secrets Manager
+ */
+async function getBuilderCredentials() {
+  if (cachedBuilderCredentials) {
+    return cachedBuilderCredentials;
+  }
+
+  logger.debug('Fetching Builder credentials from Secrets Manager');
+
+  const response = await secretsClient.send(
+    new GetSecretValueCommand({
+      SecretId: BUILDER_SECRET_ARN,
+    })
+  );
+
+  if (!response.SecretString) {
+    throw new Error('Builder credentials not found in Secrets Manager');
+  }
+
+  const credentials = JSON.parse(response.SecretString);
+
+  cachedBuilderCredentials = {
+    key: credentials.BUILDER_API_KEY || credentials.key,
+    secret: credentials.BUILDER_API_SECRET || credentials.secret,
+    passphrase: credentials.BUILDER_API_PASSPHRASE || credentials.passphrase,
+  };
+
+  logger.debug('Builder credentials loaded from Secrets Manager');
+
+  return cachedBuilderCredentials;
+}
 
 // Token addresses on Polygon
 const USDC_E = '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174'; // Bridged USDC
@@ -218,13 +261,12 @@ export async function setSafeApprovals(
     // Convert ethers signer to viem wallet client
     const walletClient = await signerToWalletClient(eoaSigner);
 
+    // Get Builder credentials from Secrets Manager
+    const builderCreds = await getBuilderCredentials();
+
     // Initialize Polymarket Relay Client with BuilderConfig
     const builderConfig = new BuilderConfig({
-      localBuilderCreds: {
-        key: BUILDER_API_KEY,
-        secret: BUILDER_API_SECRET,
-        passphrase: BUILDER_API_PASSPHRASE,
-      },
+      localBuilderCreds: builderCreds,
     });
 
     const relayClient = new RelayClient(
