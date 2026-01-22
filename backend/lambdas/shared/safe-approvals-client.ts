@@ -65,13 +65,36 @@ async function getBuilderCredentials() {
 
   const credentials = JSON.parse(response.SecretString);
 
+  // Log the raw credentials structure for debugging
+  logger.debug('Raw credentials from Secrets Manager', {
+    hasApiKey: !!credentials.apiKey,
+    hasApiSecret: !!credentials.apiSecret,
+    hasPassphrase: !!credentials.passphrase,
+  });
+
+  // Extract credentials with proper field names
+  const key = credentials.apiKey || '';
+  const secret = credentials.apiSecret || '';
+  const passphrase = credentials.passphrase || '';
+
+  // Validate required fields
+  if (!key || !secret || !passphrase) {
+    throw new Error(
+      `Missing required Builder credentials. Found: key=${!!key}, secret=${!!secret}, passphrase=${!!passphrase}`
+    );
+  }
+
   cachedBuilderCredentials = {
-    key: credentials.BUILDER_API_KEY || credentials.key,
-    secret: credentials.BUILDER_API_SECRET || credentials.secret,
-    passphrase: credentials.BUILDER_API_PASSPHRASE || credentials.passphrase,
+    key: key.trim(),
+    secret: secret.trim(),
+    passphrase: passphrase.trim(),
   };
 
-  logger.debug('Builder credentials loaded from Secrets Manager');
+  logger.debug('Builder credentials loaded from Secrets Manager', {
+    hasKey: !!cachedBuilderCredentials.key,
+    hasSecret: !!cachedBuilderCredentials.secret,
+    hasPassphrase: !!cachedBuilderCredentials.passphrase,
+  });
 
   return cachedBuilderCredentials;
 }
