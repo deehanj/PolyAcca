@@ -51,7 +51,7 @@ function truncateAddress(address: string): string {
 export function TradingBalance() {
   const { isAuthenticated } = useAuth();
   const { address: connectedAddress } = useAccount();
-  const { embeddedWalletAddress, isLoading: profileLoading } = useUserProfile();
+  const { safeWalletAddress, isLoading: profileLoading } = useUserProfile();
   const {
     tradingBalance: contextTradingBalance,
     isDepositModalOpen: isModalOpen,
@@ -149,7 +149,7 @@ export function TradingBalance() {
   // ============================================================================
   useEffect(() => {
     async function fetchDepositAddresses() {
-      if (selectedMethod !== 'bridge' || !embeddedWalletAddress || depositAddresses) {
+      if (selectedMethod !== 'bridge' || !safeWalletAddress || depositAddresses) {
         return;
       }
 
@@ -160,7 +160,7 @@ export function TradingBalance() {
         const response = await fetch(POLYMARKET_BRIDGE_API, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ address: embeddedWalletAddress }),
+          body: JSON.stringify({ address: safeWalletAddress }),
         });
 
         if (!response.ok) {
@@ -178,7 +178,7 @@ export function TradingBalance() {
     }
 
     fetchDepositAddresses();
-  }, [selectedMethod, embeddedWalletAddress, depositAddresses]);
+  }, [selectedMethod, safeWalletAddress, depositAddresses]);
 
   // ============================================================================
   // Direct deposit transaction (Polygon -> Embedded)
@@ -245,8 +245,8 @@ export function TradingBalance() {
     );
   }
 
-  // Don't show if no embedded wallet yet
-  if (!embeddedWalletAddress) {
+  // Don't show if no Safe wallet yet
+  if (!safeWalletAddress) {
     return null;
   }
 
@@ -259,7 +259,7 @@ export function TradingBalance() {
   };
 
   const handleDirectDeposit = () => {
-    if (!depositAmount || !embeddedWalletAddress) return;
+    if (!depositAmount || !safeWalletAddress) return;
 
     const amount = parseUnits(depositAmount, USDC_DECIMALS);
 
@@ -267,7 +267,7 @@ export function TradingBalance() {
       address: SUPPORTED_CHAINS.polygon.usdc,
       abi: erc20Abi,
       functionName: 'transfer',
-      args: [embeddedWalletAddress as `0x${string}`, amount],
+      args: [safeWalletAddress as `0x${string}`, amount],
       chainId: SUPPORTED_CHAINS.polygon.id,
     });
   };
@@ -292,7 +292,7 @@ export function TradingBalance() {
    * 3. Call withdraw endpoint with signature
    */
   const handleWithdraw = async () => {
-    if (!withdrawAmount || !connectedAddress || !embeddedWalletAddress) return;
+    if (!withdrawAmount || !connectedAddress || !safeWalletAddress) return;
 
     setIsWithdrawing(true);
     setWithdrawError(null);
@@ -432,7 +432,7 @@ export function TradingBalance() {
       <button
         onClick={openDepositModal}
         className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-card border border-border hover:bg-muted transition-colors"
-        title={`Trading wallet: ${embeddedWalletAddress}`}
+        title={`Trading wallet: ${safeWalletAddress}`}
       >
         <img
           src="https://assets.coingecko.com/coins/images/6319/small/usdc.png"

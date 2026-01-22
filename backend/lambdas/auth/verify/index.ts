@@ -13,9 +13,11 @@
 
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { verifyMessage } from 'ethers';
-import { getNonce, deleteNonce, getOrCreateUser, updateUserEmbeddedWallet, updateUserHasCredentials } from '../../shared/dynamo-client';
+import { getNonce, deleteNonce, getOrCreateUser, updateUserEmbeddedWallet, updateUserHasCredentials, updateUserPolymarketSafe } from '../../shared/dynamo-client';
 import { createToken } from '../../shared/jwt';
 import { createWallet, createSigner } from '../../shared/turnkey-client';
+import { deploySafeWallet } from '../../shared/safe-wallet-client';
+import { ensureSafeApprovals } from '../../shared/safe-approvals-client';
 import {
   deriveApiCredentials,
   encryptEmbeddedWalletCredentials,
@@ -107,42 +109,128 @@ export async function handler(
       }
     }
 
-    // Step 2: Register with Polymarket if user doesn't have credentials yet
-    if (embeddedWalletAddress && !user.hasCredentials) {
-      logger.info('Registering with Polymarket', {
+    // Step 2: Deploy Safe wallet if user doesn't have one
+    let polymarketSafeAddress = user.polymarketSafeAddress;
+    if (embeddedWalletAddress && !polymarketSafeAddress) {
+      logger.info('Deploying Safe wallet for user', {
         walletAddress: request.walletAddress,
         embeddedWalletAddress,
       });
 
       try {
+        // Create signer for the embedded wallet
+        const embeddedSigner = await createSigner(embeddedWalletAddress);
+
+        // Deploy Safe via Polymarket Builder Program
+        const safeResult = await deploySafeWallet(
+          request.walletAddress, // User's MetaMask wallet for deterministic salt
+          embeddedSigner // EOA signer that will control the Safe
+        );
+
+        polymarketSafeAddress = safeResult.safeAddress;
+
+        // Update user with Safe address
+        await updateUserPolymarketSafe(request.walletAddress, polymarketSafeAddress);
+
+        logger.info('Safe wallet deployed', {
+          walletAddress: request.walletAddress,
+          embeddedWalletAddress,
+          polymarketSafeAddress,
+          wasNewDeployment: safeResult.deployed,
+        });
+      } catch (error) {
+        logger.errorWithStack('Failed to deploy Safe wallet', error, {
+          walletAddress: request.walletAddress,
+          embeddedWalletAddress,
+        });
+        // Don't fail authentication if Safe deployment fails
+        // User can retry later or use EOA flow
+      }
+    }
+
+    // Step 3: Ensure Safe has all required approvals
+    if (embeddedWalletAddress && polymarketSafeAddress) {
+      logger.info('Checking Safe approvals', {
+        walletAddress: request.walletAddress,
+        polymarketSafeAddress,
+      });
+
+      try {
+        // Create signer for the embedded wallet (EOA that controls the Safe)
+        const embeddedSigner = await createSigner(embeddedWalletAddress);
+
+        // Check and set approvals if needed (gaslessly via Builder Program)
+        const approvalsSet = await ensureSafeApprovals(
+          polymarketSafeAddress,
+          embeddedSigner
+        );
+
+        if (approvalsSet) {
+          logger.info('Safe has all required approvals', {
+            walletAddress: request.walletAddress,
+            polymarketSafeAddress,
+          });
+        } else {
+          logger.warn('Failed to set all Safe approvals', {
+            walletAddress: request.walletAddress,
+            polymarketSafeAddress,
+          });
+          // Don't fail authentication - user can retry approvals later
+        }
+      } catch (error) {
+        logger.errorWithStack('Failed to ensure Safe approvals', error, {
+          walletAddress: request.walletAddress,
+          polymarketSafeAddress,
+        });
+        // Don't fail authentication if approval check/setting fails
+      }
+    }
+
+    // Step 4: Register with Polymarket if user doesn't have credentials yet
+    if (embeddedWalletAddress && polymarketSafeAddress && !user.hasCredentials) {
+      logger.info('Registering with Polymarket using Safe', {
+        walletAddress: request.walletAddress,
+        embeddedWalletAddress,
+        polymarketSafeAddress,
+      });
+
+      try {
         const signer = await createSigner(embeddedWalletAddress);
-        const credentials = await deriveApiCredentials(signer);
+
+        // Derive API credentials with Safe as funder
+        const credentials = await deriveApiCredentials(
+          signer,
+          polymarketSafeAddress // Pass Safe as the funder address
+        );
 
         const encrypted = await encryptEmbeddedWalletCredentials({
           ...credentials,
-          signatureType: 'GNOSIS_SAFE',
+          signatureType: 'POLY_GNOSIS_SAFE', // Use the correct Safe signature type
         });
         const now = new Date().toISOString();
         const credsInput: EmbeddedWalletCredentialsInput = {
           entityType: 'EMBEDDED_WALLET_CREDS',
           walletAddress: request.walletAddress.toLowerCase(),
           ...encrypted,
-          signatureType: 'GNOSIS_SAFE',
+          signatureType: 'POLY_GNOSIS_SAFE',
           createdAt: now,
           updatedAt: now,
         };
         await cacheEmbeddedWalletCredentials(credsInput);
 
-        // Mark user as having credentials
+        // Mark user as having credentials (this also marks Safe address in DB)
+        // updateUserPolymarketSafe already called above, so just mark has credentials
         await updateUserHasCredentials(request.walletAddress);
 
-        logger.info('Polymarket registration complete', {
+        logger.info('Polymarket registration complete with Safe', {
           walletAddress: request.walletAddress,
           embeddedWalletAddress,
+          polymarketSafeAddress,
         });
       } catch (error) {
         logger.errorWithStack('Failed to register with Polymarket', error, {
           walletAddress: request.walletAddress,
+          polymarketSafeAddress,
         });
       }
     }

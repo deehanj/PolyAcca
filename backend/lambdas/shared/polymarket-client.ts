@@ -119,6 +119,7 @@ export interface OrderParams {
   size: number;
   tickSize?: TickSize;
   orderType?: 'GTC' | 'FOK' | 'FAK';  // default GTC
+  negRisk?: boolean;  // Required for negRisk markets, false for binary markets
 }
 
 export interface OrderStatusResult {
@@ -259,22 +260,29 @@ function createClientWithSigner(
  * The credentials are used for authenticated API calls.
  *
  * @param signer - ethers Signer from Turnkey
+ * @param funderAddress - Optional Safe address that holds the funds (defaults to signer address)
  * @returns API credentials for the wallet
  */
 export async function deriveApiCredentials(
-  signer: Signer
+  signer: Signer,
+  funderAddress?: string
 ): Promise<Pick<PolymarketCredentials, 'apiKey' | 'apiSecret' | 'passphrase'>> {
   const walletAddress = await signer.getAddress();
-  logger.info('Deriving API credentials for embedded wallet', { walletAddress });
+  const fundingAddress = funderAddress || walletAddress; // Use Safe if provided, otherwise EOA
+
+  logger.info('Deriving API credentials for embedded wallet', {
+    walletAddress,
+    funderAddress: fundingAddress,
+    usingSafe: !!funderAddress
+  });
 
   try {
     // Create client with signer only (no credentials yet)
-    // For deriving credentials, we don't need funder address yet
     const client = createClientWithSigner(
       signer,
       undefined, // no credentials yet
       PolymarketSignatureType.POLY_GNOSIS_SAFE, // embedded wallets use POLY_GNOSIS_SAFE
-      walletAddress // wallet address as funder for credential derivation
+      fundingAddress // Use Safe as funder if provided, otherwise EOA
     );
 
     // Derive or create API credentials (use nonce=1 to avoid conflicts)
@@ -299,22 +307,25 @@ export async function deriveApiCredentials(
  * @param signer - ethers Signer from Turnkey
  * @param credentials - Pre-derived API credentials
  * @param params - Order parameters
+ * @param funderAddress - Optional Safe address that holds the funds (defaults to signer address)
  * @returns Order ID
  */
 export async function placeOrder(
   signer: Signer,
   credentials: Pick<PolymarketCredentials, 'apiKey' | 'apiSecret' | 'passphrase'>,
-  params: OrderParams
+  params: OrderParams,
+  funderAddress?: string
 ): Promise<string> {
-  // Get the embedded wallet address to use as funder
+  // Get the embedded wallet address
   const walletAddress = await signer.getAddress();
+  const fundingAddress = funderAddress || walletAddress; // Use Safe if provided, otherwise EOA
 
-  // For embedded wallets (Turnkey), use POLY_GNOSIS_SAFE signature type with wallet as funder
+  // For embedded wallets (Turnkey), use POLY_GNOSIS_SAFE signature type with appropriate funder
   const client = createClientWithSigner(
     signer,
     credentials,
     PolymarketSignatureType.POLY_GNOSIS_SAFE,
-    walletAddress // The embedded wallet address holds the funds
+    fundingAddress // The Safe address holds the funds if provided, otherwise EOA
   );
 
   // Map order type string to CLOB client OrderType enum
@@ -331,10 +342,18 @@ export async function placeOrder(
     price: params.price,
     size: params.size,
     orderType: params.orderType || 'GTC',
+    negRisk: params.negRisk ?? false,
+    funderAddress: fundingAddress,
   });
 
   try {
     let order;
+
+    // Market options - CRITICAL for negRisk markets
+    const marketOptions = {
+      tickSize: params.tickSize ?? '0.01',
+      negRisk: params.negRisk ?? false,  // Default to false for binary markets
+    };
 
     // FAK and FOK are market order types that use createAndPostMarketOrder
     // GTC (and GTD) are limit order types that use createAndPostOrder
@@ -346,7 +365,7 @@ export async function placeOrder(
           side: params.side === 'BUY' ? Side.BUY : Side.SELL,
           amount: params.size, // UserMarketOrder uses 'amount' instead of 'size'
         },
-        { tickSize: params.tickSize ?? '0.01' },
+        marketOptions,
         orderType
       );
     } else {
@@ -357,7 +376,7 @@ export async function placeOrder(
           side: params.side === 'BUY' ? Side.BUY : Side.SELL,
           size: params.size,
         },
-        { tickSize: params.tickSize ?? '0.01' },
+        marketOptions,
         orderType
       );
     }

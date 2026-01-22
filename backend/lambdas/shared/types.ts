@@ -48,7 +48,7 @@ export interface UserEntity extends BaseEntity {
 /**
  * Polymarket signature types for order signing
  */
-export type SignatureType = 'EOA' | 'POLY_PROXY' | 'GNOSIS_SAFE';
+export type SignatureType = 'EOA' | 'POLY_PROXY' | 'POLY_GNOSIS_SAFE';
 
 /**
  * Embedded wallet Polymarket credentials (encrypted)
@@ -331,9 +331,8 @@ export interface UserProfile {
   hasCredentials: boolean; // True when Safe is deployed and credentials derived
   createdAt: string;
   admin?: boolean;
-  // Embedded wallet info (for funding)
-  embeddedWalletAddress?: string; // User funds this address with USDC
-  polymarketSafeAddress?: string; // Polymarket Safe address
+  // Safe wallet for trading (user deposits here)
+  safeWalletAddress?: string; // Polymarket Safe address where user deposits USDC
 }
 
 export interface UpdateProfileRequest {

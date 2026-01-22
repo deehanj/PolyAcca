@@ -25,15 +25,11 @@ import {
 } from '../../shared/dynamo-client';
 import {
   getEmbeddedWalletCredentials,
-  cacheEmbeddedWalletCredentials,
-  type EmbeddedWalletCredentialsInput,
 } from '../../shared/embedded-wallet-credentials';
 import {
   decryptEmbeddedWalletCredentials,
   placeOrder,
   fetchOrderStatus,
-  deriveApiCredentials,
-  encryptEmbeddedWalletCredentials,
   setBuilderCredentials,
   hasBuilderCredentials,
 } from '../../shared/polymarket-client';
@@ -43,7 +39,7 @@ import { toMicroUsdc, fromMicroUsdc, calculateShares } from '../../shared/usdc-m
 import { JsonRpcProvider } from 'ethers';
 import type { BetEntity, BetStatus, BuilderCredentials } from '../../shared/types';
 import { fetchMarketByConditionId } from '../../shared/gamma-client';
-import { isMarketBettable } from '../../shared/clob-client';
+import { isMarketBettable, checkMarketAcceptingOrders } from '../../shared/clob-client';
 import { configureIPRoyalProxy } from '../../shared/iproyal-proxy-config';
 
 const log = createLogger('bet-executor');
@@ -134,14 +130,21 @@ function classifyError(error: unknown): BetStatus {
     return 'NO_CREDENTIALS';
   }
 
-  // Missing embedded wallet
-  if (message.includes('embedded wallet') || message.includes('no wallet')) {
+  // Missing embedded wallet or Safe wallet
+  if (message.includes('embedded wallet') || message.includes('no wallet') ||
+      message.includes('safe wallet') || message.includes('polymarket safe')) {
     return 'NO_CREDENTIALS';
   }
 
   // Turnkey wallet errors (signing failures, wallet not found)
   if (message.includes('turnkey') || message.includes('could not find any resource to sign') ||
       message.includes('failed to sign') || message.includes('addresses are case sensitive')) {
+    return 'NO_CREDENTIALS';
+  }
+
+  // Safe wallet or approval issues
+  if (message.includes('approval') || message.includes('allowance') ||
+      message.includes('not approved') || message.includes('safe not deployed')) {
     return 'NO_CREDENTIALS';
   }
 
@@ -290,58 +293,43 @@ async function determineActualStake(bet: BetEntity): Promise<string> {
 }
 
 /**
- * Execute a bet using embedded wallet (Turnkey signer)
+ * Execute a bet using embedded wallet (Turnkey signer) with Safe as funder
  *
- * Credentials are stored in CREDENTIALS_TABLE_NAME (the dedicated credentials table).
- * On first execution, we derive API credentials from Polymarket and cache them.
+ * Credentials are stored in CREDENTIALS_TABLE_NAME and should already exist
+ * from the verify endpoint where they were derived with Safe as funder.
  */
 async function executeBetWithEmbeddedWallet(
   bet: BetEntity,
-  embeddedWalletAddress: string
+  embeddedWalletAddress: string,
+  safeAddress: string,
+  negRisk: boolean
 ): Promise<FillDetails> {
-  log.info('Executing bet with embedded wallet', {
+  log.info('Executing bet with embedded wallet and Safe', {
     betId: bet.betId,
     embeddedWalletAddress,
+    safeAddress,
+    negRisk,
   });
 
   // Create Turnkey signer for the embedded wallet
   const signer = await createSigner(embeddedWalletAddress);
 
-  // Check for cached credentials (derived on first bet execution)
+  // Get cached credentials (should exist from verify endpoint)
   const cachedCreds = await getEmbeddedWalletCredentials(bet.walletAddress);
-  let credentials: { apiKey: string; apiSecret: string; passphrase: string };
 
-  if (cachedCreds) {
-    // Use existing cached credentials
-    const decrypted = await decryptEmbeddedWalletCredentials(cachedCreds);
-    credentials = {
-      apiKey: decrypted.apiKey,
-      apiSecret: decrypted.apiSecret,
-      passphrase: decrypted.passphrase,
-    };
-    log.debug('Using cached embedded wallet credentials');
-  } else {
-    // Derive credentials for the first time from Polymarket
-    log.info('Deriving API credentials for embedded wallet', { embeddedWalletAddress });
-    credentials = await deriveApiCredentials(signer);
-
-    // Cache encrypted credentials for future use
-    const encrypted = await encryptEmbeddedWalletCredentials({
-      ...credentials,
-      signatureType: 'GNOSIS_SAFE',
-    });
-    const now = new Date().toISOString();
-    const credsInput: EmbeddedWalletCredentialsInput = {
-      entityType: 'EMBEDDED_WALLET_CREDS',
-      walletAddress: bet.walletAddress.toLowerCase(),
-      ...encrypted,
-      signatureType: 'GNOSIS_SAFE',
-      createdAt: now,
-      updatedAt: now,
-    };
-    await cacheEmbeddedWalletCredentials(credsInput);
-    log.info('Cached derived embedded wallet credentials');
+  if (!cachedCreds) {
+    // This shouldn't happen if user authenticated properly
+    throw new Error('No Polymarket credentials found - user needs to re-authenticate');
   }
+
+  // Use existing cached credentials
+  const decrypted = await decryptEmbeddedWalletCredentials(cachedCreds);
+  const credentials = {
+    apiKey: decrypted.apiKey,
+    apiSecret: decrypted.apiSecret,
+    passphrase: decrypted.passphrase,
+  };
+  log.debug('Using cached embedded wallet credentials with Safe as funder');
 
   // Determine actual stake (uses previous bet's payout for subsequent legs)
   const determinedStake = await determineActualStake(bet);
@@ -368,14 +356,20 @@ async function executeBetWithEmbeddedWallet(
     size,
   });
 
-  // Place FAK order using Turnkey signer
-  const orderId = await placeOrder(signer, credentials, {
-    tokenId: bet.tokenId,
-    side: 'BUY',
-    price: orderPrice,
-    size,
-    orderType: 'FAK', // Fill-and-kill for immediate execution
-  });
+  // Place FAK order using Turnkey signer with Safe as funder
+  const orderId = await placeOrder(
+    signer,
+    credentials,
+    {
+      tokenId: bet.tokenId,
+      side: 'BUY',
+      price: orderPrice,
+      size,
+      orderType: 'FAK', // Fill-and-kill for immediate execution
+      negRisk, // Pass market type for correct order handling
+    },
+    safeAddress // Pass Safe address as funder
+  );
 
   // Poll for fill confirmation and capture fill details
   const maxAttempts = 3;
@@ -636,18 +630,38 @@ export async function executeBet(bet: BetEntity): Promise<void> {
       return;
     }
 
+    // Get full market status to determine if it's a negRisk market
+    const marketStatus = await checkMarketAcceptingOrders(bet.conditionId);
+    const negRisk = marketStatus?.negRisk || false;
+
+    log.info('Market type determined', {
+      betId: bet.betId,
+      conditionId: bet.conditionId,
+      negRisk,
+      marketType: negRisk ? 'negRisk' : 'binary',
+    });
+
     // Mark bet as EXECUTING
     await updateBetStatus(bet.chainId, bet.walletAddress, bet.sequence, 'EXECUTING');
 
-    // Get user profile to get embedded wallet address
+    // Get user profile to get embedded wallet and Safe addresses
     const user = await getUser(bet.walletAddress);
 
     if (!user?.embeddedWalletAddress) {
       throw new Error('User does not have an embedded wallet - please re-authenticate');
     }
 
-    // Execute using embedded wallet
-    const fillDetails = await executeBetWithEmbeddedWallet(bet, user.embeddedWalletAddress);
+    if (!user?.polymarketSafeAddress) {
+      throw new Error('User does not have a Polymarket Safe wallet - please re-authenticate');
+    }
+
+    // Execute using embedded wallet with Safe as funder
+    const fillDetails = await executeBetWithEmbeddedWallet(
+      bet,
+      user.embeddedWalletAddress,
+      user.polymarketSafeAddress,
+      negRisk
+    );
     const {
       orderId,
       filled,

@@ -13,7 +13,7 @@ export interface UserProfile {
   hasCredentials: boolean;
   createdAt: string;
   admin?: boolean;
-  embeddedWalletAddress?: string;
+  safeWalletAddress?: string;
 }
 
 export function useUserProfile() {
@@ -44,7 +44,7 @@ export function useUserProfile() {
     error: query.error?.message || null,
     isAdmin: query.data?.admin === true,
     hasCredentials: query.data?.hasCredentials ?? false,
-    embeddedWalletAddress: query.data?.embeddedWalletAddress,
+    safeWalletAddress: query.data?.safeWalletAddress,
     refetch: query.refetch,
   };
 }

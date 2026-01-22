@@ -35,17 +35,17 @@ function formatBalance(balance: bigint | undefined): string {
 
 export function TradingBalanceProvider({ children }: { children: ReactNode }) {
   const { isAuthenticated } = useAuth();
-  const { embeddedWalletAddress, isLoading: profileLoading } = useUserProfile();
+  const { safeWalletAddress, isLoading: profileLoading } = useUserProfile();
   const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
 
   const { data: tradingBalanceRaw, isLoading: balanceLoading, refetch } = useReadContract({
     address: SUPPORTED_CHAINS.polygon.usdc,
     abi: erc20Abi,
     functionName: 'balanceOf',
-    args: embeddedWalletAddress ? [embeddedWalletAddress as `0x${string}`] : undefined,
+    args: safeWalletAddress ? [safeWalletAddress as `0x${string}`] : undefined,
     chainId: SUPPORTED_CHAINS.polygon.id,
     query: {
-      enabled: !!embeddedWalletAddress && isAuthenticated,
+      enabled: !!safeWalletAddress && isAuthenticated,
       refetchInterval: 30000,
     },
   });

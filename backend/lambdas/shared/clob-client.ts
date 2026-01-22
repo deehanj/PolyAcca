@@ -28,6 +28,8 @@ export interface ClobMarketStatus {
   conditionId: string;
   /** End date (ISO string) */
   endDate?: string;
+  /** Whether this is a negRisk market (true) or binary market (false) */
+  negRisk: boolean;
 }
 
 /**
@@ -40,6 +42,9 @@ interface ClobMarketResponse {
   active: boolean;
   enable_order_book: boolean;
   end_date_iso?: string;
+  neg_risk: boolean;
+  neg_risk_market_id?: string;
+  neg_risk_request_id?: string;
   tokens?: Array<{
     token_id: string;
     outcome: string;
@@ -127,6 +132,7 @@ export async function checkMarketAcceptingOrders(
       enableOrderBook: data.enable_order_book,
       conditionId: data.condition_id,
       endDate: data.end_date_iso,
+      negRisk: data.neg_risk || false,  // Default to false (binary) if not present
     };
 
     logger.info('Market status retrieved', {
