@@ -6,6 +6,8 @@
  */
 
 import { RelayClient } from '@polymarket/builder-relayer-client';
+// Use BuilderConfig from builder-relayer-client's dependency to avoid version mismatch
+import { BuilderConfig } from '@polymarket/builder-relayer-client/node_modules/@polymarket/builder-signing-sdk';
 import {
   createWalletClient,
   createPublicClient,
@@ -51,7 +53,7 @@ const ERC20_ABI = parseAbi([
 // Safe transaction data
 interface SafeTransaction {
   to: string;
-  value: bigint;
+  value: string; // Must be string for RelayClient
   data: string;
   operation: number; // 0 for CALL, 1 for DELEGATECALL
 }
@@ -92,7 +94,7 @@ async function signerToWalletClient(signer: Signer): Promise<WalletClient> {
       async signTypedData(typedData: any) {
         const { domain, types, primaryType, message } = typedData;
         const { EIP712Domain, ...typesWithoutDomain } = types;
-        return await signer._signTypedData(domain, typesWithoutDomain, message) as `0x${string}`;
+        return await signer.signTypedData(domain, typesWithoutDomain, message) as `0x${string}`;
       },
       async signTransaction() {
         throw new Error('Transaction signing not supported');
@@ -105,25 +107,7 @@ async function signerToWalletClient(signer: Signer): Promise<WalletClient> {
   return walletClient;
 }
 
-/**
- * Create HMAC signature for Builder API authentication
- */
-function buildHmacSignature(
-  secret: string,
-  timestamp: number,
-  method: string,
-  requestPath: string,
-  body: string = ''
-): string {
-  const crypto = require('crypto');
-  const message = `${timestamp}${method}${requestPath}${body}`;
-  const base64Secret = Buffer.from(secret, 'base64');
-
-  return crypto
-    .createHmac('sha256', base64Secret)
-    .update(message)
-    .digest('base64');
-}
+// buildHmacSignature function removed - now using BuilderConfig
 
 /**
  * Check Safe wallet's USDC.e approvals for Polymarket contracts
@@ -234,30 +218,20 @@ export async function setSafeApprovals(
     // Convert ethers signer to viem wallet client
     const walletClient = await signerToWalletClient(eoaSigner);
 
-    // Initialize Polymarket Relay Client
+    // Initialize Polymarket Relay Client with BuilderConfig
+    const builderConfig = new BuilderConfig({
+      localBuilderCreds: {
+        key: BUILDER_API_KEY,
+        secret: BUILDER_API_SECRET,
+        passphrase: BUILDER_API_PASSPHRASE,
+      },
+    });
+
     const relayClient = new RelayClient(
       BUILDER_RELAYER_URL,
       137, // Polygon chain ID
       walletClient,
-      {
-        getAuthHeaders: (method: string, path: string, body?: string) => {
-          const timestamp = Math.floor(Date.now() / 1000);
-          const signature = buildHmacSignature(
-            BUILDER_API_SECRET,
-            timestamp,
-            method,
-            path,
-            body
-          );
-
-          return {
-            'POLY-BUILDER-API-KEY': BUILDER_API_KEY,
-            'POLY-BUILDER-SIGNATURE': signature,
-            'POLY-BUILDER-TIMESTAMP': timestamp.toString(),
-            'POLY-BUILDER-PASSPHRASE': BUILDER_API_PASSPHRASE,
-          };
-        },
-      }
+      builderConfig
     );
 
     // Process each approval
@@ -280,18 +254,19 @@ export async function setSafeApprovals(
         // Create Safe transaction
         const safeTransaction: SafeTransaction = {
           to: USDC_E,
-          value: BigInt(0),
+          value: '0', // Must be string, not bigint
           data: approvalData,
           operation: 0, // CALL
         };
 
         // Execute via Builder Program (gasless)
-        const result = await relayClient.executeTransaction(
-          safeAddress,
-          safeTransaction
+        // Note: execute() expects an array of transactions
+        const result = await relayClient.execute(
+          [safeTransaction],
+          `Approve ${contractName}` // metadata
         );
 
-        const txHash = result.transactionHash || result.txHash;
+        const txHash = result.transactionHash || (result as any).hash;
 
         if (txHash) {
           transactionHashes.push(txHash);

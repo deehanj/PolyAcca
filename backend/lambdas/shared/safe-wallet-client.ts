@@ -6,6 +6,12 @@
  */
 
 import { RelayClient } from '@polymarket/builder-relayer-client';
+// Use BuilderConfig from builder-relayer-client's dependency to avoid version mismatch
+import { BuilderConfig } from '@polymarket/builder-relayer-client/node_modules/@polymarket/builder-signing-sdk';
+// @ts-ignore - deriveSafe exists in JS but not in TS definitions
+import { deriveSafe } from '@polymarket/builder-relayer-client/dist/builder/derive';
+// @ts-ignore - getContractConfig exists in JS but not in TS definitions
+import { getContractConfig } from '@polymarket/builder-relayer-client/dist/config';
 import { createWalletClient, http, type WalletClient } from 'viem';
 import { polygon } from 'viem/chains';
 import { createLogger } from './logger';
@@ -22,12 +28,6 @@ const BUILDER_API_PASSPHRASE = requireEnvVar('BUILDER_API_PASSPHRASE');
 // Polymarket Builder endpoints
 const BUILDER_RELAYER_URL = 'https://relayer-v2.polymarket.com';
 
-// Safe deployment configuration
-const SAFE_CONFIG = {
-  threshold: 1, // Single signature required (from EOA)
-  saltNonce: undefined as string | undefined, // Will be generated per user
-};
-
 /**
  * Result from Safe wallet deployment
  */
@@ -35,22 +35,6 @@ export interface DeploySafeResult {
   safeAddress: string;
   deployed: boolean; // false if already existed
   transactionHash?: string;
-}
-
-/**
- * Generate deterministic salt for Safe deployment
- * This ensures same user always gets same Safe address
- */
-function generateSafeNonce(walletAddress: string): string {
-  // Use wallet address hash as deterministic salt
-  // This ensures idempotent Safe addresses per user
-  const crypto = require('crypto');
-  const hash = crypto.createHash('sha256')
-    .update(`polyacca-safe-${walletAddress.toLowerCase()}`)
-    .digest('hex');
-
-  // Use first 16 chars of hash as salt (8 bytes hex)
-  return '0x' + hash.substring(0, 16);
 }
 
 /**
@@ -78,7 +62,7 @@ async function signerToWalletClient(signer: Signer): Promise<WalletClient> {
         const { domain, types, primaryType, message } = typedData;
         // Remove EIP712Domain from types as ethers handles it internally
         const { EIP712Domain, ...typesWithoutDomain } = types;
-        return await signer._signTypedData(domain, typesWithoutDomain, message) as `0x${string}`;
+        return await signer.signTypedData(domain, typesWithoutDomain, message) as `0x${string}`;
       },
       async signTransaction() {
         throw new Error('Transaction signing not supported for Safe deployment');
@@ -91,25 +75,7 @@ async function signerToWalletClient(signer: Signer): Promise<WalletClient> {
   return walletClient;
 }
 
-/**
- * Create HMAC signature for Builder API authentication
- */
-function buildHmacSignature(
-  secret: string,
-  timestamp: number,
-  method: string,
-  requestPath: string,
-  body: string = ''
-): string {
-  const crypto = require('crypto');
-  const message = `${timestamp}${method}${requestPath}${body}`;
-  const base64Secret = Buffer.from(secret, 'base64');
-
-  return crypto
-    .createHmac('sha256', base64Secret)
-    .update(message)
-    .digest('base64');
-}
+// buildHmacSignature function removed - now using BuilderConfig
 
 /**
  * Deploy a Safe wallet for a user via Polymarket Builder Program
@@ -129,60 +95,50 @@ export async function deploySafeWallet(
     const walletClient = await signerToWalletClient(eoaSigner);
     const eoaAddress = await eoaSigner.getAddress();
 
+    // Initialize BuilderConfig with credentials
+    const builderConfig = new BuilderConfig({
+      localBuilderCreds: {
+        key: BUILDER_API_KEY,
+        secret: BUILDER_API_SECRET,
+        passphrase: BUILDER_API_PASSPHRASE,
+      },
+    });
+
     // Initialize Polymarket Relay Client
     const relayClient = new RelayClient(
       BUILDER_RELAYER_URL,
       137, // Polygon chain ID
       walletClient,
-      {
-        getAuthHeaders: (method: string, path: string, body?: string) => {
-          const timestamp = Math.floor(Date.now() / 1000);
-          const signature = buildHmacSignature(
-            BUILDER_API_SECRET,
-            timestamp,
-            method,
-            path,
-            body
-          );
+      builderConfig
+    ) as any; // Type assertion needed due to incomplete TypeScript definitions
 
-          return {
-            'POLY-BUILDER-API-KEY': BUILDER_API_KEY,
-            'POLY-BUILDER-SIGNATURE': signature,
-            'POLY-BUILDER-TIMESTAMP': timestamp.toString(),
-            'POLY-BUILDER-PASSPHRASE': BUILDER_API_PASSPHRASE,
-          };
-        },
-      }
-    );
+    // Get contract config and derive Safe address
+    const config = getContractConfig(137);
+    const safeAddress = deriveSafe(eoaAddress, config.SafeContracts.SafeFactory);
 
-    // Generate deterministic salt based on user's wallet
-    const salt = generateSafeNonce(userWalletAddress);
-
-    // Check if Safe already exists (predict address)
-    const predictedAddress = await relayClient.predictSafeAddress(
-      [eoaAddress], // owners
-      SAFE_CONFIG.threshold,
-      salt
-    );
-
-    logger.debug('Predicted Safe address', {
+    logger.debug('Derived Safe address', {
       userWalletAddress,
-      predictedAddress,
+      safeAddress,
       eoaOwner: eoaAddress,
-      salt
     });
 
-    // Check if Safe is already deployed
-    const isDeployed = await relayClient.isSafeDeployed(predictedAddress);
+    // Check if Safe is already deployed using getDeployed (exists in JS but not in TS types)
+    let isDeployed = false;
+    try {
+      isDeployed = await relayClient.getDeployed(safeAddress);
+    } catch (error) {
+      // If getDeployed fails, assume not deployed
+      logger.debug('getDeployed check failed, assuming not deployed', { error });
+    }
 
     if (isDeployed) {
       logger.info('Safe wallet already deployed', {
         userWalletAddress,
-        safeAddress: predictedAddress
+        safeAddress
       });
 
       return {
-        safeAddress: predictedAddress,
+        safeAddress,
         deployed: false, // Indicates it was already deployed
       };
     }
@@ -190,26 +146,22 @@ export async function deploySafeWallet(
     // Deploy the Safe
     logger.info('Deploying new Safe wallet', {
       userWalletAddress,
-      predictedAddress
+      safeAddress
     });
 
-    const deploymentResult = await relayClient.createSafe(
-      [eoaAddress], // owners
-      SAFE_CONFIG.threshold,
-      salt
-    );
+    const deploymentResult = await relayClient.deploy();
 
     // The RelayClient should return the transaction hash
     const transactionHash = deploymentResult.transactionHash || deploymentResult.txHash;
 
     logger.info('Safe wallet deployed successfully', {
       userWalletAddress,
-      safeAddress: predictedAddress,
+      safeAddress,
       transactionHash,
     });
 
     return {
-      safeAddress: predictedAddress,
+      safeAddress,
       deployed: true,
       transactionHash,
     };
@@ -232,27 +184,49 @@ export async function verifySafeAccess(
 ): Promise<boolean> {
   try {
     const walletClient = await signerToWalletClient(eoaSigner);
+    const eoaAddress = await eoaSigner.getAddress();
+
+    // Initialize BuilderConfig with credentials
+    const builderConfig = new BuilderConfig({
+      localBuilderCreds: {
+        key: BUILDER_API_KEY,
+        secret: BUILDER_API_SECRET,
+        passphrase: BUILDER_API_PASSPHRASE,
+      },
+    });
 
     const relayClient = new RelayClient(
       BUILDER_RELAYER_URL,
       137,
-      walletClient
-    );
+      walletClient,
+      builderConfig
+    ) as any; // Type assertion needed
 
-    // Check if Safe exists
-    const isDeployed = await relayClient.isSafeDeployed(safeAddress);
+    // Check if Safe exists using getDeployed
+    let isDeployed = false;
+    try {
+      isDeployed = await relayClient.getDeployed(safeAddress);
+    } catch (error) {
+      logger.debug('getDeployed check failed', { safeAddress, error });
+      return false;
+    }
 
     if (!isDeployed) {
       logger.warn('Safe not deployed', { safeAddress });
       return false;
     }
 
-    // Verify EOA is owner
-    const eoaAddress = await eoaSigner.getAddress();
-    const isOwner = await relayClient.isSafeOwner(safeAddress, eoaAddress);
+    // Derive expected Safe address for this EOA
+    const config = getContractConfig(137);
+    const expectedSafeAddress = deriveSafe(eoaAddress, config.SafeContracts.SafeFactory);
 
-    if (!isOwner) {
-      logger.warn('EOA is not Safe owner', { safeAddress, eoaAddress });
+    // Verify this is the correct Safe for this EOA
+    if (safeAddress.toLowerCase() !== expectedSafeAddress.toLowerCase()) {
+      logger.warn('Safe address does not match expected address for EOA', {
+        safeAddress,
+        expectedSafeAddress,
+        eoaAddress
+      });
       return false;
     }
 
@@ -264,22 +238,10 @@ export async function verifySafeAccess(
 }
 
 /**
- * Get Safe wallet info
+ * Get derived Safe address for an EOA
+ * This is deterministic - same EOA always gets same Safe address
  */
-export async function getSafeInfo(safeAddress: string): Promise<{
-  owners: string[];
-  threshold: number;
-  nonce: number;
-} | null> {
-  try {
-    // This would require additional Safe SDK integration
-    // For now, return null as placeholder
-    logger.debug('Getting Safe info', { safeAddress });
-
-    // TODO: Implement using Safe SDK if needed
-    return null;
-  } catch (error) {
-    logger.warn('Failed to get Safe info', { safeAddress, error });
-    return null;
-  }
+export async function getSafeAddressForEOA(eoaAddress: string): Promise<string> {
+  const config = getContractConfig(137);
+  return deriveSafe(eoaAddress, config.SafeContracts.SafeFactory);
 }
