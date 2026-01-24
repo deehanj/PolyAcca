@@ -8,10 +8,9 @@
  */
 
 import { useState, useEffect } from 'react';
-import { useReadContract, useWriteContract, useWaitForTransactionReceipt, useAccount, useSwitchChain, useChainId } from 'wagmi';
-import { useAppKit } from '@reown/appkit/react';
+import { useReadContract, useWriteContract, useWaitForTransactionReceipt, useAccount } from 'wagmi';
 import { erc20Abi, parseUnits, formatUnits } from 'viem';
-import { Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Loader2, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
 import { useUserProfile } from '../../hooks/useUserProfile';
 import { useTradingBalance } from '../../context/TradingBalanceContext';
 import { Dialog, DialogTitle } from '../ui/Dialog';
@@ -29,11 +28,11 @@ function formatBalance(balance: bigint | undefined): string {
   return Number(formatUnits(balance, USDC_DECIMALS)).toFixed(2);
 }
 
+// MoonPay widget URL for buying USDC on Polygon
+const MOONPAY_BUY_URL = 'https://buy.moonpay.com';
+
 export function DepositModal() {
-  const { open: openAppKit } = useAppKit();
   const { address: connectedAddress } = useAccount();
-  const chainId = useChainId();
-  const { switchChainAsync } = useSwitchChain();
   const { safeWalletAddress } = useUserProfile();
   const {
     tradingBalance,
@@ -93,17 +92,14 @@ export function DepositModal() {
     setActiveTab('deposit');
   };
 
-  const handleBuyUsdc = async () => {
-    // Try to switch to Polygon first - this may influence which chain the onramp defaults to
-    if (chainId !== SUPPORTED_CHAINS.polygon.id) {
-      try {
-        await switchChainAsync({ chainId: SUPPORTED_CHAINS.polygon.id });
-      } catch (err) {
-        // If chain switch fails, still proceed with onramp
-        console.error('Failed to switch to Polygon:', err);
-      }
-    }
-    openAppKit({ view: 'OnRampProviders' });
+  const handleBuyUsdc = () => {
+    // Open MoonPay directly with USDC on Polygon pre-selected
+    // The wallet address is passed so MoonPay can pre-fill the destination
+    const params = new URLSearchParams({
+      currencyCode: 'usdc_polygon',
+      ...(safeWalletAddress && { walletAddress: safeWalletAddress }),
+    });
+    window.open(`${MOONPAY_BUY_URL}?${params.toString()}`, '_blank');
     setModalState('waiting');
   };
 
@@ -384,14 +380,17 @@ function DepositOptions({
               : 'border-border hover:border-primary/50 hover:bg-muted/50'
           }`}
         >
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">💳</span>
-            <div>
-              <div className="font-medium text-foreground">Buy USDC</div>
-              <div className="text-xs text-muted-foreground">
-                Card, Apple Pay, Bank transfer
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">💳</span>
+              <div>
+                <div className="font-medium text-foreground">Buy USDC on Polygon</div>
+                <div className="text-xs text-muted-foreground">
+                  Card, Apple Pay, Bank transfer via MoonPay
+                </div>
               </div>
             </div>
+            <ExternalLink className="h-4 w-4 text-muted-foreground" />
           </div>
         </button>
 
