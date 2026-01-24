@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useMemo, type ReactNode } from 'react';
 import { useReadContract } from 'wagmi';
 import { erc20Abi, formatUnits } from 'viem';
 import { useUserProfile } from '../hooks/useUserProfile';
@@ -24,6 +24,14 @@ interface TradingBalanceContextValue {
   refetchBalance: () => void;
   /** Check if user has sufficient balance for a given amount */
   hasSufficientBalance: (amount: number) => boolean;
+  /** Amount needed for pending bet (null if not mid-bet) */
+  pendingBetAmount: number | null;
+  /** Shortfall amount (pendingBetAmount - tradingBalance, or null) */
+  shortfall: number | null;
+  /** Set pending bet info when opening modal mid-bet */
+  setPendingBet: (amount: number) => void;
+  /** Clear pending bet info */
+  clearPendingBet: () => void;
 }
 
 const TradingBalanceContext = createContext<TradingBalanceContextValue | null>(null);
@@ -37,6 +45,7 @@ export function TradingBalanceProvider({ children }: { children: ReactNode }) {
   const { isAuthenticated } = useAuth();
   const { safeWalletAddress, isLoading: profileLoading } = useUserProfile();
   const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
+  const [pendingBetAmount, setPendingBetAmountState] = useState<number | null>(null);
 
   const { data: tradingBalanceRaw, isLoading: balanceLoading, refetch } = useReadContract({
     address: SUPPORTED_CHAINS.polygon.usdc,
@@ -46,12 +55,27 @@ export function TradingBalanceProvider({ children }: { children: ReactNode }) {
     chainId: SUPPORTED_CHAINS.polygon.id,
     query: {
       enabled: !!safeWalletAddress && isAuthenticated,
-      refetchInterval: 30000,
+      refetchInterval: isDepositModalOpen ? 5000 : 30000, // Fast poll when modal open
     },
   });
 
   const tradingBalance = formatBalance(tradingBalanceRaw);
   const isLoading = profileLoading || balanceLoading;
+
+  const shortfall = useMemo(() => {
+    if (pendingBetAmount === null) return null;
+    const balance = parseFloat(tradingBalance);
+    const deficit = pendingBetAmount - balance;
+    return deficit > 0 ? deficit : null;
+  }, [pendingBetAmount, tradingBalance]);
+
+  const setPendingBet = useCallback((amount: number) => {
+    setPendingBetAmountState(amount);
+  }, []);
+
+  const clearPendingBet = useCallback(() => {
+    setPendingBetAmountState(null);
+  }, []);
 
   const openDepositModal = useCallback(() => {
     setIsDepositModalOpen(true);
@@ -81,6 +105,10 @@ export function TradingBalanceProvider({ children }: { children: ReactNode }) {
         isDepositModalOpen,
         refetchBalance,
         hasSufficientBalance,
+        pendingBetAmount,
+        shortfall,
+        setPendingBet,
+        clearPendingBet,
       }}
     >
       {children}
