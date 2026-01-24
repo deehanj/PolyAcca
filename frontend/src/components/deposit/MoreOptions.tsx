@@ -55,10 +55,16 @@ export function MoreOptions({ safeWalletAddress, onStartWaiting }: MoreOptionsPr
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ address: safeWalletAddress }),
         });
-        if (response.ok) {
-          const data = await response.json();
-          setDepositAddresses(data.address);
+        if (!response.ok) {
+          console.error(`Deposit address API error: ${response.status}`);
+          return;
         }
+        const data = await response.json();
+        if (!data?.address?.evm) {
+          console.error('Invalid deposit address response format');
+          return;
+        }
+        setDepositAddresses(data.address);
       } catch (error) {
         console.error('Failed to fetch deposit addresses:', error);
       } finally {
@@ -119,7 +125,8 @@ export function MoreOptions({ safeWalletAddress, onStartWaiting }: MoreOptionsPr
 
     try {
       switchChain({ chainId: chainInfo.id });
-    } catch {
+    } catch (error) {
+      console.error('Failed to switch chain:', error);
       return;
     }
 
