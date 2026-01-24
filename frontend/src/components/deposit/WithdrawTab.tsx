@@ -45,7 +45,12 @@ export function WithdrawTab() {
       });
 
       if (!nonceRes.ok) throw new Error('Failed to get nonce');
-      const nonceData = await nonceRes.json();
+      let nonceData;
+      try {
+        nonceData = await nonceRes.json();
+      } catch {
+        throw new Error('Invalid response from server');
+      }
       if (!nonceData.success) throw new Error(nonceData.error || 'Failed to get nonce');
 
       // Sign message
@@ -64,18 +69,31 @@ export function WithdrawTab() {
         }),
       });
 
-      const withdrawData = await withdrawRes.json();
+      let withdrawData;
+      try {
+        withdrawData = await withdrawRes.json();
+      } catch {
+        throw new Error('Invalid response from server');
+      }
       if (!withdrawRes.ok || !withdrawData.success) {
         throw new Error(withdrawData.error || 'Withdraw failed');
       }
 
       setWithdrawSuccess(withdrawData.data.txHash);
       setWithdrawAmount('');
-      setTimeout(() => refetchBalance(), 3000);
+      // Refetch immediately and again after a short delay to catch the update
+      refetchBalance();
+      setTimeout(() => refetchBalance(), 2000);
 
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Withdraw failed';
-      if (errorMessage.includes('rejected') || errorMessage.includes('denied')) {
+      // Check for common wallet rejection patterns
+      const isRejection = errorMessage.toLowerCase().includes('rejected') ||
+                          errorMessage.toLowerCase().includes('denied') ||
+                          errorMessage.toLowerCase().includes('user rejected') ||
+                          errorMessage.toLowerCase().includes('cancelled') ||
+                          (err as any)?.code === 4001; // EIP-1193 user rejected
+      if (isRejection) {
         setWithdrawError('Signature rejected');
       } else {
         setWithdrawError(errorMessage);
