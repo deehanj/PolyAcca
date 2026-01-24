@@ -9,6 +9,7 @@ import { HomePage } from "./pages/Home";
 import { DesignPage } from "./pages/Design";
 import { AdminPage } from "./pages/Admin";
 import { MyChainsPage } from "./pages/MyChains";
+import { DepositModal } from "./components/deposit";
 
 function AppContent() {
   // Initialize WebSocket connection for bet notifications
@@ -34,6 +35,7 @@ function App() {
             <AccumulatorProvider>
               <AppContent />
               <Toaster position="bottom-right" theme="dark" richColors />
+              <DepositModal />
             </AccumulatorProvider>
           </BrowserRouter>
         </TradingBalanceProvider>
