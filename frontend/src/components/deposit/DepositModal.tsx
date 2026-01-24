@@ -18,6 +18,7 @@ import { Dialog, DialogTitle } from '../ui/Dialog';
 import { Button } from '../ui/Button';
 import { SUPPORTED_CHAINS } from '../../lib/wagmi';
 import { MoreOptions } from './MoreOptions';
+import { WithdrawTab } from './WithdrawTab';
 
 const USDC_DECIMALS = 6;
 
@@ -47,6 +48,7 @@ export function DepositModal() {
   const [previousBalanceRaw, setPreviousBalanceRaw] = useState<bigint | null>(null);
   const [depositedAmount, setDepositedAmount] = useState<string | null>(null);
   const [moreOptionsOpen, setMoreOptionsOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'deposit' | 'withdraw'>('deposit');
 
   // Track raw balance for detecting deposits (using bigint for precision)
   useEffect(() => {
@@ -86,6 +88,7 @@ export function DepositModal() {
     setPreviousBalanceRaw(null);
     setDepositedAmount(null);
     setMoreOptionsOpen(false);
+    setActiveTab('deposit');
   };
 
   const handleBuyUsdc = () => {
@@ -111,20 +114,50 @@ export function DepositModal() {
       ) : modalState === 'waiting' ? (
         <WaitingForDeposit balance={tradingBalance} />
       ) : (
-        <DepositOptions
-          tradingBalance={tradingBalance}
-          pendingBetAmount={pendingBetAmount}
-          shortfall={shortfall}
-          polygonUsdc={polygonUsdc}
-          polygonUsdcBalance={polygonUsdcBalance}
-          hasPolygonUsdc={hasPolygonUsdc}
-          safeWalletAddress={safeWalletAddress}
-          onBuyUsdc={handleBuyUsdc}
-          moreOptionsOpen={moreOptionsOpen}
-          setMoreOptionsOpen={setMoreOptionsOpen}
-          setModalState={setModalState}
-          refetchBalance={refetchBalance}
-        />
+        <>
+          {/* Tabs */}
+          <div className="flex gap-1 mb-4 p-1 rounded-lg bg-muted">
+            <button
+              onClick={() => setActiveTab('deposit')}
+              className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                activeTab === 'deposit'
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Deposit
+            </button>
+            <button
+              onClick={() => setActiveTab('withdraw')}
+              className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                activeTab === 'withdraw'
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Withdraw
+            </button>
+          </div>
+
+          {activeTab === 'deposit' ? (
+            <DepositOptions
+              tradingBalance={tradingBalance}
+              pendingBetAmount={pendingBetAmount}
+              shortfall={shortfall}
+              polygonUsdc={polygonUsdc}
+              polygonUsdcBalance={polygonUsdcBalance}
+              hasPolygonUsdc={hasPolygonUsdc}
+              safeWalletAddress={safeWalletAddress}
+              onBuyUsdc={handleBuyUsdc}
+              moreOptionsOpen={moreOptionsOpen}
+              setMoreOptionsOpen={setMoreOptionsOpen}
+              setModalState={setModalState}
+              refetchBalance={refetchBalance}
+            />
+          ) : (
+            <WithdrawTab />
+          )}
+        </>
       )}
     </Dialog>
   );
