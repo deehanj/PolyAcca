@@ -19,7 +19,6 @@ import { SUPPORTED_CHAINS } from '../../lib/wagmi';
 import { MoreOptions } from './MoreOptions';
 import { WithdrawTab } from './WithdrawTab';
 
-const API_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
 const USDC_DECIMALS = 6;
 
 type ModalState = 'idle' | 'waiting' | 'success';
@@ -90,34 +89,11 @@ export function DepositModal() {
     setActiveTab('deposit');
   };
 
-  const handleBuyUsdc = async () => {
-    if (!safeWalletAddress) {
-      console.error('No safe wallet address available');
-      return;
-    }
-
-    try {
-      // Get signed MoonPay URL from backend
-      const response = await fetch(
-        `${API_URL}/wallet/moonpay-url?walletAddress=${encodeURIComponent(safeWalletAddress)}`
-      );
-      const result = await response.json();
-
-      if (!result.success || !result.data?.url) {
-        console.error('Failed to get MoonPay URL:', result.error);
-        // Fallback: open MoonPay without wallet pre-filled
-        window.open('https://buy.moonpay.com?currencyCode=usdc_polygon', '_blank');
-      } else {
-        window.open(result.data.url, '_blank');
-      }
-
-      setModalState('waiting');
-    } catch (err) {
-      console.error('Error getting MoonPay URL:', err);
-      // Fallback: open MoonPay without wallet pre-filled
-      window.open('https://buy.moonpay.com?currencyCode=usdc_polygon', '_blank');
-      setModalState('waiting');
-    }
+  const handleBuyUsdc = () => {
+    // Open Polymarket's deposit page - they have MoonPay integrated
+    // Since we use Polymarket's Safe infrastructure, funds go to the same wallet
+    window.open('https://polymarket.com/deposit', '_blank');
+    setModalState('waiting');
   };
 
   const handlePlaceBet = () => {
@@ -403,7 +379,7 @@ function DepositOptions({
               <div>
                 <div className="font-medium text-foreground">Buy USDC on Polygon</div>
                 <div className="text-xs text-muted-foreground">
-                  Card, Apple Pay, Bank transfer via MoonPay
+                  Card, Apple Pay, Bank transfer via Polymarket
                 </div>
               </div>
             </div>
