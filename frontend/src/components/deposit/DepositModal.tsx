@@ -33,6 +33,7 @@ export function DepositModal() {
   const { safeWalletAddress } = useUserProfile();
   const {
     tradingBalance,
+    tradingBalanceRaw,
     isDepositModalOpen,
     closeDepositModal,
     pendingBetAmount,
@@ -42,29 +43,27 @@ export function DepositModal() {
   } = useTradingBalance();
 
   const [modalState, setModalState] = useState<ModalState>('idle');
-  const [previousBalance, setPreviousBalance] = useState<string | null>(null);
+  const [previousBalanceRaw, setPreviousBalanceRaw] = useState<bigint | null>(null);
   const [depositedAmount, setDepositedAmount] = useState<string | null>(null);
   const [moreOptionsOpen, setMoreOptionsOpen] = useState(false);
 
-  // Track balance for detecting deposits
+  // Track raw balance for detecting deposits (using bigint for precision)
   useEffect(() => {
-    if (isDepositModalOpen && modalState === 'idle') {
-      setPreviousBalance(tradingBalance);
+    if (isDepositModalOpen && modalState === 'idle' && tradingBalanceRaw !== undefined) {
+      setPreviousBalanceRaw(tradingBalanceRaw);
     }
-  }, [isDepositModalOpen, modalState, tradingBalance]);
+  }, [isDepositModalOpen, modalState, tradingBalanceRaw]);
 
-  // Detect balance increase while waiting
+  // Detect balance increase while waiting (using bigint comparison for precision)
   useEffect(() => {
-    if (modalState === 'waiting' && previousBalance !== null) {
-      const prev = parseFloat(previousBalance);
-      const current = parseFloat(tradingBalance);
-      if (current > prev) {
-        const deposited = (current - prev).toFixed(2);
-        setDepositedAmount(deposited);
+    if (modalState === 'waiting' && previousBalanceRaw !== null && tradingBalanceRaw !== undefined) {
+      if (tradingBalanceRaw > previousBalanceRaw) {
+        const diff = tradingBalanceRaw - previousBalanceRaw;
+        setDepositedAmount(formatBalance(diff));
         setModalState('success');
       }
     }
-  }, [modalState, previousBalance, tradingBalance]);
+  }, [modalState, previousBalanceRaw, tradingBalanceRaw]);
 
   // USDC on Polygon (connected wallet)
   const { data: polygonUsdcBalance } = useReadContract({
@@ -83,7 +82,7 @@ export function DepositModal() {
     closeDepositModal();
     clearPendingBet();
     setModalState('idle');
-    setPreviousBalance(null);
+    setPreviousBalanceRaw(null);
     setDepositedAmount(null);
     setMoreOptionsOpen(false);
   };
@@ -116,6 +115,7 @@ export function DepositModal() {
           pendingBetAmount={pendingBetAmount}
           shortfall={shortfall}
           polygonUsdc={polygonUsdc}
+          polygonUsdcBalance={polygonUsdcBalance}
           hasPolygonUsdc={hasPolygonUsdc}
           safeWalletAddress={safeWalletAddress}
           onBuyUsdc={handleBuyUsdc}
@@ -190,6 +190,7 @@ interface DepositOptionsProps {
   pendingBetAmount: number | null;
   shortfall: number | null;
   polygonUsdc: string;
+  polygonUsdcBalance: bigint | undefined;
   hasPolygonUsdc: boolean;
   safeWalletAddress: string | undefined;
   onBuyUsdc: () => void;
@@ -204,6 +205,7 @@ function DepositOptions({
   pendingBetAmount,
   shortfall,
   polygonUsdc,
+  polygonUsdcBalance,
   hasPolygonUsdc,
   safeWalletAddress,
   onBuyUsdc,
@@ -214,12 +216,21 @@ function DepositOptions({
 }: DepositOptionsProps) {
   const [depositAmount, setDepositAmount] = useState('');
   const [polygonExpanded, setPolygonExpanded] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   // Direct deposit transaction
-  const { writeContract, data: txHash, isPending: isWritePending } = useWriteContract();
-  const { isLoading: isTxPending, isSuccess: isTxSuccess } = useWaitForTransactionReceipt({
+  const { writeContract, data: txHash, isPending: isWritePending, error: writeError, reset: resetWrite } = useWriteContract();
+  const { isLoading: isTxPending, isSuccess: isTxSuccess, isError: isTxError, error: txError } = useWaitForTransactionReceipt({
     hash: txHash,
   });
+
+  // Reset error state when user modifies input
+  useEffect(() => {
+    if (writeError || txError) {
+      resetWrite();
+    }
+    setValidationError(null);
+  }, [depositAmount]);
 
   useEffect(() => {
     if (isTxSuccess) {
@@ -228,8 +239,51 @@ function DepositOptions({
     }
   }, [isTxSuccess, refetchBalance, setModalState]);
 
+  // Validate deposit amount
+  const validateDeposit = (): boolean => {
+    // Check if amount is provided
+    if (!depositAmount || depositAmount.trim() === '') {
+      setValidationError('Please enter an amount');
+      return false;
+    }
+
+    // Check if amount is a valid number
+    const amount = parseFloat(depositAmount);
+    if (isNaN(amount)) {
+      setValidationError('Please enter a valid number');
+      return false;
+    }
+
+    // Check if amount is positive
+    if (amount <= 0) {
+      setValidationError('Amount must be greater than 0');
+      return false;
+    }
+
+    // Check if amount exceeds Polygon USDC balance
+    if (polygonUsdcBalance !== undefined) {
+      try {
+        const depositAmountRaw = parseUnits(depositAmount, USDC_DECIMALS);
+        if (depositAmountRaw > polygonUsdcBalance) {
+          setValidationError(`Insufficient balance. You have $${polygonUsdc} USDC`);
+          return false;
+        }
+      } catch {
+        setValidationError('Invalid amount format');
+        return false;
+      }
+    }
+
+    setValidationError(null);
+    return true;
+  };
+
   const handleDirectDeposit = () => {
-    if (!depositAmount || !safeWalletAddress) return;
+    if (!safeWalletAddress) return;
+
+    // Validate before proceeding
+    if (!validateDeposit()) return;
+
     const amount = parseUnits(depositAmount, USDC_DECIMALS);
     writeContract({
       address: SUPPORTED_CHAINS.polygon.usdc,
@@ -241,6 +295,8 @@ function DepositOptions({
   };
 
   const isDepositing = isWritePending || isTxPending;
+  const hasError = !!writeError || isTxError || !!validationError;
+  const errorMessage = validationError || writeError?.message || txError?.message || 'Transaction failed';
 
   return (
     <>
@@ -374,6 +430,13 @@ function DepositOptions({
                     `Deposit $${depositAmount || '0.00'}`
                   )}
                 </Button>
+
+                {/* Error display */}
+                {hasError && (
+                  <div className="text-sm text-destructive mt-2">
+                    {errorMessage}
+                  </div>
+                )}
               </div>
             </div>
           )}
