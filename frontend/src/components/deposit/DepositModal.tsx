@@ -8,7 +8,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { useReadContract, useWriteContract, useWaitForTransactionReceipt, useAccount } from 'wagmi';
+import { useReadContract, useWriteContract, useWaitForTransactionReceipt, useAccount, useSwitchChain, useChainId } from 'wagmi';
 import { useAppKit } from '@reown/appkit/react';
 import { erc20Abi, parseUnits, formatUnits } from 'viem';
 import { Loader2, ChevronDown, ChevronUp } from 'lucide-react';
@@ -32,6 +32,8 @@ function formatBalance(balance: bigint | undefined): string {
 export function DepositModal() {
   const { open: openAppKit } = useAppKit();
   const { address: connectedAddress } = useAccount();
+  const chainId = useChainId();
+  const { switchChainAsync } = useSwitchChain();
   const { safeWalletAddress } = useUserProfile();
   const {
     tradingBalance,
@@ -91,7 +93,16 @@ export function DepositModal() {
     setActiveTab('deposit');
   };
 
-  const handleBuyUsdc = () => {
+  const handleBuyUsdc = async () => {
+    // Try to switch to Polygon first - this may influence which chain the onramp defaults to
+    if (chainId !== SUPPORTED_CHAINS.polygon.id) {
+      try {
+        await switchChainAsync({ chainId: SUPPORTED_CHAINS.polygon.id });
+      } catch (err) {
+        // If chain switch fails, still proceed with onramp
+        console.error('Failed to switch to Polygon:', err);
+      }
+    }
     openAppKit({ view: 'OnRampProviders' });
     setModalState('waiting');
   };
