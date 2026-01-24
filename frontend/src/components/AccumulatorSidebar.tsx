@@ -21,7 +21,7 @@ export const AccumulatorSidebar = forwardRef<HTMLDivElement>(
     const { bets, addBet, removeBet, clearBets, totalOdds, potentialPayout, getLegsForApi } =
       useAccumulator();
     const { isAuthenticated, isConnected, authenticate, getAuthHeaders } = useAuth();
-    const { hasSufficientBalance, openDepositModal } = useTradingBalance();
+    const { hasSufficientBalance, openDepositModal, setPendingBet } = useTradingBalance();
     const [stake, setStake] = useState<string>("10");
     const [isDragOver, setIsDragOver] = useState(false);
     const [showSpeedLines, setShowSpeedLines] = useState(false);
@@ -118,6 +118,7 @@ export const AccumulatorSidebar = forwardRef<HTMLDivElement>(
 
     // Check if user has sufficient balance
     if (!hasSufficientBalance(stakeAmount)) {
+      setPendingBet(stakeAmount);
       openDepositModal();
       return;
     }
