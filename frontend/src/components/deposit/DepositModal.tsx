@@ -17,6 +17,7 @@ import { useTradingBalance } from '../../context/TradingBalanceContext';
 import { Dialog, DialogTitle } from '../ui/Dialog';
 import { Button } from '../ui/Button';
 import { SUPPORTED_CHAINS } from '../../lib/wagmi';
+import { MoreOptions } from './MoreOptions';
 
 const USDC_DECIMALS = 6;
 
@@ -461,12 +462,13 @@ function DepositOptions({
         )}
       </button>
 
-      {/* More options content - to be expanded in Task 5 */}
+      {/* More options content - Bridge and manual deposit */}
       {moreOptionsOpen && (
-        <div className="mt-4 p-4 rounded-lg border border-border bg-muted/30">
-          <p className="text-sm text-muted-foreground">
-            Bridge from Ethereum/Base and manual deposit options coming in next task...
-          </p>
+        <div className="mt-4">
+          <MoreOptions
+            safeWalletAddress={safeWalletAddress}
+            onStartWaiting={() => setModalState('waiting')}
+          />
         </div>
       )}
     </>
