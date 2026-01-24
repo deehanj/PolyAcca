@@ -3,7 +3,6 @@
  *
  * Endpoints:
  * - POST /wallet/withdraw - Withdraw USDC to connected wallet (requires fresh signature)
- * - GET /wallet/moonpay-url - Get signed MoonPay widget URL for buying USDC on Polygon
  *
  * Security: Uses signature-based auth (not JWT) for sensitive operations.
  * User must sign a message containing the exact withdraw amount and a fresh nonce.
@@ -13,18 +12,13 @@
  */
 
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import { createHmac } from 'crypto';
 import { verifyMessage } from 'ethers';
-import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
 import { getNonce, deleteNonce, getUser } from '../../shared/dynamo-client';
 import { buildWithdrawMessage, isValidAddress } from '../../shared/auth-utils';
 import { errorResponse, successResponse } from '../../shared/api-utils';
 import { createLogger } from '../../shared/logger';
 import { transferUsdcWithPlatformGas } from '../../shared/usdc-permit';
 import type { WithdrawRequest, WithdrawResponse } from '../../shared/types';
-
-const secretsClient = new SecretsManagerClient({});
-const MOONPAY_BUY_URL = 'https://buy.moonpay.com';
 
 const logger = createLogger('wallet');
 
@@ -148,71 +142,6 @@ async function handleWithdraw(
   return successResponse(response);
 }
 
-/**
- * GET /wallet/moonpay-url - Get signed MoonPay widget URL
- *
- * Returns a signed MoonPay URL for buying USDC on Polygon.
- * The URL includes the wallet address and is signed with HMAC-SHA256.
- *
- * Query params:
- * - walletAddress: Destination wallet address for purchased USDC
- */
-async function handleMoonpayUrl(
-  queryParams: Record<string, string | undefined> | null
-): Promise<APIGatewayProxyResult> {
-  const walletAddress = queryParams?.walletAddress;
-
-  if (!walletAddress || !isValidAddress(walletAddress)) {
-    return errorResponse(400, 'Invalid wallet address');
-  }
-
-  // Get MoonPay credentials from Secrets Manager
-  const moonpaySecretArn = process.env.MOONPAY_SECRET_ARN;
-  if (!moonpaySecretArn) {
-    logger.error('MOONPAY_SECRET_ARN not configured');
-    return errorResponse(500, 'MoonPay not configured');
-  }
-
-  let moonpayCredentials: { publishableKey: string; secretKey: string };
-  try {
-    const secretResponse = await secretsClient.send(
-      new GetSecretValueCommand({ SecretId: moonpaySecretArn })
-    );
-    moonpayCredentials = JSON.parse(secretResponse.SecretString || '{}');
-  } catch (err) {
-    logger.error('Failed to get MoonPay credentials', { error: err });
-    return errorResponse(500, 'Failed to get MoonPay credentials');
-  }
-
-  if (!moonpayCredentials.publishableKey || !moonpayCredentials.secretKey) {
-    logger.error('MoonPay credentials incomplete');
-    return errorResponse(500, 'MoonPay credentials incomplete');
-  }
-
-  // Build the query string for MoonPay
-  // - currencyCode: usdc_polygon for USDC on Polygon
-  // - walletAddress: destination for purchased USDC
-  const params = new URLSearchParams({
-    apiKey: moonpayCredentials.publishableKey,
-    currencyCode: 'usdc_polygon',
-    walletAddress,
-  });
-
-  const queryString = `?${params.toString()}`;
-
-  // Sign the query string with HMAC-SHA256
-  const signature = createHmac('sha256', moonpayCredentials.secretKey)
-    .update(queryString)
-    .digest('base64');
-
-  // Build the final signed URL
-  const signedUrl = `${MOONPAY_BUY_URL}${queryString}&signature=${encodeURIComponent(signature)}`;
-
-  logger.info('Generated MoonPay URL', { walletAddress });
-
-  return successResponse({ url: signedUrl });
-}
-
 export async function handler(
   event: APIGatewayProxyEvent
 ): Promise<APIGatewayProxyResult> {
@@ -223,11 +152,6 @@ export async function handler(
     // POST /wallet/withdraw
     if (method === 'POST' && path.endsWith('/withdraw')) {
       return handleWithdraw(event.body);
-    }
-
-    // GET /wallet/moonpay-url
-    if (method === 'GET' && path.endsWith('/moonpay-url')) {
-      return handleMoonpayUrl(event.queryStringParameters);
     }
 
     return errorResponse(404, 'Not found');

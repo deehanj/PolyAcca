@@ -32,10 +32,6 @@ export interface ApiConstructProps {
    * Platform wallet address for funding gas on withdrawals
    */
   platformWalletAddress: string;
-  /**
-   * MoonPay secret ARN (for fiat onramp URL signing)
-   */
-  moonpaySecretArn: string;
 }
 
 export class ApiConstruct extends Construct {
@@ -50,7 +46,7 @@ export class ApiConstruct extends Construct {
   constructor(scope: Construct, id: string, props: ApiConstructProps) {
     super(scope, id);
 
-    const { table, auth, turnkeySecretArn, turnkeyOrganizationId, platformWalletAddress, moonpaySecretArn } = props;
+    const { table, auth, turnkeySecretArn, turnkeyOrganizationId, platformWalletAddress } = props;
 
     // Shared Lambda config
     const lambdaConfig = {
@@ -152,7 +148,6 @@ export class ApiConstruct extends Construct {
         TURNKEY_SECRET_ARN: turnkeySecretArn,
         TURNKEY_ORGANIZATION_ID: turnkeyOrganizationId,
         PLATFORM_WALLET_ADDRESS: platformWalletAddress,
-        MOONPAY_SECRET_ARN: moonpaySecretArn,
         NODE_OPTIONS: '--enable-source-maps',
       },
     });
@@ -169,10 +164,10 @@ export class ApiConstruct extends Construct {
       resources: ['*'],
     }));
 
-    // Grant wallet function access to Turnkey and MoonPay secrets
+    // Grant wallet function access to Turnkey secret
     this.walletFunction.addToRolePolicy(new iam.PolicyStatement({
       actions: ['secretsmanager:GetSecretValue'],
-      resources: [turnkeySecretArn, moonpaySecretArn],
+      resources: [turnkeySecretArn],
     }));
 
     // REST API
@@ -274,11 +269,8 @@ export class ApiConstruct extends Construct {
     // These endpoints verify a fresh wallet signature instead of JWT
     const walletResource = this.api.root.addResource('wallet');
     const withdrawResource = walletResource.addResource('withdraw');
-    const moonpayUrlResource = walletResource.addResource('moonpay-url');
 
     withdrawResource.addMethod('POST', new apigateway.LambdaIntegration(this.walletFunction));
-    // GET /wallet/moonpay-url - Get signed MoonPay widget URL for buying USDC on Polygon
-    moonpayUrlResource.addMethod('GET', new apigateway.LambdaIntegration(this.walletFunction));
 
     // Outputs
     new cdk.CfnOutput(this, 'ApiUrl', {
