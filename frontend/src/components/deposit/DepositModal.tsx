@@ -19,6 +19,7 @@ import { SUPPORTED_CHAINS } from '../../lib/wagmi';
 import { MoreOptions } from './MoreOptions';
 import { WithdrawTab } from './WithdrawTab';
 
+const API_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
 const USDC_DECIMALS = 6;
 
 type ModalState = 'idle' | 'waiting' | 'success';
@@ -27,9 +28,6 @@ function formatBalance(balance: bigint | undefined): string {
   if (!balance) return '0.00';
   return Number(formatUnits(balance, USDC_DECIMALS)).toFixed(2);
 }
-
-// MoonPay widget URL for buying USDC on Polygon
-const MOONPAY_BUY_URL = 'https://buy.moonpay.com';
 
 export function DepositModal() {
   const { address: connectedAddress } = useAccount();
@@ -92,15 +90,34 @@ export function DepositModal() {
     setActiveTab('deposit');
   };
 
-  const handleBuyUsdc = () => {
-    // Open MoonPay directly with USDC on Polygon pre-selected
-    // The wallet address is passed so MoonPay can pre-fill the destination
-    const params = new URLSearchParams({
-      currencyCode: 'usdc_polygon',
-      ...(safeWalletAddress && { walletAddress: safeWalletAddress }),
-    });
-    window.open(`${MOONPAY_BUY_URL}?${params.toString()}`, '_blank');
-    setModalState('waiting');
+  const handleBuyUsdc = async () => {
+    if (!safeWalletAddress) {
+      console.error('No safe wallet address available');
+      return;
+    }
+
+    try {
+      // Get signed MoonPay URL from backend
+      const response = await fetch(
+        `${API_URL}/wallet/moonpay-url?walletAddress=${encodeURIComponent(safeWalletAddress)}`
+      );
+      const result = await response.json();
+
+      if (!result.success || !result.data?.url) {
+        console.error('Failed to get MoonPay URL:', result.error);
+        // Fallback: open MoonPay without wallet pre-filled
+        window.open('https://buy.moonpay.com?currencyCode=usdc_polygon', '_blank');
+      } else {
+        window.open(result.data.url, '_blank');
+      }
+
+      setModalState('waiting');
+    } catch (err) {
+      console.error('Error getting MoonPay URL:', err);
+      // Fallback: open MoonPay without wallet pre-filled
+      window.open('https://buy.moonpay.com?currencyCode=usdc_polygon', '_blank');
+      setModalState('waiting');
+    }
   };
 
   const handlePlaceBet = () => {

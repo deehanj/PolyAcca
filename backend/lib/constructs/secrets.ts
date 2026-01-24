@@ -51,6 +51,17 @@ export class SecretsConstruct extends Construct {
    */
   public readonly turnkeySecretArn: string;
 
+  /**
+   * MoonPay API credentials for fiat onramp
+   * Structure: { publishableKey, secretKey }
+   */
+  public readonly moonpaySecret: secretsmanager.Secret;
+
+  /**
+   * ARN of the MoonPay secret
+   */
+  public readonly moonpaySecretArn: string;
+
   constructor(scope: Construct, id: string, props?: SecretsConstructProps) {
     super(scope, id);
 
@@ -102,6 +113,23 @@ export class SecretsConstruct extends Construct {
 
     this.turnkeySecretArn = this.turnkeySecret.secretArn;
 
+    // MoonPay API credentials for fiat onramp
+    // Seeded with placeholder structure - replace values after deployment
+    this.moonpaySecret = new secretsmanager.Secret(this, 'MoonpaySecret', {
+      secretName: `${prefix}/moonpay`,
+      description: 'MoonPay API credentials for fiat onramp (USDC on Polygon)',
+      generateSecretString: {
+        secretStringTemplate: JSON.stringify({
+          publishableKey: 'REPLACE_ME',
+          secretKey: 'REPLACE_ME',
+        }),
+        generateStringKey: '_placeholder', // Required but unused
+        excludePunctuation: true,
+      },
+    });
+
+    this.moonpaySecretArn = this.moonpaySecret.secretArn;
+
     // Outputs for reference
     new cdk.CfnOutput(this, 'JwtSecretArn', {
       value: this.jwtSecretArn,
@@ -116,6 +144,11 @@ export class SecretsConstruct extends Construct {
     new cdk.CfnOutput(this, 'TurnkeySecretArn', {
       value: this.turnkeySecretArn,
       description: 'Turnkey Secret ARN (replace REPLACE_ME values with actual credentials)',
+    });
+
+    new cdk.CfnOutput(this, 'MoonpaySecretArn', {
+      value: this.moonpaySecretArn,
+      description: 'MoonPay Secret ARN (replace REPLACE_ME values with actual credentials)',
     });
   }
 
@@ -138,5 +171,12 @@ export class SecretsConstruct extends Construct {
    */
   public grantTurnkeySecretRead(grantee: iam.IGrantable): void {
     this.turnkeySecret.grantRead(grantee);
+  }
+
+  /**
+   * Grant read access to MoonPay credentials (for fiat onramp URL signing)
+   */
+  public grantMoonpaySecretRead(grantee: iam.IGrantable): void {
+    this.moonpaySecret.grantRead(grantee);
   }
 }

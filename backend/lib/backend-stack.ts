@@ -120,6 +120,7 @@ export class BackendStack extends cdk.Stack {
       turnkeySecretArn: this.secrets.turnkeySecretArn,
       turnkeyOrganizationId,
       platformWalletAddress: this.platformWallet.walletAddress,
+      moonpaySecretArn: this.secrets.moonpaySecretArn,
     });
 
     // ==========================================================================
