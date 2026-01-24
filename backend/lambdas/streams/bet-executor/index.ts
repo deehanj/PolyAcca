@@ -40,7 +40,7 @@ import { JsonRpcProvider } from 'ethers';
 import type { BetEntity, BetStatus, BuilderCredentials } from '../../shared/types';
 import { fetchMarketByConditionId } from '../../shared/gamma-client';
 import { isMarketBettable, checkMarketAcceptingOrders } from '../../shared/clob-client';
-import { configureIPRoyalProxy } from '../../shared/iproyal-proxy-config';
+import { applyProxyPatch } from '../../shared/proxy-patch';
 
 const log = createLogger('bet-executor');
 
@@ -54,11 +54,10 @@ const secretsClient = new SecretsManagerClient({});
 const BUILDER_SECRET_ARN = process.env.BUILDER_SECRET_ARN;
 
 /**
- * Configure IPRoyal residential proxy for Polymarket requests (cold start only)
+ * Apply proxy patch for Polymarket requests (cold start only)
  */
 function initProxy(): void {
-  log.info('Configuring IPRoyal residential proxy for Polymarket requests');
-  configureIPRoyalProxy();
+  applyProxyPatch();
 }
 
 /**
