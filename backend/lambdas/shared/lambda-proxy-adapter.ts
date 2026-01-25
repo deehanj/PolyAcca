@@ -13,11 +13,16 @@ import { createLogger } from './logger';
 
 const logger = createLogger('lambda-proxy-adapter');
 
-// Lambda client for invoking the proxy function
-const lambdaClient = new LambdaClient({ region: 'us-east-1' });
-
 // The ARN of the proxy Lambda in Stockholm
 const PROXY_LAMBDA_ARN = process.env.HTTP_PROXY_LAMBDA_ARN;
+
+function getProxyRegion(proxyArn?: string): string {
+  if (!proxyArn) {
+    return 'us-east-1';
+  }
+  const parts = proxyArn.split(':');
+  return parts.length > 3 ? parts[3] : 'us-east-1';
+}
 
 export interface ProxyRequest {
   url: string;
@@ -44,6 +49,9 @@ export function createLambdaProxyAdapter(lambdaArn?: string): AxiosAdapter {
   if (!proxyArn) {
     throw new Error('HTTP_PROXY_LAMBDA_ARN environment variable or lambdaArn parameter must be set');
   }
+
+  // Lambda client for invoking the proxy function (use target region)
+  const lambdaClient = new LambdaClient({ region: getProxyRegion(proxyArn) });
 
   return async (config: AxiosRequestConfig) => {
     // Build the full URL

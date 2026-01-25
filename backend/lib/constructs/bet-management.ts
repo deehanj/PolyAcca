@@ -89,6 +89,8 @@ export class BetManagementConstruct extends Construct {
     super(scope, id);
 
     const { table, credentialsTable, secrets, turnkeyOrganizationId, commissionWalletAddress, platformWalletAddress, websocket, adminWebsocket, environment = 'dev', ipRoyalConfig } = props;
+    const account = cdk.Stack.of(this).account;
+    const proxyLambdaArn = `arn:aws:lambda:eu-north-1:${account}:function:polyacca-${environment}-http-proxy`;
 
     // Shared Lambda config
     const lambdaConfig = {
@@ -132,6 +134,7 @@ export class BetManagementConstruct extends Construct {
         // Turnkey for embedded wallet signing
         TURNKEY_SECRET_ARN: secrets.turnkeySecretArn,
         TURNKEY_ORGANIZATION_ID: turnkeyOrganizationId,
+        HTTP_PROXY_LAMBDA_ARN: proxyLambdaArn,
         // IPRoyal proxy configuration for bypassing Polymarket geo-blocking
         ...(ipRoyalConfig ? {
           IPROYAL_HOST: ipRoyalConfig.host,
@@ -244,6 +247,14 @@ export class BetManagementConstruct extends Construct {
     // Turnkey secret access (for embedded wallet signing)
     secrets.grantTurnkeySecretRead(this.betExecutor);
     secrets.grantTurnkeySecretRead(this.marketResolutionHandler); // For fee collection
+
+    // Allow bet executor to invoke Sweden proxy Lambda
+    this.betExecutor.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ['lambda:InvokeFunction'],
+        resources: [proxyLambdaArn],
+      })
+    );
 
     // WebSocket permission for notification handler
     if (websocket) {

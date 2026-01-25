@@ -34,6 +34,9 @@ export function configurePolymarketProxy(lambdaArn: string): void {
 
     // Check if this is a Polymarket request
     if (shouldUseProxy(url)) {
+      if (url.includes('/order')) {
+        logger.info('Routing Polymarket order request through Lambda proxy', { url });
+      }
       logger.debug('Using Lambda proxy for Polymarket request', { url });
       return proxyAdapter(config);
     }

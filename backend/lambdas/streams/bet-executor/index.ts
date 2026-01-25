@@ -40,7 +40,7 @@ import { JsonRpcProvider } from 'ethers';
 import type { BetEntity, BetStatus, BuilderCredentials } from '../../shared/types';
 import { fetchMarketByConditionId } from '../../shared/gamma-client';
 import { isMarketBettable, checkMarketAcceptingOrders } from '../../shared/clob-client';
-import { applyProxyPatch } from '../../shared/proxy-patch';
+import { configurePolymarketProxy } from '../../shared/configure-proxy';
 
 const log = createLogger('bet-executor');
 
@@ -54,10 +54,16 @@ const secretsClient = new SecretsManagerClient({});
 const BUILDER_SECRET_ARN = process.env.BUILDER_SECRET_ARN;
 
 /**
- * Apply proxy patch for Polymarket requests (cold start only)
+ * Configure Sweden Lambda proxy for Polymarket requests (cold start only)
  */
 function initProxy(): void {
-  applyProxyPatch();
+  const proxyArn = process.env.HTTP_PROXY_LAMBDA_ARN;
+  if (!proxyArn) {
+    log.warn('HTTP_PROXY_LAMBDA_ARN not set - Polymarket proxy disabled');
+    return;
+  }
+  log.info('Configuring Lambda proxy for Polymarket requests', { proxyArn });
+  configurePolymarketProxy(proxyArn);
 }
 
 /**

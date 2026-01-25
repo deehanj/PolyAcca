@@ -93,20 +93,24 @@ async function handleWithdraw(
     return errorResponse(404, 'User not found');
   }
 
+  if (!user.embeddedWalletAddress) {
+    return errorResponse(400, 'No embedded wallet found. Please re-authenticate.');
+  }
+
   if (!user.polymarketSafeAddress) {
     return errorResponse(400, 'No Safe wallet found. Please re-authenticate.');
   }
 
   logger.info('Processing withdraw with permit', {
     walletAddress,
-    safeWalletAddress: user.polymarketSafeAddress,
+    embeddedWalletAddress: user.embeddedWalletAddress,
     amount,
     destination: walletAddress,
   });
 
   // Execute transfer using permit (platform wallet pays gas)
   const result = await transferUsdcWithPlatformGas(
-    user.polymarketSafeAddress,
+    user.embeddedWalletAddress,
     walletAddress, // Destination is user's connected wallet
     amount
   );
@@ -114,7 +118,7 @@ async function handleWithdraw(
   if (!result.success) {
     logger.error('Withdraw failed', {
       walletAddress,
-      safeWalletAddress: user.polymarketSafeAddress,
+      embeddedWalletAddress: user.embeddedWalletAddress,
       amount,
       error: result.error,
     });

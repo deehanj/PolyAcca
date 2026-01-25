@@ -96,7 +96,21 @@ export function applyProxyPatch(): void {
     const host = getHost(options);
 
     if (shouldProxy(host)) {
-      logger.debug('Proxying HTTPS request', { host });
+      if (options && typeof options === 'object') {
+        const opts = options as { path?: string; method?: string };
+        if (opts.path?.includes('/order')) {
+          logger.info('Proxying Polymarket order request', {
+            host,
+            path: opts.path,
+            method: opts.method ?? 'GET',
+            proxyHost: 'geo.iproyal.com',
+          });
+        } else {
+          logger.debug('Proxying HTTPS request', { host });
+        }
+      } else {
+        logger.debug('Proxying HTTPS request', { host });
+      }
       if (options && typeof options === 'object') {
         (options as { agent?: unknown }).agent = proxyAgent;
       }
@@ -117,7 +131,21 @@ export function applyProxyPatch(): void {
     const host = getHost(options);
 
     if (shouldProxy(host)) {
-      logger.debug('Proxying HTTP request', { host });
+      if (options && typeof options === 'object') {
+        const opts = options as { path?: string; method?: string };
+        if (opts.path?.includes('/order')) {
+          logger.info('Proxying Polymarket order request', {
+            host,
+            path: opts.path,
+            method: opts.method ?? 'GET',
+            proxyHost: 'geo.iproyal.com',
+          });
+        } else {
+          logger.debug('Proxying HTTP request', { host });
+        }
+      } else {
+        logger.debug('Proxying HTTP request', { host });
+      }
       if (options && typeof options === 'object') {
         (options as { agent?: unknown }).agent = proxyAgent;
       }

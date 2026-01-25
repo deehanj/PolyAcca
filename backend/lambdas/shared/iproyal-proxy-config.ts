@@ -107,6 +107,13 @@ export function configureIPRoyalProxy(): void {
           url,
           method: config.method,
         });
+        if (url && url.includes('/order')) {
+          logger.info('Routing Polymarket order request through IPRoyal proxy', {
+            url,
+            method: config.method,
+            proxyHost: PROXY_CONFIG.host,
+          });
+        }
         config.httpsAgent = proxyAgent;
         config.httpAgent = proxyAgent;
       }
